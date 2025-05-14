@@ -10,15 +10,41 @@ import {
   Settings,
   Package,
   FileText,
-  BarChart,
-  Layers,
+  Play,
+  Monitor,
+  ChevronDown,
+  ChevronRight,
+  Tv,
+  CreditCard,
+  UserCircle,
+  Ticket,
+  Computer
 } from 'lucide-react'
+import { useState } from 'react'
 
-const adminNavItems = [
+interface SubmenuItem {
+  title: string;
+  href: string;
+}
+
+interface NavItem {
+  title: string;
+  href?: string;
+  icon: any;
+  submenu?: boolean;
+  submenuItems?: SubmenuItem[];
+}
+
+const adminNavItems: NavItem[] = [
   {
-    title: 'Dashboard',
+    title: 'Tableau de bord',
     href: '/admin',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Clients',
+    href: '/admin/clients',
+    icon: Users,
   },
   {
     title: 'Produits',
@@ -31,24 +57,26 @@ const adminNavItems = [
     icon: Package,
   },
   {
+    title: 'Streaming',
+    icon: Play,
+    submenu: true,
+    submenuItems: [
+      { title: 'Plateformes', href: '/admin/streaming/platforms' },
+      { title: 'Offres', href: '/admin/streaming/offers' },
+      { title: 'Comptes', href: '/admin/streaming/accounts' },
+      { title: 'Profiles', href: '/admin/streaming/profiles' },
+      { title: 'Abonnements', href: '/admin/streaming/subscriptions' },
+    ]
+  },
+  {
     title: 'Commandes',
     href: '/admin/orders',
     icon: FileText,
   },
   {
-    title: 'Utilisateurs',
-    href: '/admin/users',
-    icon: Users,
-  },
-  {
-    title: 'Rapports',
-    href: '/admin/reports',
-    icon: BarChart,
-  },
-  {
-    title: 'Plateformes',
-    href: '/admin/platforms',
-    icon: Layers,
+    title: 'CyberCafé',
+    href: '/admin/cybercafe',
+    icon: Computer,
   },
   {
     title: 'Paramètres',
@@ -58,7 +86,15 @@ const adminNavItems = [
 ]
 
 function AdminSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname() || '';
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(
+    // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
+    pathname.startsWith('/admin/streaming') ? 'Streaming' : null
+  )
+
+  const toggleSubmenu = (title: string) => {
+    setOpenSubmenu(openSubmenu === title ? null : title)
+  }
 
   return (
     <aside className="w-64 bg-slate-900 text-white min-h-screen flex flex-col">
@@ -71,19 +107,62 @@ function AdminSidebar() {
       <nav className="flex-1 p-4">
         <ul className="space-y-1">
           {adminNavItems.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                  pathname === item.href
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-              </Link>
+            <li key={item.title}>
+              {item.submenu ? (
+                <div className="mb-1">
+                  <button
+                    onClick={() => toggleSubmenu(item.title)}
+                    className={cn(
+                      'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                      pathname.startsWith(`/admin/${item.title.toLowerCase()}`)
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </div>
+                    {openSubmenu === item.title ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </button>
+                  {openSubmenu === item.title && (
+                    <ul className="mt-1 ml-4 space-y-1 border-l border-slate-700 pl-2">
+                      {item.submenuItems?.map((subItem) => (
+                        <li key={subItem.href}>
+                          <Link
+                            href={subItem.href}
+                            className={cn(
+                              'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                              pathname === subItem.href
+                                ? 'bg-slate-800 text-white'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            )}
+                          >
+                            {subItem.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href={item.href || '#'}
+                  className={cn(
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                    pathname === item.href
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.title}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

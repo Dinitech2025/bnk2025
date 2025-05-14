@@ -30,6 +30,7 @@ declare module "next-auth/jwt" {
   }
 }
 
+// Définir les options d'authentification
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
   session: {
@@ -98,5 +99,6 @@ export const authOptions: NextAuthOptions = {
   },
 }
 
+// Créer le gestionnaire d'API NextAuth
 const handler = NextAuth(authOptions)
 export { handler as GET, handler as POST } 

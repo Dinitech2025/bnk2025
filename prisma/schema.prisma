@@ -10,10 +10,21 @@ datasource db {
 model User {
   id                  String             @id @default(cuid())
   name                String?
+  firstName           String?
+  lastName            String?
   email               String             @unique
   emailVerified       DateTime?
   password            String
   image               String?
+  phone               String?
+  birthDate           DateTime?
+  gender              String?
+  preferredLanguage   String?            @default("fr")
+  newsletter          Boolean            @default(false)
+  notes               String?
+  customerType        String?            @default("INDIVIDUAL")
+  companyName         String?
+  vatNumber           String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   role                String             @default("CLIENT")
@@ -24,6 +35,8 @@ model User {
   activeSubscriptions UserSubscription[]
 
   @@index([role])
+  @@index([email])
+  @@index([phone])
 }
 
 model Session {
@@ -35,17 +48,18 @@ model Session {
 }
 
 model Address {
-  id        String  @id @default(cuid())
-  userId    String
-  type      String
-  street    String
-  city      String
-  state     String?
-  zipCode   String
-  country   String
-  isDefault Boolean @default(false)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders    Order[] @relation("shippingAddress")
+  id          String  @id @default(cuid())
+  userId      String
+  type        String
+  street      String
+  city        String
+  state       String?
+  zipCode     String
+  country     String
+  isDefault   Boolean @default(false)
+  phoneNumber String?
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[] @relation("shippingAddress")
 }
 
 model Category {
@@ -148,8 +162,8 @@ model AccountProfile {
   profileSlot    Int
   isAssigned     Boolean       @default(false)
   subscriptionId String?
-  account        Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
   subscription   Subscription? @relation("ProfileAssignment", fields: [subscriptionId], references: [id])
+  account        Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
 }
 
 model Offer {
@@ -181,8 +195,8 @@ model PlatformOffer {
   isDefault     Boolean        @default(false)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  offer         Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
   platform      Platform       @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  offer         Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
 
   @@unique([offerId, platformId])
@@ -208,10 +222,10 @@ model Subscription {
   cancellationReason String?
   platformOfferId    String?
   assignedProfiles   AccountProfile[]   @relation("ProfileAssignment")
-  offer              Offer              @relation(fields: [offerId], references: [id])
-  platformOffer      PlatformOffer?     @relation(fields: [platformOfferId], references: [id])
-  account            Account            @relation(fields: [accountId], references: [id])
   order              Order?             @relation(fields: [orderId], references: [id])
+  account            Account            @relation(fields: [accountId], references: [id])
+  platformOffer      PlatformOffer?     @relation(fields: [platformOfferId], references: [id])
+  offer              Offer              @relation(fields: [offerId], references: [id])
   userSubscriptions  UserSubscription[]
   Subscription_A     Subscription[]     @relation("RelatedSubscriptions")
   Subscription_B     Subscription[]     @relation("RelatedSubscriptions")
@@ -228,8 +242,8 @@ model UserSubscription {
   subscriptionId String
   isOwner        Boolean       @default(false)
   userProfiles   UserProfile[]
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserProfile {
@@ -243,9 +257,9 @@ model UserProfile {
   preferences        String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
-  avatarMedia        Media?           @relation("MediaToUserProfile", fields: [avatarMediaId], references: [id])
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   userSubscription   UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarMedia        Media?           @relation("MediaToUserProfile", fields: [avatarMediaId], references: [id])
 }
 
 model Order {
@@ -264,8 +278,8 @@ model Order {
   notes             String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
-  user              User           @relation(fields: [userId], references: [id])
   shippingAddress   Address?       @relation("shippingAddress", fields: [shippingAddressId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
   items             OrderItem[]
   subscriptions     Subscription[]
 }
@@ -280,10 +294,10 @@ model OrderItem {
   productId  String?
   serviceId  String?
   offerId    String?
-  order      Order    @relation(fields: [orderId], references: [id])
-  product    Product? @relation(fields: [productId], references: [id])
-  service    Service? @relation(fields: [serviceId], references: [id])
   offer      Offer?   @relation(fields: [offerId], references: [id])
+  service    Service? @relation(fields: [serviceId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id])
+  order      Order    @relation(fields: [orderId], references: [id])
 }
 
 model Media {
@@ -320,4 +334,4 @@ model Employee {
   permissions String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-} 
+}
