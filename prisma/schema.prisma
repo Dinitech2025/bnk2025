@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String             @id @default(cuid())
+  name                String?
+  email               String             @unique
+  emailVerified       DateTime?
+  password            String
+  image               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  role                String             @default("CLIENT")
+  addresses           Address[]
+  orders              Order[]
+  sessions            Session[]
+  userProfiles        UserProfile[]
+  activeSubscriptions UserSubscription[]
+
+  @@index([role])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  type      String
+  street    String
+  city      String
+  state     String?
+  zipCode   String
+  country   String
+  isDefault Boolean @default(false)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[] @relation("shippingAddress")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  parentId    String?
+  image       String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  services    Service[]
+}
+
+model Product {
+  id             String             @id @default(cuid())
+  name           String
+  slug           String             @unique
+  description    String?
+  price          Decimal
+  compareAtPrice Decimal?
+  sku            String?            @unique
+  barcode        String?
+  inventory      Int                @default(0)
+  weight         Decimal?
+  dimensions     String?
+  categoryId     String?
+  featured       Boolean            @default(false)
+  published      Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  orderItems     OrderItem[]
+  category       Category?          @relation(fields: [categoryId], references: [id])
+  attributes     ProductAttribute[]
+  images         Media[]            @relation("MediaToProduct")
+}
+
+model ProductAttribute {
+  id        String  @id @default(cuid())
+  productId String
+  name      String
+  value     String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Service {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  description String?
+  price       Decimal
+  duration    Int
+  categoryId  String?
+  published   Boolean     @default(true)
+  orderItems  OrderItem[]
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  images      Media[]     @relation("MediaToService")
+}
+
+model Platform {
+  id                    String          @id @default(cuid())
+  name                  String
+  slug                  String          @unique
+  description           String?
+  logo                  String?
+  logoMediaId           String?
+  websiteUrl            String?
+  apiConfig             String?
+  maxProfilesPerAccount Int             @default(5)
+  isActive              Boolean         @default(true)
+  supportEmail          String?
+  supportPhone          String?
+  termsUrl              String?
+  privacyUrl            String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  accounts              Account[]
+  logoMedia             Media?          @relation("MediaToPlatform", fields: [logoMediaId], references: [id])
+  platformOffers        PlatformOffer[]
+
+  @@index([isActive])
+}
+
+model Account {
+  id              String           @id @default(cuid())
+  platformId      String
+  username        String?
+  email           String?
+  password        String?
+  status          String           @default("AVAILABLE")
+  platform        Platform         @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  accountProfiles AccountProfile[]
+  subscriptions   Subscription[]
+}
+
+model AccountProfile {
+  id             String        @id @default(cuid())
+  accountId      String
+  profileSlot    Int
+  isAssigned     Boolean       @default(false)
+  subscriptionId String?
+  account        Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation("ProfileAssignment", fields: [subscriptionId], references: [id])
+}
+
+model Offer {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  price          Decimal
+  duration       Int
+  profileCount   Int
+  features       String?
+  isPopular      Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  maxUsers       Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  orderItems     OrderItem[]
+  platformOffers PlatformOffer[]
+  subscriptions  Subscription[]
+  images         Media[]         @relation("MediaToOffer")
+
+  @@index([isActive])
+}
+
+model PlatformOffer {
+  id            String         @id @default(cuid())
+  offerId       String
+  platformId    String
+  profileCount  Int
+  isDefault     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  offer         Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  platform      Platform       @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@unique([offerId, platformId])
+  @@index([offerId])
+  @@index([platformId])
+  @@index([isDefault])
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  startDate          DateTime
+  endDate            DateTime
+  status             String             @default("PENDING")
+  autoRenew          Boolean            @default(true)
+  offerId            String
+  accountId          String
+  orderId            String?
+  lastRenewalDate    DateTime?
+  nextRenewalDate    DateTime?
+  cancellationDate   DateTime?
+  cancellationReason String?
+  platformOfferId    String?
+  assignedProfiles   AccountProfile[]   @relation("ProfileAssignment")
+  offer              Offer              @relation(fields: [offerId], references: [id])
+  platformOffer      PlatformOffer?     @relation(fields: [platformOfferId], references: [id])
+  account            Account            @relation(fields: [accountId], references: [id])
+  order              Order?             @relation(fields: [orderId], references: [id])
+  userSubscriptions  UserSubscription[]
+  Subscription_A     Subscription[]     @relation("RelatedSubscriptions")
+  Subscription_B     Subscription[]     @relation("RelatedSubscriptions")
+
+  @@index([offerId])
+  @@index([accountId])
+  @@index([status])
+  @@index([platformOfferId])
+}
+
+model UserSubscription {
+  id             String        @id @default(cuid())
+  userId         String
+  subscriptionId String
+  isOwner        Boolean       @default(false)
+  userProfiles   UserProfile[]
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model UserProfile {
+  id                 String           @id @default(cuid())
+  userSubscriptionId String
+  userId             String
+  name               String
+  avatar             String?
+  avatarMediaId      String?
+  pin                String?
+  preferences        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  avatarMedia        Media?           @relation("MediaToUserProfile", fields: [avatarMediaId], references: [id])
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userSubscription   UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id                String         @id @default(cuid())
+  userId            String
+  orderNumber       String         @unique
+  status            String         @default("PENDING")
+  total             Decimal
+  subtotal          Decimal
+  tax               Decimal        @default(0)
+  shipping          Decimal        @default(0)
+  discount          Decimal        @default(0)
+  shippingAddressId String?
+  paymentMethod     String?
+  paymentStatus     String         @default("PENDING")
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id])
+  shippingAddress   Address?       @relation("shippingAddress", fields: [shippingAddressId], references: [id])
+  items             OrderItem[]
+  subscriptions     Subscription[]
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  quantity   Int      @default(1)
+  unitPrice  Decimal
+  totalPrice Decimal
+  itemType   String
+  productId  String?
+  serviceId  String?
+  offerId    String?
+  order      Order    @relation(fields: [orderId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id])
+  service    Service? @relation(fields: [serviceId], references: [id])
+  offer      Offer?   @relation(fields: [offerId], references: [id])
+}
+
+model Media {
+  id           String        @id @default(cuid())
+  name         String
+  fileName     String
+  mimeType     String
+  path         String
+  size         Int
+  alt          String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  platforms    Platform[]    @relation("MediaToPlatform")
+  userProfiles UserProfile[] @relation("MediaToUserProfile")
+  offers       Offer[]       @relation("MediaToOffer")
+  products     Product[]     @relation("MediaToProduct")
+  services     Service[]     @relation("MediaToService")
+}
+
+model Setting {
+  id    String  @id @default(cuid())
+  key   String  @unique
+  value String?
+  type  String
+}
+
+model Employee {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String   @unique
+  role        String   @default("employee")
+  avatar      String?
+  permissions String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+} 
