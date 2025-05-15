@@ -263,7 +263,7 @@ export default function AddOfferPage() {
               <div className="space-y-4">
                 <RadioGroup
                   value={formData.type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}
+                  onValueChange={(value: "SINGLE" | "MULTI") => setFormData(prev => ({ ...prev, type: value }))}
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="SINGLE" id="single" />
