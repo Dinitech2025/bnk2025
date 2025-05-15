@@ -171,8 +171,8 @@ async function main() {
       websiteUrl: 'https://www.netflix.com',
       maxProfilesPerAccount: 5,
       isActive: true,
-      supportEmail: 'support@netflix.com',
-      supportPhone: '+33123456789',
+      type: 'VIDEO',
+      pricingModel: 'SUBSCRIPTION'
     },
   });
 
@@ -186,8 +186,8 @@ async function main() {
       websiteUrl: 'https://www.disneyplus.com',
       maxProfilesPerAccount: 4,
       isActive: true,
-      supportEmail: 'support@disneyplus.com',
-      supportPhone: '+33987654321',
+      type: 'VIDEO',
+      pricingModel: 'SUBSCRIPTION'
     },
   });
 
@@ -269,19 +269,6 @@ async function main() {
           isAssigned: false,
         })),
       },
-    },
-  });
-
-  // Création d'un employé
-  await prisma.employee.upsert({
-    where: { email: 'john.doe@boutiknaka.com' },
-    update: {},
-    create: {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john.doe@boutiknaka.com',
-      role: 'manager',
-      permissions: JSON.stringify(['MANAGE_USERS', 'MANAGE_PRODUCTS', 'MANAGE_ORDERS']),
     },
   });
 
