@@ -1,49 +1,61 @@
 import { PrismaClient } from '@prisma/client';
-import { hash } from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Début du seeding...');
+  console.log('🌱 Début de l\'initialisation de la base de données...');
 
   // Suppression des données existantes
   await prisma.user.deleteMany({});
   
-  // Création des utilisateurs de test
-  const hashedPassword = await hash('password123', 10);
-  
-  // Utilisateur Admin
+  // Création de l'administrateur
+  const adminPassword = await bcrypt.hash('admin123', 12);
   const admin = await prisma.user.create({
     data: {
-      name: 'Administrateur',
       email: 'admin@boutiknaka.com',
-      password: hashedPassword,
+      name: 'Admin',
+      firstName: 'Admin',
+      lastName: 'System',
+      password: adminPassword,
       role: 'ADMIN',
+      preferredLanguage: 'fr',
+      customerType: 'INDIVIDUAL',
     },
   });
-  console.log('Utilisateur admin créé:', admin.email);
+  console.log('✅ Administrateur créé:', admin.email);
   
-  // Utilisateur Staff
+  // Création du staff
+  const staffPassword = await bcrypt.hash('staff123', 12);
   const staff = await prisma.user.create({
     data: {
-      name: 'Staff',
       email: 'staff@boutiknaka.com',
-      password: hashedPassword,
+      name: 'Staff',
+      firstName: 'Staff',
+      lastName: 'Member',
+      password: staffPassword,
       role: 'STAFF',
+      preferredLanguage: 'fr',
+      customerType: 'INDIVIDUAL',
     },
   });
-  console.log('Utilisateur staff créé:', staff.email);
+  console.log('✅ Staff créé:', staff.email);
   
-  // Utilisateur Client
+  // Création d'un client test
+  const clientPassword = await bcrypt.hash('client123', 12);
   const client = await prisma.user.create({
     data: {
+      email: 'client@example.com',
       name: 'Client',
-      email: 'client@boutiknaka.com',
-      password: hashedPassword,
+      firstName: 'John',
+      lastName: 'Doe',
+      password: clientPassword,
       role: 'CLIENT',
+      preferredLanguage: 'fr',
+      customerType: 'INDIVIDUAL',
     },
   });
-  console.log('Utilisateur client créé:', client.email);
+  console.log('✅ Client créé:', client.email);
 
   // Création d'une adresse pour le client
   await prisma.address.create({
@@ -311,12 +323,12 @@ async function main() {
 
   console.log('✅ Paramètres généraux initialisés avec succès!');
 
-  console.log('Seeding terminé!');
+  console.log('✨ Initialisation terminée');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Erreur lors de l\'initialisation:', e);
     process.exit(1);
   })
   .finally(async () => {

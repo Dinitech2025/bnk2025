@@ -37,6 +37,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 jours
   },
   pages: {
     signIn: '/auth/login',
@@ -52,34 +53,52 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.error('Identifiants manquants:', { email: credentials?.email })
           throw new Error('Identifiants requis')
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        })
+        try {
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email,
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              password: true,
+              role: true,
+              image: true,
+            },
+          })
 
-        if (!user || !user.password) {
-          throw new Error('Utilisateur non trouvé')
-        }
+          if (!user || !user.password) {
+            console.error('Utilisateur non trouvé:', credentials.email)
+            throw new Error('Utilisateur non trouvé')
+          }
 
-        const passwordMatch = await bcrypt.compare(
-          credentials.password,
-          user.password
-        )
+          const passwordMatch = await bcrypt.compare(
+            credentials.password,
+            user.password
+          )
 
-        if (!passwordMatch) {
-          throw new Error('Mot de passe incorrect')
-        }
+          if (!passwordMatch) {
+            console.error('Mot de passe incorrect pour:', credentials.email)
+            throw new Error('Mot de passe incorrect')
+          }
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          image: user.image,
+          console.log('Connexion réussie pour:', credentials.email, 'avec le rôle:', user.role)
+          
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            image: user.image,
+          }
+        } catch (error) {
+          console.error('Erreur lors de l\'authentification:', error)
+          throw error
         }
       },
     }),
@@ -102,6 +121,7 @@ export const authOptions: NextAuthOptions = {
       return session
     },
   },
+  debug: process.env.NODE_ENV === 'development',
 }
 
 export async function getSession() {
