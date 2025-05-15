@@ -1,106 +1,108 @@
-# BoutikNaka - Système d'authentification
+# Projet Next.js avec TypeScript
 
-Ce projet implémente un système d'authentification complet pour une application e-commerce avec deux interfaces distinctes :
-- **Storefront** : Interface publique accessible à tous les utilisateurs (publics et clients connectés)
-- **Panel d'administration** : Interface réservée aux administrateurs et au personnel (staff)
+Ce projet est une application web moderne construite avec Next.js et TypeScript, utilisant Prisma comme ORM et Tailwind CSS pour le style.
 
-## Structure de l'application
+## Structure du Projet
 
 ```
-app/
-├── api/
-│   └── auth/
-│       ├── [...nextauth]/
-│       │   └── route.ts      # Configuration NextAuth
-│       └── register/
-│           └── route.ts      # API d'inscription
-├── auth/
-│   ├── login/
-│   │   └── page.tsx          # Page de connexion
-│   ├── register/
-│   │   └── page.tsx          # Page d'inscription
-│   └── unauthorized/
-│       └── page.tsx          # Page d'erreur d'accès
-├── admin/
-│   ├── layout.tsx            # Layout admin (protégé)
-│   └── page.tsx              # Dashboard admin
-├── storefront/
-│   ├── layout.tsx            # Layout storefront (public)
-│   └── page.tsx              # Page d'accueil publique
-├── layout.tsx                # Layout racine
-└── page.tsx                  # Redirection vers storefront
-
-lib/
-├── auth.ts                   # Fonctions d'authentification
-├── auth-provider.tsx         # Provider d'authentification
-├── db.ts                     # Client Prisma
-└── utils.ts                  # Utilitaires
-
-components/
-├── admin/
-│   ├── header.tsx            # En-tête admin
-│   └── sidebar.tsx           # Barre latérale admin
-├── ui/                       # Composants d'interface
-│   ├── avatar.tsx
-│   ├── button.tsx
-│   ├── dropdown-menu.tsx
-│   ├── input.tsx
-│   └── label.tsx
-└── user-menu.tsx             # Menu utilisateur pour le storefront
-
-middleware.ts                 # Protection des routes
+├── app/                    # Dossier principal des routes Next.js
+│   ├── admin/             # Interface d'administration
+│   ├── api/               # Routes API
+│   ├── auth/              # Pages d'authentification
+│   ├── profile/           # Pages de profil utilisateur
+│   ├── products/          # Pages des produits
+│   ├── services/          # Pages des services
+│   ├── contact/           # Page de contact
+│   ├── layout.tsx         # Layout principal de l'application
+│   ├── page.tsx           # Page d'accueil
+│   └── globals.css        # Styles globaux
+│
+├── components/            # Composants réutilisables
+│   ├── ui/               # Composants UI génériques
+│   ├── admin/            # Composants spécifiques à l'admin
+│   ├── site-header.tsx   # En-tête du site
+│   ├── site-footer.tsx   # Pied de page du site
+│   └── user-menu.tsx     # Menu utilisateur
+│
+├── lib/                  # Utilitaires et fonctions partagées
+├── prisma/              # Configuration et schémas Prisma
+├── public/              # Fichiers statiques
+├── types/               # Types TypeScript personnalisés
+└── middleware.ts        # Middleware Next.js
 ```
 
-## Fonctionnalités
+## Configuration Technique
 
-### Authentification
-- Connexion avec email/mot de passe
-- Inscription de nouveaux utilisateurs
-- Protection des routes basée sur les rôles
-- Sessions persistantes avec JWT
+- **Framework**: Next.js
+- **Language**: TypeScript
+- **Base de données**: Prisma ORM
+- **Styles**: Tailwind CSS
+- **Authentification**: Intégrée via le dossier auth/
+- **API**: Routes API Next.js dans le dossier api/
 
-### Rôles utilisateurs
-- **ADMIN** : Accès complet au panel d'administration
-- **STAFF** : Accès au panel d'administration avec restrictions
-- **CLIENT** : Accès au storefront avec fonctionnalités utilisateur
+## Fonctionnalités Principales
 
-### Interfaces
-- **Storefront** : Interface publique pour les clients et visiteurs
-- **Admin Panel** : Interface protégée pour la gestion du site
+- 🔐 Système d'authentification complet
+- 👤 Gestion des profils utilisateurs
+- 📊 Interface d'administration
+- 🛍️ Gestion des produits
+- 🔧 Gestion des services
+- 📱 Interface responsive
+- 📝 Formulaire de contact
 
-## Connexion rapide
+## Scripts Disponibles
 
-Pour faciliter les tests, trois utilisateurs sont préconfigurés :
+\`\`\`bash
+npm run dev      # Lance le serveur de développement
+npm run build    # Construit l'application pour la production
+npm run start    # Démarre l'application en mode production
+\`\`\`
 
-| Type    | Email                  | Mot de passe |
-|---------|------------------------|--------------|
-| Admin   | admin@boutiknaka.com   | password123  |
-| Staff   | staff@boutiknaka.com   | password123  |
-| Client  | client@boutiknaka.com  | password123  |
+## Configuration Requise
 
-## Démarrage
+- Node.js 18.x ou supérieur
+- npm ou yarn
+- Base de données compatible avec Prisma
 
-1. Installer les dépendances :
-   ```
-   npm install
-   ```
+## Installation
 
-2. Configurer la base de données :
-   ```
-   npx prisma generate
-   npx prisma migrate dev
-   ```
+1. Clonez le repository
+2. Installez les dépendances : \`npm install\`
+3. Configurez les variables d'environnement
+4. Lancez les migrations Prisma : \`npx prisma migrate dev\`
+5. Démarrez le serveur : \`npm run dev\`
 
-3. Initialiser les données de test :
-   ```
-   npm run prisma:seed
-   ```
+## Structure des Composants
 
-4. Lancer l'application :
-   ```
-   npm run dev
-   ```
+### Components Principaux
+- `site-header.tsx`: Navigation principale et en-tête
+- `site-footer.tsx`: Pied de page avec liens et informations
+- `user-menu.tsx`: Menu déroulant pour les utilisateurs connectés
+- `ImageCropper.tsx`: Composant pour le recadrage d'images
 
-5. Accéder à l'application :
-   - Storefront : http://localhost:3000/storefront
-   - Admin : http://localhost:3000/admin (nécessite authentification) 
+### Composants UI
+Le dossier `components/ui/` contient des composants réutilisables pour l'interface utilisateur.
+
+## Routes Principales
+
+- `/` - Page d'accueil
+- `/admin` - Interface d'administration
+- `/profile` - Profil utilisateur
+- `/products` - Liste des produits
+- `/services` - Services disponibles
+- `/contact` - Formulaire de contact
+- `/auth` - Pages d'authentification
+
+## Middleware
+
+Le fichier `middleware.ts` gère :
+- La protection des routes
+- La redirection des utilisateurs
+- La validation des sessions
+
+## Configuration Supplémentaire
+
+- `next.config.js` - Configuration Next.js
+- `tailwind.config.js` - Configuration Tailwind CSS
+- `tsconfig.json` - Configuration TypeScript
+- `postcss.config.js` - Configuration PostCSS 

@@ -18,7 +18,8 @@ import {
   CreditCard,
   UserCircle,
   Ticket,
-  Computer
+  Computer,
+  Globe
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -80,8 +81,12 @@ const adminNavItems: NavItem[] = [
   },
   {
     title: 'Paramètres',
-    href: '/admin/settings',
     icon: Settings,
+    submenu: true,
+    submenuItems: [
+      { title: 'Paramètres généraux', href: '/admin/settings/general' },
+      { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
+    ]
   },
 ]
 
@@ -89,7 +94,11 @@ function AdminSidebar() {
   const pathname = usePathname() || '';
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(
     // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
-    pathname.startsWith('/admin/streaming') ? 'Streaming' : null
+    pathname.startsWith('/admin/streaming') 
+      ? 'Streaming' 
+      : pathname.startsWith('/admin/settings')
+        ? 'Paramètres'
+        : null
   )
 
   const toggleSubmenu = (title: string) => {

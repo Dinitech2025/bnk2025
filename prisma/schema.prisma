@@ -128,20 +128,24 @@ model Platform {
   logo                  String?
   logoMediaId           String?
   websiteUrl            String?
-  apiConfig             String?
-  maxProfilesPerAccount Int             @default(5)
+  type                  String          @default("VIDEO")
+  hasProfiles          Boolean         @default(true)
+  maxProfilesPerAccount Int?            @default(5)
   isActive              Boolean         @default(true)
-  supportEmail          String?
-  supportPhone          String?
-  termsUrl              String?
-  privacyUrl            String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+  tags                  String?         // Stocké comme JSON: ["tag1", "tag2", "tag3"]
+  popularity            Float?          @default(0)
+  features              String?         // Stocké comme JSON: ["feature1", "feature2"]
+  pricingModel          String?         @default("SUBSCRIPTION") // SUBSCRIPTION, ONE_TIME, FREE, FREEMIUM
   accounts              Account[]
   logoMedia             Media?          @relation("MediaToPlatform", fields: [logoMediaId], references: [id])
   platformOffers        PlatformOffer[]
 
   @@index([isActive])
+  @@index([type])
+  @@index([popularity])
+  @@index([pricingModel])
 }
 
 model Account {
@@ -322,16 +326,4 @@ model Setting {
   key   String  @unique
   value String?
   type  String
-}
-
-model Employee {
-  id          String   @id @default(cuid())
-  firstName   String
-  lastName    String
-  email       String   @unique
-  role        String   @default("employee")
-  avatar      String?
-  permissions String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

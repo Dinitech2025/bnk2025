@@ -1,18 +1,18 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import { Toaster } from '@/components/ui/toaster'
+import { SonnerToast } from '@/components/ui/toast'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { AuthProvider } from '@/lib/auth-provider'
 import { LayoutWrapper } from '@/components/layout-wrapper'
+import { generateMetadata } from './metadata'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
-  title: 'Boutik Naka',
-  description: 'Boutique en ligne',
-}
+// Utiliser la fonction pour générer les métadonnées
+export { generateMetadata }
 
 export default async function RootLayout({
   children,
@@ -29,6 +29,7 @@ export default async function RootLayout({
             {children}
           </LayoutWrapper>
           <Toaster />
+          <SonnerToast />
         </AuthProvider>
       </body>
     </html>

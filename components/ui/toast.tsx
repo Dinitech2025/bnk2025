@@ -4,6 +4,7 @@ import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
+import { Toaster as Sonner } from "sonner"
 
 import { cn } from "@/lib/utils"
 
@@ -127,4 +128,87 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
-} 
+}
+
+// Composant Sonner pour les toasts modernes
+type SonnerToastProps = React.ComponentProps<typeof Sonner>
+
+const SonnerToast = ({ ...props }: SonnerToastProps) => {
+  return (
+    <Sonner
+      className={cn("toaster group", props.className)}
+      toastOptions={{
+        classNames: {
+          toast:
+            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
+          description: "group-[.toast]:text-muted-foreground",
+          actionButton:
+            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+          cancelButton:
+            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+        },
+      }}
+      {...props}
+    />
+  )
+}
+
+// Hook pour utiliser les toasts
+export const useToast = () => {
+  return {
+    toast: {
+      // Fonctions pour différents types de toasts
+      success: (options: { title?: string; description?: string }) => {
+        import("sonner").then(({ toast }) => {
+          toast.success(options.title, {
+            description: options.description,
+          })
+        })
+      },
+      error: (options: { title?: string; description?: string }) => {
+        import("sonner").then(({ toast }) => {
+          toast.error(options.title, {
+            description: options.description,
+          })
+        })
+      },
+      // Fonction générique
+      // @ts-ignore - Le type de toast est complexe
+      ...((options: any) => {
+        import("sonner").then(({ toast }) => {
+          toast(options.title, {
+            description: options.description,
+          })
+        })
+      }),
+    },
+  }
+}
+
+// Fonction simple pour les composants qui n'utilisent pas de hooks
+export const toast = {
+  success: (options: { title?: string; description?: string }) => {
+    import("sonner").then(({ toast }) => {
+      toast.success(options.title, {
+        description: options.description,
+      })
+    })
+  },
+  error: (options: { title?: string; description?: string }) => {
+    import("sonner").then(({ toast }) => {
+      toast.error(options.title, {
+        description: options.description,
+      })
+    })
+  },
+  // Version pour appeler directement avec un objet
+  show: (options: { title?: string; description?: string; variant?: string }) => {
+    import("sonner").then(({ toast }) => {
+      toast(options.title || '', {
+        description: options.description,
+      })
+    })
+  },
+}
+
+export { SonnerToast } 

@@ -146,8 +146,10 @@ async function main() {
   });
 
   // Création d'un service d'exemple
-  await prisma.service.create({
-    data: {
+  await prisma.service.upsert({
+    where: { slug: 'reparation-smartphone' },
+    update: {},
+    create: {
       name: 'Réparation Smartphone',
       slug: 'reparation-smartphone',
       description: 'Service de réparation pour tous types de smartphones',
@@ -271,8 +273,10 @@ async function main() {
   });
 
   // Création d'un employé
-  await prisma.employee.create({
-    data: {
+  await prisma.employee.upsert({
+    where: { email: 'john.doe@boutiknaka.com' },
+    update: {},
+    create: {
       firstName: 'John',
       lastName: 'Doe',
       email: 'john.doe@boutiknaka.com',
@@ -282,25 +286,43 @@ async function main() {
   });
 
   // Création de paramètres système
-  await prisma.setting.createMany({
-    data: [
-      {
-        key: 'site_name',
-        value: "Boutik'nakà",
-        type: 'string',
-      },
-      {
-        key: 'site_description',
-        value: 'Plateforme e-commerce et streaming',
-        type: 'string',
-      },
-      {
-        key: 'currency',
-        value: 'EUR',
-        type: 'string',
-      },
-    ],
-  });
+  console.log('🌱 Initialisation des paramètres généraux...');
+
+  const defaultSettings = [
+    { key: 'siteName', value: 'BoutikNaka', type: 'STRING' },
+    { key: 'siteDescription', value: 'Votre boutique en ligne pour tous vos besoins', type: 'TEXT' },
+    { key: 'siteTagline', value: 'Qualité et service à prix abordable', type: 'STRING' },
+    { key: 'contactEmail', value: 'contact@boutiknaka.com', type: 'STRING' },
+    { key: 'contactPhone', value: '+261 34 00 000 00', type: 'STRING' },
+    { key: 'address', value: 'Antananarivo, Madagascar', type: 'TEXT' },
+    { key: 'logoUrl', value: '/images/logo.png', type: 'IMAGE' },
+    { key: 'faviconUrl', value: '/favicon.ico', type: 'IMAGE' },
+    { key: 'adminLogoUrl', value: '/images/admin-logo.png', type: 'IMAGE' },
+    { key: 'currency', value: 'MGA', type: 'STRING' },
+    { key: 'currencySymbol', value: 'Ar', type: 'STRING' },
+    { key: 'facebookUrl', value: 'https://facebook.com/boutiknaka', type: 'STRING' },
+    { key: 'instagramUrl', value: 'https://instagram.com/boutiknaka', type: 'STRING' },
+    { key: 'twitterUrl', value: 'https://twitter.com/boutiknaka', type: 'STRING' },
+    { key: 'youtubeUrl', value: '', type: 'STRING' },
+    { key: 'footerText', value: '© 2023 BoutikNaka. Tous droits réservés.', type: 'TEXT' },
+    { key: 'metaTitle', value: 'BoutikNaka - Votre boutique en ligne', type: 'STRING' },
+    { key: 'metaDescription', value: 'BoutikNaka est votre boutique en ligne pour tous vos besoins numériques et électroniques.', type: 'TEXT' },
+    { key: 'metaKeywords', value: 'boutique, e-commerce, madagascar, streaming, produits, services', type: 'STRING' },
+    { key: 'sloganMG', value: 'Kalitao sy serivisy amin\'ny vidiny mora', type: 'STRING' },
+    { key: 'sloganFR', value: 'Qualité et service à prix abordable', type: 'STRING' },
+  ];
+
+  // Supprimer les paramètres existants
+  await prisma.setting.deleteMany({});
+
+  // Insérer les nouveaux paramètres
+  for (const setting of defaultSettings) {
+    await prisma.setting.create({
+      data: setting
+    });
+  }
+
+  console.log('✅ Paramètres généraux initialisés avec succès!');
 
   console.log('Seeding terminé!');
 }
