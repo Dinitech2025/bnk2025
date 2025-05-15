@@ -9,7 +9,7 @@
 /coverage
 
 # next.js
-#/.next/
+.next/
 /out/
 
 # production
@@ -57,3 +57,8 @@ next-env.d.ts
 # Logs
 logs
 *.log .next
+
+# New additions
+node_modules/
+.env.*
+!.env.example
