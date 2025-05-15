@@ -1,90 +1,148 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db";
-import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
 export async function GET(
-  req: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "ADMIN") {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!session) {
+      return NextResponse.json(
+        { error: "Non autorisé" },
+        { status: 401 }
+      );
     }
 
     const offer = await prisma.offer.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        platformOffers: {
+          include: {
+            platform: true
+          }
+        }
+      }
     });
 
     if (!offer) {
-      return new NextResponse("Offer not found", { status: 404 });
+      return NextResponse.json(
+        { error: "Offre non trouvée" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(offer);
   } catch (error) {
-    console.error("[OFFER_GET]", error);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("Erreur lors de la récupération de l'offre:", error);
+    return NextResponse.json(
+      { error: "Erreur lors de la récupération de l'offre" },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(
-  req: Request,
+export async function PUT(
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "ADMIN") {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!session) {
+      return NextResponse.json(
+        { error: "Non autorisé" },
+        { status: 401 }
+      );
     }
 
-    const body = await req.json();
-    const { 
-      name, 
-      description, 
-      price, 
-      duration, 
-      profileCount,
-      isPopular,
-      isActive,
-      maxUsers,
-      features 
-    } = body;
+    const data = await request.json();
 
-    if (!name || !price || !duration || !profileCount) {
-      return new NextResponse("Missing required fields", { status: 400 });
+    // Validation des données
+    if (!data.name || !data.price || !data.duration || !data.platformConfigs?.length) {
+      return NextResponse.json(
+        { error: "Données invalides" },
+        { status: 400 }
+      );
     }
 
+    // Mise à jour de l'offre
+    const offerData: Prisma.OfferUpdateInput = {
+      name: data.name,
+      description: data.description,
+      price: new Prisma.Decimal(data.price),
+      duration: data.duration,
+      profileCount: data.platformConfigs.reduce((sum: number, config: any) => sum + (config.profileCount || 1), 0),
+      isPopular: Boolean(data.isPopular),
+      isActive: data.isActive ?? true,
+      features: Array.isArray(data.features) ? JSON.stringify(data.features) : "[]"
+    };
+
+    // Supprimer les anciennes configurations de plateforme
+    await prisma.platformOffer.deleteMany({
+      where: { offerId: params.id }
+    });
+
+    // Créer les nouvelles configurations
+    await Promise.all(
+      data.platformConfigs.map((config: any) =>
+        prisma.platformOffer.create({
+          data: {
+            offerId: params.id,
+            platformId: config.platformId,
+            profileCount: config.profileCount || 1,
+            isDefault: Boolean(config.isDefault)
+          }
+        })
+      )
+    );
+
+    // Mettre à jour l'offre
     const offer = await prisma.offer.update({
       where: { id: params.id },
-      data: {
-        name,
-        description,
-        price,
-        duration,
-        profileCount,
-        isPopular: isPopular || false,
-        isActive: isActive ?? true,
-        maxUsers: maxUsers || 1,
-        features: features ? JSON.stringify(features) : null
+      data: offerData,
+      include: {
+        platformOffers: {
+          include: {
+            platform: true
+          }
+        }
       }
     });
 
     return NextResponse.json(offer);
   } catch (error) {
-    console.error("[OFFER_PATCH]", error);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("Erreur lors de la mise à jour de l'offre:", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return NextResponse.json(
+          { error: "Une offre avec ce nom existe déjà" },
+          { status: 400 }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Erreur lors de la mise à jour de l'offre" },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
-  req: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "ADMIN") {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!session) {
+      return NextResponse.json(
+        { error: "Non autorisé" },
+        { status: 401 }
+      );
     }
 
     // Vérifier si l'offre est utilisée dans des abonnements actifs
@@ -96,19 +154,23 @@ export async function DELETE(
     });
 
     if (activeSubscriptions.length > 0) {
-      return new NextResponse(
-        "Cannot delete offer with active subscriptions",
+      return NextResponse.json(
+        { error: "Impossible de supprimer une offre avec des abonnements actifs" },
         { status: 400 }
       );
     }
 
+    // Supprimer l'offre (les platformOffers seront supprimés automatiquement grâce aux relations)
     await prisma.offer.delete({
       where: { id: params.id }
     });
 
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[OFFER_DELETE]", error);
-    return new NextResponse("Internal error", { status: 500 });
+    console.error("Erreur lors de la suppression de l'offre:", error);
+    return NextResponse.json(
+      { error: "Erreur lors de la suppression de l'offre" },
+      { status: 500 }
+    );
   }
 } 
