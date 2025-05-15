@@ -294,7 +294,7 @@ export default function AddOfferPage() {
                               <div className="flex items-center mt-2">
                                 <Label className="mr-2">Profils :</Label>
                                 <Select
-                                  value={formData.platformConfigs.find(config => config.platformId === platform.id)?.profileCount.toString()}
+                                  value={String(formData.platformConfigs.find(config => config.platformId === platform.id)?.profileCount || 1)}
                                   onValueChange={(value) => handleProfileCountChange(platform.id, parseInt(value))}
                                 >
                                   <SelectTrigger className="w-20">
