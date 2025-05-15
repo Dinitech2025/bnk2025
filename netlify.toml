@@ -5,7 +5,7 @@
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_VERSION = "18"
-  DATABASE_URL = "prisma://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlfa2V5IjoiN2FkNGQ0NGEtNzliNy00N2Y2LTgzOWMtYmZkZGM0N2QwZjhlIiwidGVuYW50X2lkIjoiYWM3OGZlOGFiNjMwZGUzYTliOGU4ZjIwNDNkMDQ2OTQ2MDlkMTQ4Zjc4MmQxOTM2NzIzNzgzMGQ1ZDUyNzVkMSIsImludGVybmFsX3NlY3JldCI6IjRjMWVmZmQzLTViNDMtNDc4YS1iMDhkLWQyZjdkYjRlM2VlNCJ9.73ue4pNY9UKk-Egm_wTCZFXd1exwBfiRXx8q5Hts4YA"
+  DATABASE_URL = "prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlfa2V5IjoiNmI5OThiOTQtZjA3Yi00MGQ2LTgwMDEtNTE0Njk0NzE1NmEwIiwidGVuYW50X2lkIjoiYWM3OGZlOGFiNjMwZGUzYTliOGU4ZjIwNDNkMDQ2OTQ2MDlkMTQ4Zjc4MmQxOTM2NzIzNzgzMGQ1ZDUyNzVkMSIsImludGVybmFsX3NlY3JldCI6IjRjMWVmZmQzLTViNDMtNDc4YS1iMDhkLWQyZjdkYjRlM2VlNCJ9.njA8oim31DpetqngDDkoXUJShjVGn9ZPUWTVNzWX4uo"
   DIRECT_URL = "postgresql://bnk2025_user:Ue4Ue4Ue4@ep-polished-dawn-a5xv1qlp.eu-central-1.aws.neon.tech/bnk2025?sslmode=require"
   PRISMA_FORCE_GENERATION = "true"
 
