@@ -1,0 +1,42 @@
+{
+  "pages": {
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
+    ],
+    "/admin/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/layout.js"
+    ],
+    "/admin/streaming/platforms/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/streaming/platforms/page.js"
+    ],
+    "/admin/streaming/platforms/edit/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/admin/streaming/platforms/edit/[id]/page.css",
+      "static/chunks/app/admin/streaming/platforms/edit/[id]/page.js"
+    ],
+    "/admin/streaming/platforms/add/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/admin/streaming/platforms/add/page.css",
+      "static/chunks/app/admin/streaming/platforms/add/page.js"
+    ],
+    "/admin/streaming/platforms/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/streaming/platforms/[id]/page.js"
+    ]
+  }
+}

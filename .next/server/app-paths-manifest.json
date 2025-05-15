@@ -1,0 +1,7 @@
+{
+  "/page": "app/page.js",
+  "/admin/streaming/platforms/page": "app/admin/streaming/platforms/page.js",
+  "/admin/streaming/platforms/edit/[id]/page": "app/admin/streaming/platforms/edit/[id]/page.js",
+  "/admin/streaming/platforms/[id]/page": "app/admin/streaming/platforms/[id]/page.js",
+  "/admin/streaming/platforms/add/page": "app/admin/streaming/platforms/add/page.js"
+}
