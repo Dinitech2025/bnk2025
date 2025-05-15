@@ -9,18 +9,20 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { ImageUpload } from "@/components/image-upload";
 
 interface Offer {
   id: string;
   name: string;
-  description?: string;
+  description: string | null;
   price: number;
   duration: number;
   profileCount: number;
   maxUsers: number;
   isActive: boolean;
   isPopular: boolean;
-  features?: string;
+  features: string;
+  images: { id: string; path: string }[];
 }
 
 export default function EditOfferPage({ params }: { params: { id: string } }) {
@@ -67,7 +69,8 @@ export default function EditOfferPage({ params }: { params: { id: string } }) {
           duration: parseInt(formData.duration.toString()),
           profileCount: parseInt(formData.profileCount.toString()),
           maxUsers: parseInt(formData.maxUsers.toString()),
-          features: formData.features ? formData.features.split("\n") : []
+          features: formData.features ? formData.features.split("\n") : [],
+          images: formData.images.map(img => ({ id: img.id }))
         })
       });
 
@@ -102,6 +105,23 @@ export default function EditOfferPage({ params }: { params: { id: string } }) {
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData((prev) => prev ? ({ ...prev, [name]: checked }) : null);
+  };
+
+  const handleImagesChange = (urls: string[]) => {
+    setFormData((prev) => prev ? ({
+      ...prev,
+      images: urls.map((url, index) => ({
+        id: prev.images[index]?.id || `temp-${index}`,
+        path: url
+      }))
+    }) : null);
+  };
+
+  const handleImageRemove = (url: string) => {
+    setFormData((prev) => prev ? ({
+      ...prev,
+      images: prev.images.filter(img => img.path !== url)
+    }) : null);
   };
 
   if (!formData) {
@@ -231,6 +251,15 @@ export default function EditOfferPage({ params }: { params: { id: string } }) {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Accès illimité&#10;Support prioritaire&#10;etc..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Images de l'offre</Label>
+              <ImageUpload
+                value={formData.images.map(img => img.path)}
+                onChange={handleImagesChange}
+                onRemove={handleImageRemove}
               />
             </div>
 

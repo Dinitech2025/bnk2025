@@ -10,18 +10,21 @@ interface ImageUploadProps {
   value: string[];
   onChange: (value: string[]) => void;
   onRemove: (value: string) => void;
+  imageType?: 'product' | 'service' | 'offer' | 'general';
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
   value,
   onChange,
-  onRemove
+  onRemove,
+  imageType = 'general'
 }) => {
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       const uploadPromises = acceptedFiles.map(async (file) => {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("type", imageType);
 
         try {
           const response = await fetch("/api/upload", {
@@ -46,7 +49,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
       );
       onChange([...value, ...urls]);
     },
-    [value, onChange]
+    [value, onChange, imageType]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

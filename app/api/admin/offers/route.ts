@@ -20,7 +20,8 @@ export async function GET() {
           include: {
             platform: true
           }
-        }
+        },
+        images: true
       }
     });
 
@@ -47,11 +48,34 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
 
     // Validation des données
-    if (!data.name || !data.price || !data.duration || !data.platformConfigs?.length) {
+    if (!data.name || !data.price || !data.duration || !data.profileCount) {
       return NextResponse.json(
         { error: "Données invalides" },
         { status: 400 }
       );
+    }
+
+    // Création des images
+    let mediaIds: string[] = [];
+    if (data.images && data.images.length > 0) {
+      const createdMedia = await prisma.media.createMany({
+        data: data.images.map((img: any) => ({
+          name: img.path.split("/").pop() || "image",
+          fileName: img.path.split("/").pop() || "image",
+          mimeType: "image/jpeg",
+          path: img.path,
+          size: 0,
+          alt: `Image de ${data.name}`
+        }))
+      });
+
+      // Récupérer les IDs des images créées
+      const createdImages = await prisma.media.findMany({
+        where: {
+          path: { in: data.images.map((img: any) => img.path) }
+        }
+      });
+      mediaIds = createdImages.map(img => img.id);
     }
 
     // Création de l'offre
@@ -60,20 +84,13 @@ export async function POST(request: NextRequest) {
       description: data.description,
       price: new Prisma.Decimal(data.price),
       duration: data.duration,
-      profileCount: data.platformConfigs.reduce((sum: number, config: any) => sum + (config.profileCount || 1), 0),
+      profileCount: data.profileCount,
       isPopular: Boolean(data.isPopular),
       isActive: data.isActive ?? true,
+      maxUsers: data.maxUsers,
       features: Array.isArray(data.features) ? JSON.stringify(data.features) : "[]",
-      platformOffers: {
-        create: data.platformConfigs.map((config: any) => ({
-          profileCount: config.profileCount || 1,
-          isDefault: Boolean(config.isDefault),
-          platform: {
-            connect: {
-              id: config.platformId
-            }
-          }
-        }))
+      images: {
+        connect: mediaIds.map(id => ({ id }))
       }
     };
 
@@ -84,7 +101,8 @@ export async function POST(request: NextRequest) {
           include: {
             platform: true
           }
-        }
+        },
+        images: true
       }
     });
 

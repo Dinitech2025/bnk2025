@@ -80,7 +80,7 @@ export default function NewClientPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const uploadResponse = await fetch('/api/admin/upload', {
+      const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
@@ -88,7 +88,7 @@ export default function NewClientPage() {
       const data = await uploadResponse.json()
 
       if (!uploadResponse.ok) {
-        throw new Error(data.message || 'Erreur lors du téléchargement de l\'image')
+        throw new Error(data.error || 'Erreur lors du téléchargement de l\'image')
       }
 
       // Mettre à jour l'URL de l'image dans le formulaire

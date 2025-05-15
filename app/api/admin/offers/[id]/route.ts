@@ -24,7 +24,8 @@ export async function GET(
           include: {
             platform: true
           }
-        }
+        },
+        images: true
       }
     });
 
@@ -45,7 +46,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -61,7 +62,7 @@ export async function PUT(
     const data = await request.json();
 
     // Validation des données
-    if (!data.name || !data.price || !data.duration || !data.platformConfigs?.length) {
+    if (!data.name || !data.price || !data.duration || !data.profileCount) {
       return NextResponse.json(
         { error: "Données invalides" },
         { status: 400 }
@@ -74,30 +75,57 @@ export async function PUT(
       description: data.description,
       price: new Prisma.Decimal(data.price),
       duration: data.duration,
-      profileCount: data.platformConfigs.reduce((sum: number, config: any) => sum + (config.profileCount || 1), 0),
+      profileCount: data.profileCount,
       isPopular: Boolean(data.isPopular),
       isActive: data.isActive ?? true,
+      maxUsers: data.maxUsers,
       features: Array.isArray(data.features) ? JSON.stringify(data.features) : "[]"
     };
 
-    // Supprimer les anciennes configurations de plateforme
-    await prisma.platformOffer.deleteMany({
-      where: { offerId: params.id }
-    });
+    // Gérer les images
+    if (data.images) {
+      // Supprimer les anciennes images qui ne sont plus présentes
+      await prisma.media.deleteMany({
+        where: {
+          AND: [
+            { offers: { some: { id: params.id } } },
+            { id: { notIn: data.images.map((img: any) => img.id).filter(Boolean) } }
+          ]
+        }
+      });
 
-    // Créer les nouvelles configurations
-    await Promise.all(
-      data.platformConfigs.map((config: any) =>
-        prisma.platformOffer.create({
-          data: {
-            offerId: params.id,
-            platformId: config.platformId,
-            profileCount: config.profileCount || 1,
-            isDefault: Boolean(config.isDefault)
+      // Ajouter les nouvelles images
+      const newImages = data.images.filter((img: any) => !img.id);
+      if (newImages.length > 0) {
+        await prisma.media.createMany({
+          data: newImages.map((img: any) => ({
+            name: img.path.split("/").pop() || "image",
+            fileName: img.path.split("/").pop() || "image",
+            mimeType: "image/jpeg",
+            path: img.path,
+            size: 0,
+            alt: `Image de ${data.name}`
+          }))
+        });
+
+        // Récupérer les IDs des nouvelles images
+        const createdImages = await prisma.media.findMany({
+          where: {
+            path: { in: newImages.map((img: any) => img.path) }
           }
-        })
-      )
-    );
+        });
+
+        // Connecter les nouvelles images à l'offre
+        await prisma.offer.update({
+          where: { id: params.id },
+          data: {
+            images: {
+              connect: createdImages.map(img => ({ id: img.id }))
+            }
+          }
+        });
+      }
+    }
 
     // Mettre à jour l'offre
     const offer = await prisma.offer.update({
@@ -108,7 +136,8 @@ export async function PUT(
           include: {
             platform: true
           }
-        }
+        },
+        images: true
       }
     });
 

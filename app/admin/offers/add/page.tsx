@@ -9,21 +9,36 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { ImageUpload } from "@/components/image-upload";
+
+interface FormData {
+  name: string;
+  description: string;
+  price: string;
+  duration: string;
+  profileCount: string;
+  maxUsers: string;
+  isActive: boolean;
+  isPopular: boolean;
+  features: string;
+  images: { path: string }[];
+}
 
 export default function AddOfferPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
     description: "",
     price: "",
     duration: "",
     profileCount: "",
     maxUsers: "1",
-    isPopular: false,
     isActive: true,
-    features: ""
+    isPopular: false,
+    features: "",
+    images: []
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,7 +55,8 @@ export default function AddOfferPage() {
           duration: parseInt(formData.duration),
           profileCount: parseInt(formData.profileCount),
           maxUsers: parseInt(formData.maxUsers),
-          features: formData.features ? formData.features.split("\n") : []
+          features: formData.features ? formData.features.split("\n") : [],
+          images: formData.images
         })
       });
 
@@ -75,6 +91,20 @@ export default function AddOfferPage() {
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }));
+  };
+
+  const handleImagesChange = (urls: string[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: urls.map(path => ({ path }))
+    }));
+  };
+
+  const handleImageRemove = (url: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter(img => img.path !== url)
+    }));
   };
 
   return (
@@ -200,6 +230,15 @@ export default function AddOfferPage() {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Accès illimité&#10;Support prioritaire&#10;etc..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Images de l'offre</Label>
+              <ImageUpload
+                value={formData.images.map(img => img.path)}
+                onChange={handleImagesChange}
+                onRemove={handleImageRemove}
               />
             </div>
 

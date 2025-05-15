@@ -15,6 +15,7 @@ interface ImageUploadProps {
   disabled?: boolean
   className?: string
   isAvatar?: boolean
+  imageType?: 'profile' | 'product' | 'service' | 'offer' | 'general'
 }
 
 export function ImageUpload({
@@ -23,7 +24,8 @@ export function ImageUpload({
   onUpload,
   disabled,
   className,
-  isAvatar = false
+  isAvatar = false,
+  imageType = 'general'
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +60,7 @@ export function ImageUpload({
           // Sinon, utiliser l'API de téléchargement par défaut
           const formData = new FormData()
           formData.append('file', file)
+          formData.append('type', imageType)
 
           const response = await fetch('/api/upload', {
             method: 'POST',
@@ -104,6 +107,7 @@ export function ImageUpload({
         // Sinon, utiliser l'API de téléchargement par défaut
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('type', 'profile') // Pour les avatars, toujours utiliser le type 'profile'
 
         const response = await fetch('/api/upload', {
           method: 'POST',

@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'res.cloudinary.com'],
   },
   // Définir /admin comme une route indépendante avec son propre layout racine
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],

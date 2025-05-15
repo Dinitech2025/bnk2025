@@ -14,10 +14,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Récupérer le fichier et le type d'image de la requête
+    // Récupérer le fichier de la requête
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const type = formData.get('type') as string || 'general' // Type par défaut
 
     if (!file) {
       return new NextResponse(
@@ -37,44 +36,16 @@ export async function POST(request: NextRequest) {
     // Convertir le fichier en buffer
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Configurer les options d'upload selon le type d'image
-    const uploadOptions: any = {
-      resource_type: 'auto',
-    }
-
-    switch (type) {
-      case 'profile':
-        uploadOptions.folder = 'bnk/profiles'
-        uploadOptions.transformation = [
-          { width: 400, height: 400, crop: 'fill', gravity: 'face' }
-        ]
-        break
-      case 'product':
-        uploadOptions.folder = 'bnk/products'
-        uploadOptions.transformation = [
-          { width: 800, height: 800, crop: 'fill' }
-        ]
-        break
-      case 'service':
-        uploadOptions.folder = 'bnk/services'
-        uploadOptions.transformation = [
-          { width: 1200, crop: 'scale' }
-        ]
-        break
-      case 'offer':
-        uploadOptions.folder = 'bnk/offers'
-        uploadOptions.transformation = [
-          { width: 1200, height: 630, crop: 'fill' }
-        ]
-        break
-      default:
-        uploadOptions.folder = 'bnk/general'
-    }
-
     // Upload vers Cloudinary
     const result = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        uploadOptions,
+        {
+          folder: 'bnk/clients',
+          resource_type: 'auto',
+          transformation: [
+            { width: 400, height: 400, crop: 'fill', gravity: 'face' }
+          ]
+        },
         (error, result) => {
           if (error) reject(error)
           else resolve(result)
