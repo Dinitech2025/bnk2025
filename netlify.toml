@@ -32,5 +32,9 @@
 
 # Commandes de build et d'initialisation
 [build.lifecycle]
-  onBuild = "npm run netlify:init"
-  onSuccess = "npx prisma generate && npx prisma studio" 
+  onBuild = """
+    npx prisma generate && \
+    npx prisma migrate deploy && \
+    npm run netlify:init
+  """
+  onSuccess = "npx prisma studio" 
