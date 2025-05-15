@@ -1,7 +1,11 @@
 {
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
   "/page": "app/page.js",
+  "/api/settings/route": "app/api/settings/route.js",
+  "/api/profile/route": "app/api/profile/route.js",
+  "/api/admin/streaming/platforms/route": "app/api/admin/streaming/platforms/route.js",
+  "/api/admin/streaming/platforms/[id]/route": "app/api/admin/streaming/platforms/[id]/route.js",
+  "/admin/page": "app/admin/page.js",
   "/admin/streaming/platforms/page": "app/admin/streaming/platforms/page.js",
-  "/admin/streaming/platforms/edit/[id]/page": "app/admin/streaming/platforms/edit/[id]/page.js",
-  "/admin/streaming/platforms/[id]/page": "app/admin/streaming/platforms/[id]/page.js",
-  "/admin/streaming/platforms/add/page": "app/admin/streaming/platforms/add/page.js"
+  "/admin/streaming/platforms/edit/[id]/page": "app/admin/streaming/platforms/edit/[id]/page.js"
 }
