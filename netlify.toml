@@ -4,13 +4,12 @@
 
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
+  NODE_VERSION = "18"
+  DATABASE_URL = "file:./prod.db"
+  PRISMA_FORCE_GENERATION = "true"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Force Prisma to regenerate
-[build.environment]
-  PRISMA_FORCE_GENERATION = "true"
 
 # Cache configuration
 [[plugins]]
@@ -18,5 +17,7 @@
   [plugins.inputs]
     paths = [
       "node_modules/.cache",
-      ".next/cache"
+      ".next/cache",
+      "prisma/migrations",
+      "*.db"
     ] 

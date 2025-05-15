@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start -p 3001",
     "lint": "next lint",
     "prisma:studio": "prisma studio",
@@ -52,6 +52,7 @@
     "react-image-crop": "^11.0.10",
     "slugify": "^1.6.6",
     "sonner": "^2.0.3",
+    "sqlite3": "^5.1.7",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
