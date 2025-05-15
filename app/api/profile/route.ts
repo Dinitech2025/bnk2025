@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { db } from '@/lib/db'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Récupérer les informations de l'utilisateur
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: {
         id: session.user.id,
       },
@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
         orders: {
           select: {
             id: true,
-            orderNumber: true,
             status: true,
             total: true,
             createdAt: true,
@@ -76,7 +75,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Mettre à jour l'utilisateur
-    const updatedUser = await db.user.update({
+    const updatedUser = await prisma.user.update({
       where: {
         id: session.user.id,
       },
