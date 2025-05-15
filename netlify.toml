@@ -11,6 +11,14 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Configuration pour Prisma Studio
+[[redirects]]
+  from = "/studio/*"
+  to = "http://localhost:5555/:splat"
+  status = 200
+  force = true
+  conditions = {Role = ["admin"]}
+
 # Cache configuration
 [[plugins]]
   package = "netlify-plugin-cache"
@@ -20,4 +28,8 @@
       ".next/cache",
       "prisma/migrations",
       "*.db"
-    ] 
+    ]
+
+# Commandes post-build pour Prisma Studio
+[build.lifecycle]
+  onSuccess = "npx prisma generate && npx prisma studio" 
