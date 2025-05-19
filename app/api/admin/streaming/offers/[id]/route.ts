@@ -228,7 +228,6 @@ export async function PUT(
       price: parseFloat(updatedOffer.price.toString()),
       duration: updatedOffer.duration,
       durationUnit: updatedOffer.durationUnit || "MONTH", // Utiliser la valeur de la BDD
-      type: data.type || "SINGLE", // Depuis les données d'entrée
       features: updatedOffer.features ? JSON.parse(updatedOffer.features) : [],
       isPopular: updatedOffer.isPopular,
       isActive: updatedOffer.isActive,
