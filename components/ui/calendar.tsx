@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker, DayPickerRootProps } from "react-day-picker"
+import { DayPicker, DayPickerProps } from "react-day-picker"
 import { fr } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
@@ -58,7 +58,7 @@ function Calendar({
       components={{
         IconLeft: () => <ChevronLeft className="h-4 w-4" />,
         IconRight: () => <ChevronRight className="h-4 w-4" />,
-      } as DayPickerRootProps['components']}
+      } as DayPickerProps['components']}
       {...props}
     />
   )
