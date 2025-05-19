@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
+import { Order } from '@/types/order';
 
-async function getOrders() {
+async function getOrders(): Promise<Order[]> {
   try {
     // Utiliser notre API de débogage pour récupérer les commandes
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/debug/direct-orders`, {
@@ -66,7 +67,7 @@ export default async function DebugOrdersPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {orders.length > 0 ? (
-                orders.map((order) => (
+                orders.map((order: Order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {order.id.substring(0, 8)}...
