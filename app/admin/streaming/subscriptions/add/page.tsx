@@ -71,6 +71,7 @@ async function getFormData() {
         name: true,
         logo: true,
         hasProfiles: true,
+        maxProfilesPerAccount: true,
       },
       orderBy: {
         name: 'asc',
