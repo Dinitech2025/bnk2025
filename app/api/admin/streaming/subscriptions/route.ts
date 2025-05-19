@@ -167,19 +167,30 @@ export async function POST(request: Request) {
 
     // Transactions pour créer l'abonnement et toutes ses relations
     const subscription = await prisma.$transaction(
-      async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'>) => {
+      async (tx) => {
         // Création de l'abonnement initial
         const newSubscription = await tx.subscription.create({
           data: subscriptionData,
           include: {
-            user: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
             offer: true,
+            platformOffer: true,
           },
         });
 
-        // Pour chaque platform-compte
-        for (const platformAccount of data.platformAccounts) {
-          const { platformOfferId, accountId, profileIds } = platformAccount;
+        // Créer les relations avec les comptes
+        for (const accountConfig of data.platformAccounts) {
+          const { platformOfferId, accountId, profileIds } = accountConfig;
 
           // Vérifier que le platformOfferId existe dans l'offre
           const platformOffer = offer.platformOffers.find((po: { id: string }) => po.id === platformOfferId);
@@ -237,47 +248,37 @@ export async function POST(request: Request) {
               }
 
               // Connecter les profils à l'abonnement
-              await tx.subscription.update({
-                where: { id: newSubscription.id },
-                data: {
-                  accountProfiles: {
-                    connect: profiles.map((profile: { id: string }) => ({ id: profile.id })),
-                  },
-                },
-              });
-
-              // Marquer les profils comme assignés
               await tx.accountProfile.updateMany({
                 where: {
                   id: { in: profileIds },
                 },
                 data: {
                   isAssigned: true,
+                  subscriptionId: newSubscription.id,
                 },
               });
             }
           } else {
-            // Si aucun compte n'est spécifié, rechercher un compte disponible automatiquement
-            const account = await tx.account.findFirst({
+            // Rechercher un compte disponible pour cette plateforme
+            const availableAccount = await tx.account.findFirst({
               where: {
                 platformId: platformOffer.platform.id,
                 status: 'AVAILABLE',
-                accountProfiles: platformOffer.platform.hasProfiles ? {
+                accountProfiles: {
                   some: {
                     isAssigned: false,
                   },
-                  // Vérifier qu'il y a assez de profils disponibles
-                  _count: {
-                    lte: platformOffer.platform.maxProfilesPerAccount! - offer.maxProfiles,
+                  every: {
+                    isAssigned: false,
                   },
-                } : undefined,
+                },
               },
               include: {
-                accountProfiles: platformOffer.platform.hasProfiles,
+                accountProfiles: true,
               },
             });
 
-            if (!account) {
+            if (!availableAccount) {
               throw new Error(`Aucun compte disponible pour la plateforme ${platformOffer.platform.name}`);
             }
 
@@ -285,64 +286,59 @@ export async function POST(request: Request) {
             await tx.subscriptionAccount.create({
               data: {
                 subscriptionId: newSubscription.id,
-                accountId: account.id,
+                accountId: availableAccount.id,
                 status: 'ACTIVE',
               },
             });
 
-            // Si la plateforme a des profils, on les assigne automatiquement
-            if (platformOffer.platform.hasProfiles && account.accountProfiles) {
-              const availableProfiles = account.accountProfiles
-                .filter((profile: any) => !profile.isAssigned)
-                .slice(0, offer.maxProfiles);
-
-              // Connecter les profils à l'abonnement
-              await tx.subscription.update({
-                where: { id: newSubscription.id },
-                data: {
-                  accountProfiles: {
-                    connect: availableProfiles.map((profile: any) => ({ id: profile.id })),
-                  },
+            // Assigner les profils nécessaires
+            const profilesToAssign = availableAccount.accountProfiles.slice(0, offer.maxProfiles);
+            await tx.accountProfile.updateMany({
+              where: {
+                id: {
+                  in: profilesToAssign.map(profile => profile.id),
                 },
-              });
-
-              // Marquer les profils comme assignés
-              await tx.accountProfile.updateMany({
-                where: {
-                  id: {
-                    in: availableProfiles.map((profile: any) => profile.id),
-                  },
-                },
-                data: {
-                  isAssigned: true,
-                },
-              });
-            }
+              },
+              data: {
+                isAssigned: true,
+                subscriptionId: newSubscription.id,
+              },
+            });
           }
         }
 
-        // Récupérer l'abonnement complet avec toutes ses relations
-        return tx.subscription.findUnique({
-          where: { id: newSubscription.id },
+        // Récupérer l'abonnement avec toutes ses relations
+        const completeSubscription = await tx.subscription.findUnique({
+          where: {
+            id: newSubscription.id,
+          },
           include: {
-            user: true,
-            offer: true,
-            platformOffer: {
-              include: {
-                platform: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
               },
             },
             subscriptionAccounts: {
               include: {
-                account: true,
-              },
+                account: true
+              }
             },
-            accountProfiles: true,
+            offer: true,
+            platformOffer: true,
           },
         });
-      },
-      {
-        timeout: 15000 // Timeout de 15 secondes pour les transactions complexes
+
+        if (!completeSubscription) {
+          throw new Error("Impossible de récupérer l'abonnement créé");
+        }
+
+        return completeSubscription;
       }
     );
 
