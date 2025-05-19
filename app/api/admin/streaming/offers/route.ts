@@ -220,15 +220,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Créer une réponse compatible avec le client
-    const response = {
+    // Créer un objet API pour la réponse
+    const apiResponse = {
       id: createdOffer.id,
       name: createdOffer.name,
       description: createdOffer.description,
       price: parseFloat(createdOffer.price.toString()),
       duration: createdOffer.duration,
       durationUnit: data.durationUnit || "MONTH",
-      type: data.type || "SINGLE",
       features: createdOffer.features ? JSON.parse(createdOffer.features) : [],
       isPopular: createdOffer.isPopular,
       isActive: createdOffer.isActive,
@@ -245,7 +244,7 @@ export async function POST(request: NextRequest) {
       }))
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json(apiResponse);
   } catch (error) {
     console.error("Erreur détaillée lors de la création de l'offre:", error);
 
