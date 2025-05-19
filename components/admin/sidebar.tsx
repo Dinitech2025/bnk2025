@@ -19,7 +19,13 @@ import {
   UserCircle,
   Ticket,
   Computer,
-  Globe
+  Globe,
+  Box,
+  Download,
+  FolderTree,
+  Store,
+  Tag,
+  List
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -43,41 +49,51 @@ const adminNavItems: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: 'Clients',
+    title: 'Gestion des clients',
     href: '/admin/clients',
     icon: Users,
   },
   {
-    title: 'Produits',
-    href: '/admin/products',
+    title: 'Gestion du Cyber',
+    href: '/admin/cybercafe',
+    icon: Computer,
+  },
+  {
+    title: 'Gestion des produits',
     icon: ShoppingBag,
+    submenu: true,
+    submenuItems: [
+      { title: 'Produits simples', href: '/admin/products' },
+      { title: 'Produits importés', href: '/admin/products/imported' },
+      { title: 'Catégories', href: '/admin/products/categories' },
+      { title: 'Inventaire', href: '/admin/products/inventory' },
+    ]
   },
   {
-    title: 'Services',
-    href: '/admin/services',
+    title: 'Gestion des services',
     icon: Package,
+    submenu: true,
+    submenuItems: [
+      { title: 'Services', href: '/admin/services' },
+      { title: 'Catégories', href: '/admin/services/categories' },
+    ]
   },
   {
-    title: 'Streaming',
+    title: 'Gestion des abonnements',
     icon: Play,
     submenu: true,
     submenuItems: [
+      { title: 'Abonnements', href: '/admin/streaming/subscriptions' },
       { title: 'Plateformes', href: '/admin/streaming/platforms' },
       { title: 'Offres', href: '/admin/streaming/offers' },
       { title: 'Comptes', href: '/admin/streaming/accounts' },
-      { title: 'Profiles', href: '/admin/streaming/profiles' },
-      { title: 'Abonnements', href: '/admin/streaming/subscriptions' },
+      { title: 'Profiles', href: '/admin/streaming/profiles' }
     ]
   },
   {
     title: 'Commandes',
     href: '/admin/orders',
     icon: FileText,
-  },
-  {
-    title: 'CyberCafé',
-    href: '/admin/cybercafe',
-    icon: Computer,
   },
   {
     title: 'Paramètres',
@@ -95,10 +111,14 @@ function AdminSidebar() {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(
     // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
     pathname.startsWith('/admin/streaming') 
-      ? 'Streaming' 
+      ? 'Gestion des abonnements' 
       : pathname.startsWith('/admin/settings')
         ? 'Paramètres'
-        : null
+        : pathname.startsWith('/admin/products')
+          ? 'Gestion des produits'
+          : pathname.startsWith('/admin/services')
+            ? 'Gestion des services'
+            : null
   )
 
   const toggleSubmenu = (title: string) => {
@@ -106,7 +126,7 @@ function AdminSidebar() {
   }
 
   return (
-    <aside className="w-64 bg-slate-900 text-white min-h-screen flex flex-col">
+    <aside className="w-72 bg-slate-900 text-white min-h-screen flex flex-col">
       <div className="p-4 border-b border-slate-800">
         <Link href="/admin" className="flex items-center">
           <span className="text-xl font-bold">BoutikNaka</span>
@@ -123,7 +143,10 @@ function AdminSidebar() {
                     onClick={() => toggleSubmenu(item.title)}
                     className={cn(
                       'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                      pathname.startsWith(`/admin/${item.title.toLowerCase()}`)
+                      (pathname.startsWith(`/admin/streaming`) && item.title === 'Gestion des abonnements') ||
+                      (pathname.startsWith(`/admin/products`) && item.title === 'Gestion des produits') ||
+                      (pathname.startsWith(`/admin/services`) && item.title === 'Gestion des services') ||
+                      (pathname.startsWith(`/admin/settings`) && item.title === 'Paramètres')
                         ? 'bg-slate-800 text-white'
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     )}
