@@ -15,6 +15,7 @@ interface ImageUploadProps {
   disabled?: boolean
   className?: string
   variant?: 'avatar' | 'logo'
+  isAvatar?: boolean
 }
 
 export function ImageUpload({
@@ -23,12 +24,19 @@ export function ImageUpload({
   onUpload,
   disabled,
   className = '',
-  variant = 'avatar'
+  variant = 'avatar',
+  isAvatar = false
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [imageToEdit, setImageToEdit] = useState<string | null>(null)
+
+  const effectiveVariant = isAvatar ? 'avatar' : variant
+
+  const containerStyles = effectiveVariant === 'avatar' 
+    ? 'h-32 w-32 rounded-full'
+    : 'w-full max-w-[300px] h-[150px] rounded-lg'
 
   const handleUpload = async (file: File) => {
     try {
@@ -41,10 +49,6 @@ export function ImageUpload({
     }
   }
 
-  const containerStyles = variant === 'avatar' 
-    ? 'h-32 w-32 rounded-full'
-    : 'w-full max-w-[300px] h-[150px] rounded-lg'
-
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex items-center justify-center w-full">
@@ -54,7 +58,7 @@ export function ImageUpload({
               src={value}
               alt="Image"
               fill
-              className={variant === 'avatar' ? 'object-cover' : 'object-contain'}
+              className={effectiveVariant === 'avatar' ? 'object-cover' : 'object-contain'}
             />
             <Button
               type="button"
@@ -75,7 +79,7 @@ export function ImageUpload({
             className={`border-dashed ${containerStyles}`}
           >
             <ImagePlus className="h-6 w-6 mr-2" />
-            {variant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
+            {effectiveVariant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
           </Button>
         )}
       </div>
