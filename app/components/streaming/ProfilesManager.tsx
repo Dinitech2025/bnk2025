@@ -31,11 +31,12 @@ interface Profile {
   profileSlot: number
   pin: string | null
   isAssigned: boolean
+  [key: string]: any // Autoriser d'autres propriétés
 }
 
-interface ProfilesManagerProps {
+export interface ProfilesManagerProps {
   accountId: string
-  profiles: Profile[]
+  profiles: Profile[] | any[] // Accepter n'importe quel tableau avec les propriétés minimales requises
   maxProfiles: number
   onProfilesChange: () => void
 }

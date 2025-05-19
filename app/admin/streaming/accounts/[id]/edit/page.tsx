@@ -1,5 +1,6 @@
 'use client'
 
+import { Metadata } from 'next'
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
@@ -25,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import ProfilesManager from '@/components/streaming/ProfilesManager'
+import ProfilesManager from '@/app/components/streaming/ProfilesManager'
 
 interface Platform {
   id: string
