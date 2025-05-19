@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
 import { PrismaClient } from '@prisma/client'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 interface RouteParams {
   params: {
@@ -13,114 +15,81 @@ interface RouteParams {
  * Route pour renouveler un abonnement en créant un nouvel abonnement
  * avec les mêmes paramètres (offre, comptes, profils) que l'abonnement précédent
  */
-export async function POST(request: Request, { params }: RouteParams) {
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Récupérer l'abonnement à renouveler avec toutes ses relations
-    const oldSubscription = await prisma.subscription.findUnique({
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    const subscriptionId = params.id
+    
+    // Vérifier si l'abonnement existe
+    const existingSubscription = await prisma.subscription.findUnique({
       where: {
-        id: params.id,
+        id: subscriptionId
       },
       include: {
-        user: true,
         offer: true,
-        platformOffer: true,
         subscriptionAccounts: {
           include: {
-            account: true,
-          },
-        },
-        accountProfiles: true,
-      },
+            account: {
+              include: {
+                profiles: true
+              }
+            }
+          }
+        }
+      }
     })
 
-    if (!oldSubscription) {
+    if (!existingSubscription) {
       return NextResponse.json(
-        { message: 'Abonnement non trouvé' },
+        { error: 'Abonnement non trouvé' },
         { status: 404 }
       )
     }
 
-    // Calculer les nouvelles dates
-    const now = new Date()
-    const endDate = calculateEndDate(now, oldSubscription.offer.duration, oldSubscription.offer.durationUnit || 'MONTH')
-
     // Créer le nouvel abonnement
-    const newSubscription = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'>) => {
+    const newSubscription = await prisma.$transaction(async (tx) => {
       // Créer l'abonnement de base
       const subscription = await tx.subscription.create({
         data: {
-          userId: oldSubscription.userId,
-          offerId: oldSubscription.offerId,
-          platformOfferId: oldSubscription.platformOfferId,
-          startDate: now,
-          endDate: endDate,
+          userId: existingSubscription.userId,
+          offerId: existingSubscription.offerId,
+          platformOfferId: existingSubscription.platformOfferId,
+          startDate: new Date(),
+          endDate: existingSubscription.endDate,
           status: 'ACTIVE',
-          autoRenew: oldSubscription.autoRenew,
-        },
+          autoRenew: existingSubscription.autoRenew
+        }
       })
 
-      // Associer les mêmes comptes
-      for (const subscriptionAccount of oldSubscription.subscriptionAccounts) {
+      // Copier les comptes de plateforme
+      for (const subscriptionAccount of existingSubscription.subscriptionAccounts) {
         await tx.subscriptionAccount.create({
           data: {
             subscriptionId: subscription.id,
             accountId: subscriptionAccount.accountId,
-            status: 'ACTIVE',
-          },
+            status: 'ACTIVE'
+          }
         })
       }
-
-      // Libérer les anciens profils de compte
-      if (oldSubscription.accountProfiles.length > 0) {
-        await tx.accountProfile.updateMany({
-          where: {
-            id: {
-              in: oldSubscription.accountProfiles.map((profile: { id: string }) => profile.id),
-            },
-          },
-          data: {
-            isAssigned: false,
-            subscriptionId: null,
-          },
-        })
-      }
-
-      // Récupérer les profils disponibles pour les mêmes comptes
-      const availableProfiles = await tx.accountProfile.findMany({
-        where: {
-          accountId: {
-            in: oldSubscription.subscriptionAccounts.map((sa: { accountId: string }) => sa.accountId),
-          },
-          isAssigned: false,
-        },
-        take: oldSubscription.accountProfiles.length,
-      })
-
-      if (availableProfiles.length < oldSubscription.accountProfiles.length) {
-        throw new Error('Pas assez de profils disponibles pour renouveler l\'abonnement')
-      }
-
-      // Assigner les profils au nouvel abonnement
-      await tx.accountProfile.updateMany({
-        where: {
-          id: {
-            in: availableProfiles.map((profile: { id: string }) => profile.id),
-          },
-        },
-        data: {
-          isAssigned: true,
-          subscriptionId: subscription.id,
-        },
-      })
 
       return subscription
     })
 
     return NextResponse.json(newSubscription)
   } catch (error) {
-    console.error('Error renewing subscription:', error)
+    console.error('Erreur lors du renouvellement de l\'abonnement:', error)
     return NextResponse.json(
-      { message: 'Une erreur est survenue lors du renouvellement de l\'abonnement.' },
+      { error: 'Erreur lors du renouvellement de l\'abonnement' },
       { status: 500 }
     )
   }
