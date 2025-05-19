@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { ArrowLeft, Loader2, Globe, Users, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { ImageUpload } from '@/components/ui/image-upload'
+import { PlatformLogoUpload } from '@/components/ui/platform-logo-upload'
 import Link from 'next/link'
 import { slugify } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -270,11 +271,10 @@ export default function AddPlatformPage() {
             
             <div className="space-y-2">
               <Label htmlFor="logo">Logo</Label>
-              <ImageUpload
+              <PlatformLogoUpload
                 value={platformData.logo}
                 onChange={(url) => setPlatformData(prev => ({ ...prev, logo: url }))}
                 onUpload={handleImageUpload}
-                variant="logo"
               />
             </div>
           </CardContent>

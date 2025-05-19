@@ -345,11 +345,10 @@ export default function EditPlatformPage() {
             
             <div className="space-y-2">
               <Label htmlFor="logo">Logo</Label>
-              <ImageUpload
+              <PlatformLogoUpload
                 value={platformData.logo || ''}
                 onChange={(url) => setPlatformData(prev => ({ ...prev, logo: url }))}
                 onUpload={handleImageUpload}
-                variant="logo"
               />
             </div>
           </CardContent>
