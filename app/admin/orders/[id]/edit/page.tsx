@@ -4,7 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 import { OrderForm } from '@/components/admin/orders/order-form';
 import { notFound } from 'next/navigation';
 
-interface OrderItem {
+// Interface décrivant l'objet retourné par l'API
+interface OrderItemFromAPI {
   id: string;
   quantity: number;
   unitPrice: number;
@@ -15,15 +16,35 @@ interface OrderItem {
   offerId?: string;
 }
 
-interface Order {
+interface OrderFromAPI {
   id: string;
   userId: string;
   status: string;
   total: number;
-  items: OrderItem[];
+  items: OrderItemFromAPI[];
 }
 
-async function getOrder(id: string): Promise<Order | null> {
+// Interfaces utilisées par le composant OrderForm
+interface OrderItem {
+  itemType: 'PRODUCT' | 'SERVICE' | 'OFFER';
+  itemId: string;
+  offerId?: string;
+  productId?: string;
+  serviceId?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+interface OrderFormData {
+  userId: string;
+  status: string;
+  total: number;
+  items: OrderItem[];
+  notes?: string;
+}
+
+async function getOrder(id: string): Promise<OrderFromAPI | null> {
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/orders/${id}`, {
       cache: 'no-store',
@@ -48,13 +69,21 @@ export default async function EditOrderPage({ params }: { params: { id: string }
   }
 
   // Convertir l'ordre pour respecter le format attendu par OrderForm
-  const formattedOrder = {
-    ...order,
-    // Les composants principaux nécessaires pour OrderForm
-    users: [], // Sera rempli côté client
-    products: [], // Sera rempli côté client
-    services: [], // Sera rempli côté client
-    offers: [], // Sera rempli côté client
+  const formattedOrder: OrderFormData = {
+    userId: order.userId,
+    status: order.status,
+    total: order.total,
+    // Transformer les items pour ajouter la propriété itemId requise
+    items: order.items.map(item => ({
+      itemType: item.itemType,
+      itemId: item.productId || item.serviceId || item.offerId || '',
+      offerId: item.offerId,
+      productId: item.productId,
+      serviceId: item.serviceId,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      totalPrice: Number(item.totalPrice),
+    })),
   };
 
   return (
@@ -72,7 +101,7 @@ export default async function EditOrderPage({ params }: { params: { id: string }
           products={[]} 
           services={[]} 
           offers={[]} 
-          initialData={order}
+          initialData={formattedOrder}
         />
       </div>
     </div>
