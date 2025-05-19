@@ -133,6 +133,9 @@ async function main() {
             isDefault: true
           }
         }
+      },
+      include: {
+        platformOffers: true
       }
     });
 
@@ -156,6 +159,9 @@ async function main() {
             isDefault: false
           }
         }
+      },
+      include: {
+        platformOffers: true
       }
     });
 
@@ -179,6 +185,9 @@ async function main() {
             isDefault: true
           }
         }
+      },
+      include: {
+        platformOffers: true
       }
     });
 
@@ -202,6 +211,9 @@ async function main() {
             isDefault: true
           }
         }
+      },
+      include: {
+        platformOffers: true
       }
     });
 
@@ -248,13 +260,21 @@ async function main() {
       )
     );
 
-    // Création des clients
-    const customers = await Promise.all(
-      Array.from({ length: 5 }).map((_, i) => 
-        prisma.customer.create({
+    // Création des clients supplémentaires
+    const clients = await Promise.all(
+      Array.from({ length: 5 }).map((_, i) =>
+        prisma.user.create({
           data: {
+            email: `client${i + 1}@example.com`,
+            password: clientPassword,
             name: `Client ${i + 1}`,
-            email: `client${i + 1}@example.com`
+            firstName: `Prénom${i + 1}`,
+            lastName: `Nom${i + 1}`,
+            role: 'CLIENT',
+            preferredLanguage: 'fr',
+            newsletter: true,
+            customerType: 'INDIVIDUAL',
+            phone: `+3361234567${i}`
           }
         })
       )
@@ -264,135 +284,65 @@ async function main() {
     // Netflix Standard pour le client 1
     await prisma.subscription.create({
       data: {
-        customerId: customers[0].id,
+        userId: clients[0].id,
         offerId: netflixStandard.id,
+        platformOfferId: netflixStandard.platformOffers[0].id,
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'ACTIVE',
-        platformOfferId: netflixStandard.platformOffers[0].id,
-        profiles: {
-          create: [
-            {
-              accountId: netflixAccounts[0].id,
-              profileSlot: 1,
-              name: 'Profil Principal'
-            },
-            {
-              accountId: netflixAccounts[0].id,
-              profileSlot: 2,
-              name: 'Profil Enfant'
-            }
-          ]
-        }
+        autoRenew: true
       }
     });
 
     // Disney+ Family pour le client 2
     await prisma.subscription.create({
       data: {
-        customerId: customers[1].id,
+        userId: clients[1].id,
         offerId: disneyFamily.id,
+        platformOfferId: disneyFamily.platformOffers[0].id,
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'ACTIVE',
-        platformOfferId: disneyFamily.platformOffers[0].id,
-        profiles: {
-          create: [
-            {
-              accountId: disneyAccounts[0].id,
-              profileSlot: 1,
-              name: 'Parent 1'
-            },
-            {
-              accountId: disneyAccounts[0].id,
-              profileSlot: 2,
-              name: 'Parent 2'
-            },
-            {
-              accountId: disneyAccounts[0].id,
-              profileSlot: 3,
-              name: 'Enfant 1'
-            },
-            {
-              accountId: disneyAccounts[0].id,
-              profileSlot: 4,
-              name: 'Enfant 2'
-            }
-          ]
-        }
+        autoRenew: true
       }
     });
 
     // Spotify Premium pour le client 3
     await prisma.subscription.create({
       data: {
-        customerId: customers[2].id,
+        userId: clients[2].id,
         offerId: spotifyPremium.id,
+        platformOfferId: spotifyPremium.platformOffers[0].id,
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'ACTIVE',
-        platformOfferId: spotifyPremium.platformOffers[0].id,
-        profiles: {
-          create: [
-            {
-              accountId: spotifyAccounts[0].id,
-              profileSlot: 1,
-              name: 'Compte Principal'
-            }
-          ]
-        }
+        autoRenew: true
       }
     });
 
     // Netflix Basic pour le client 4 (en attente)
     await prisma.subscription.create({
       data: {
-        customerId: customers[3].id,
+        userId: clients[3].id,
         offerId: netflixBasic.id,
+        platformOfferId: netflixBasic.platformOffers[0].id,
         startDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
         endDate: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000),
         status: 'PENDING',
-        platformOfferId: netflixBasic.platformOffers[0].id,
-        profiles: {
-          create: [
-            {
-              accountId: netflixAccounts[1].id,
-              profileSlot: 1,
-              name: 'Profil Unique'
-            }
-          ]
-        }
+        autoRenew: false
       }
     });
 
     // Disney+ Family pour le client 5 (expiré)
     await prisma.subscription.create({
       data: {
-        customerId: customers[4].id,
+        userId: clients[4].id,
         offerId: disneyFamily.id,
+        platformOfferId: disneyFamily.platformOffers[0].id,
         startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
         endDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         status: 'EXPIRED',
-        platformOfferId: disneyFamily.platformOffers[0].id,
-        profiles: {
-          create: [
-            {
-              accountId: disneyAccounts[1].id,
-              profileSlot: 1,
-              name: 'Famille'
-            },
-            {
-              accountId: disneyAccounts[1].id,
-              profileSlot: 2,
-              name: 'Parents'
-            },
-            {
-              accountId: disneyAccounts[1].id,
-              profileSlot: 3,
-              name: 'Enfants'
-            }
-          ]
-        }
+        autoRenew: false
       }
     });
 
