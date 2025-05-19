@@ -1,4 +1,4 @@
-import { Platform } from './platform';
+import { Platform as PlatformType } from './platform';
 
 export interface AccountProfile {
   id: string;
@@ -23,7 +23,7 @@ export interface Account {
   email: string | null;
   password: string | null;
   status: string;
-  platform?: Platform;
+  platform?: PlatformType;
   accountProfiles?: AccountProfile[];
 }
 
@@ -33,4 +33,36 @@ export enum AccountStatus {
   IN_USE = "IN_USE",
   LOCKED = "LOCKED",
   MAINTENANCE = "MAINTENANCE"
+}
+
+// Types pour les profils
+export interface ProfileBase {
+  id: string
+  name: string | null
+  profileSlot: number
+  pin: string | null
+  isAssigned: boolean
+}
+
+// Types pour les plateformes
+export interface StreamingPlatform {
+  id: string
+  name: string
+  logo: string | null
+  type: string
+  maxProfilesPerAccount: number | null
+  websiteUrl: string | null
+  hasProfiles: boolean
+}
+
+// Types pour les comptes
+export interface StreamingAccount {
+  id: string
+  username: string | null
+  email: string | null
+  password: string
+  status: string
+  platformId: string
+  platform: StreamingPlatform
+  accountProfiles: ProfileBase[]
 } 
