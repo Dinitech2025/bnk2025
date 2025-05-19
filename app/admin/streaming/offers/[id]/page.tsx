@@ -76,7 +76,12 @@ async function getOffer(id: string): Promise<TransformedOffer | null> {
       description: offer.description,
       price: parseFloat(offer.price.toString()),
       duration: offer.duration,
-      durationUnit: typeof offer.durationUnit === 'string' ? offer.durationUnit : "MONTH",
+      durationUnit: ((): "DAY" | "WEEK" | "MONTH" | "YEAR" => {
+        if (offer.durationUnit === "DAY") return "DAY";
+        if (offer.durationUnit === "WEEK") return "WEEK";
+        if (offer.durationUnit === "YEAR") return "YEAR";
+        return "MONTH"; // Valeur par défaut
+      })(),
       features: (offer as any).features ? JSON.parse((offer as any).features as string) : [],
       isPopular: (offer as any).isPopular || false,
       isActive: (offer as any).isActive || true,
@@ -106,7 +111,12 @@ async function getOffer(id: string): Promise<TransformedOffer | null> {
       name: offer.name,
       duration: offer.duration,
       originalDurationUnit: offer.durationUnit,
-      processedDurationUnit: typeof offer.durationUnit === 'string' ? offer.durationUnit : "MONTH"
+      processedDurationUnit: ((): string => {
+        if (offer.durationUnit === "DAY") return "DAY";
+        if (offer.durationUnit === "WEEK") return "WEEK";
+        if (offer.durationUnit === "YEAR") return "YEAR";
+        return "MONTH";
+      })()
     });
 
     return offerData;
