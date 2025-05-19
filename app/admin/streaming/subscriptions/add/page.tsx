@@ -7,8 +7,17 @@ export const metadata: Metadata = {
   description: 'Créer un nouvel abonnement pour un client',
 }
 
+// Définir le type Platform pour assurer la cohérence
+interface Platform {
+  id: string
+  name: string
+  hasProfiles: boolean
+  maxProfilesPerAccount: number | null
+  logo: string | null
+}
+
 async function getFormData() {
-  const [users, offers, platforms] = await Promise.all([
+  const [users, offers, platformsData] = await Promise.all([
     prisma.user.findMany({
       where: {
         role: 'CLIENT',
@@ -78,6 +87,15 @@ async function getFormData() {
       },
     }),
   ])
+
+  // Assurer que les plateformes respectent bien l'interface Platform
+  const platforms: Platform[] = platformsData.map(platform => ({
+    id: platform.id,
+    name: platform.name,
+    logo: platform.logo,
+    hasProfiles: platform.hasProfiles,
+    maxProfilesPerAccount: platform.maxProfilesPerAccount
+  }))
 
   const transformedOffers = offers.map((offer: any) => ({
     ...offer,
