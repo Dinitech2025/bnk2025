@@ -5,33 +5,88 @@ import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
 import { slugify } from '@/lib/utils'
 
+// Validation des données
+const validatePlatformData = (data: any) => {
+  const errors: string[] = [];
+
+  if (!data.name?.trim()) {
+    errors.push('Le nom est requis');
+  }
+
+  if (data.maxProfilesPerAccount !== undefined && data.maxProfilesPerAccount !== null) {
+    const maxProfiles = parseInt(data.maxProfilesPerAccount);
+    if (isNaN(maxProfiles) || maxProfiles < 0) {
+      errors.push('Le nombre maximum de profils doit être un nombre positif');
+    }
+  }
+
+  if (data.type && !['VIDEO', 'AUDIO', 'GAMING', 'OTHER'].includes(data.type)) {
+    errors.push('Le type de plateforme est invalide');
+  }
+
+  if (data.websiteUrl && !isValidUrl(data.websiteUrl)) {
+    errors.push('L\'URL du site web est invalide');
+  }
+
+  return errors;
+};
+
+const isValidUrl = (url: string) => {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // GET - Récupérer toutes les plateformes
 export async function GET(request: NextRequest) {
   try {
-    // Mode développement - désactiver temporairement l'authentification
-    // En production, ce code serait remplacé par: const user = await requireStaff()
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const isActive = searchParams.get('isActive');
+    const type = searchParams.get('type');
+
+    const where: any = {};
     
-    // Récupérer toutes les plateformes
+    if (isActive !== null) {
+      where.isActive = isActive === 'true';
+    }
+    
+    if (type) {
+      where.type = type;
+    }
+
     const platforms = await db.platform.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        logo: true,
+        hasProfiles: true,
+        maxProfilesPerAccount: true,
+        isActive: true,
+        type: true,
+        websiteUrl: true
+      },
       orderBy: {
-        name: 'asc',
-      },
-      include: {
-        logoMedia: true,
-      },
+        name: 'asc'
+      }
     })
 
-    // Formater les données pour l'API
-    const formattedPlatforms = platforms.map(platform => ({
-      ...platform,
-      logo: platform.logoMedia?.path || platform.logo,
-    }))
-
-    return NextResponse.json(formattedPlatforms)
+    return NextResponse.json(platforms)
   } catch (error) {
     console.error('Erreur lors de la récupération des plateformes:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur' },
+      { error: 'Une erreur est survenue lors de la récupération des plateformes' },
       { status: 500 }
     )
   }
@@ -40,28 +95,33 @@ export async function GET(request: NextRequest) {
 // POST - Créer une nouvelle plateforme
 export async function POST(request: NextRequest) {
   try {
-    // Mode développement - désactiver temporairement l'authentification
-    // En production, ce code serait remplacé par:
-    // const user = await requireStaff()
-    // if (user.role !== 'ADMIN') {
-    //   return NextResponse.json(
-    //     { message: 'Seuls les administrateurs peuvent créer des plateformes' },
-    //     { status: 403 }
-    //   )
-    // }
-
-    // Récupérer les données du corps de la requête
-    const data = await request.json()
-
-    // Valider les données requises
-    if (!data.name) {
+    const session = await getServerSession(authOptions)
+    if (!session) {
       return NextResponse.json(
-        { message: 'Le nom est requis' },
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Seuls les administrateurs peuvent créer des plateformes' },
+        { status: 403 }
+      )
+    }
+
+    const data = await request.json()
+    
+    // Validation des données
+    const validationErrors = validatePlatformData(data);
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { errors: validationErrors },
         { status: 400 }
       )
     }
 
-    // Générer le slug automatiquement s'il n'est pas fourni
+    // Générer le slug
     const slug = data.slug || slugify(data.name)
     
     // Vérifier si le slug existe déjà
@@ -73,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     if (existingPlatform) {
       return NextResponse.json(
-        { message: 'Une plateforme avec ce slug existe déjà' },
+        { error: 'Une plateforme avec ce slug existe déjà' },
         { status: 400 }
       )
     }
@@ -81,15 +141,17 @@ export async function POST(request: NextRequest) {
     // Créer la plateforme
     const platform = await db.platform.create({
       data: {
-        name: data.name,
+        name: data.name.trim(),
         slug,
-        description: data.description || null,
+        description: data.description?.trim() || null,
         logo: data.logo || null,
         logoMediaId: data.logoMediaId || null,
         websiteUrl: data.websiteUrl || null,
         type: data.type || 'VIDEO',
-        maxProfilesPerAccount: data.maxProfilesPerAccount !== null ? data.maxProfilesPerAccount : 
+        maxProfilesPerAccount: data.maxProfilesPerAccount !== null ? 
+          parseInt(data.maxProfilesPerAccount) : 
           ['VIDEO', 'AUDIO', 'GAMING'].includes(data.type || 'VIDEO') ? 5 : null,
+        hasProfiles: data.hasProfiles ?? true,
         isActive: data.isActive ?? true,
       },
     })
@@ -98,7 +160,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Erreur lors de la création de la plateforme:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur' },
+      { error: 'Une erreur est survenue lors de la création de la plateforme' },
       { status: 500 }
     )
   }

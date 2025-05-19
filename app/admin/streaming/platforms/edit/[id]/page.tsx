@@ -14,6 +14,7 @@ import { ImageUpload } from '@/components/ui/image-upload'
 import Link from 'next/link'
 import { slugify } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PlatformLogoUpload } from '@/components/ui/platform-logo-upload'
 
 // Types de plateformes disponibles
 const platformTypes = [
@@ -348,6 +349,7 @@ export default function EditPlatformPage() {
                 value={platformData.logo || ''}
                 onChange={(url) => setPlatformData(prev => ({ ...prev, logo: url }))}
                 onUpload={handleImageUpload}
+                variant="logo"
               />
             </div>
           </CardContent>

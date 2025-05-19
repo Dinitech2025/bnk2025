@@ -274,6 +274,7 @@ export default function AddPlatformPage() {
                 value={platformData.logo}
                 onChange={(url) => setPlatformData(prev => ({ ...prev, logo: url }))}
                 onUpload={handleImageUpload}
+                variant="logo"
               />
             </div>
           </CardContent>

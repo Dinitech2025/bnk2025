@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import Image from 'next/image'
 
 interface Platform {
   id: string
@@ -100,12 +101,20 @@ export default function PlatformDetailsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center space-x-4">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src={platform.logo || ''} alt={platform.name} />
-                <AvatarFallback className="text-lg">
-                  {platform.name.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative w-40 h-20 rounded-lg overflow-hidden bg-gray-100">
+                {platform.logo ? (
+                  <Image
+                    src={platform.logo}
+                    alt={platform.name}
+                    fill
+                    className="object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    {platform.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+              </div>
               <div>
                 <h2 className="text-xl font-semibold">{platform.name}</h2>
                 <p className="text-sm text-muted-foreground">Slug: {platform.slug}</p>

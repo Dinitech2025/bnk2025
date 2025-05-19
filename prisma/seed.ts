@@ -1,334 +1,411 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { hash } from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Début de l\'initialisation de la base de données...');
+  try {
+    // Nettoyage de la base de données
+    await prisma.accountProfile.deleteMany();
+    await prisma.account.deleteMany();
+    await prisma.platformOffer.deleteMany();
+    await prisma.offer.deleteMany();
+    await prisma.platform.deleteMany();
+    await prisma.user.deleteMany();
 
-  // Suppression des données existantes
-  await prisma.user.deleteMany({});
-  
-  // Création de l'administrateur
-  const adminPassword = await bcrypt.hash('admin123', 12);
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@boutiknaka.com',
-      name: 'Admin',
-      firstName: 'Admin',
-      lastName: 'System',
-      password: adminPassword,
-      role: 'ADMIN',
-      preferredLanguage: 'fr',
-      customerType: 'INDIVIDUAL',
-    },
-  });
-  console.log('✅ Administrateur créé:', admin.email);
-  
-  // Création du staff
-  const staffPassword = await bcrypt.hash('staff123', 12);
-  const staff = await prisma.user.create({
-    data: {
-      email: 'staff@boutiknaka.com',
-      name: 'Staff',
-      firstName: 'Staff',
-      lastName: 'Member',
-      password: staffPassword,
-      role: 'STAFF',
-      preferredLanguage: 'fr',
-      customerType: 'INDIVIDUAL',
-    },
-  });
-  console.log('✅ Staff créé:', staff.email);
-  
-  // Création d'un client test
-  const clientPassword = await bcrypt.hash('client123', 12);
-  const client = await prisma.user.create({
-    data: {
-      email: 'client@example.com',
-      name: 'Client',
-      firstName: 'John',
-      lastName: 'Doe',
-      password: clientPassword,
-      role: 'CLIENT',
-      preferredLanguage: 'fr',
-      customerType: 'INDIVIDUAL',
-    },
-  });
-  console.log('✅ Client créé:', client.email);
+    // Création des utilisateurs
+    const adminPassword = await hash('admin123', 10);
+    const staffPassword = await hash('staff123', 10);
+    const clientPassword = await hash('client123', 10);
 
-  // Création d'une adresse pour le client
-  await prisma.address.create({
-    data: {
-      userId: client.id,
-      type: 'SHIPPING',
-      street: '123 Rue du Commerce',
-      city: 'Paris',
-      state: 'Île-de-France',
-      zipCode: '75001',
-      country: 'France',
-      isDefault: true,
-    },
-  });
-
-  // Création de catégories d'exemple
-  const electronicsCategory = await prisma.category.upsert({
-    where: { slug: 'electronique' },
-    update: {},
-    create: {
-      name: 'Électronique',
-      slug: 'electronique',
-      description: 'Produits électroniques et gadgets',
-    },
-  });
-
-  const clothingCategory = await prisma.category.upsert({
-    where: { slug: 'vetements' },
-    update: {},
-    create: {
-      name: 'Vêtements',
-      slug: 'vetements',
-      description: 'Vêtements et accessoires',
-    },
-  });
-
-  // Création de produits d'exemple
-  await prisma.product.upsert({
-    where: { slug: 'smartphone-premium' },
-    update: {},
-    create: {
-      name: 'Smartphone Premium',
-      slug: 'smartphone-premium',
-      description: 'Le dernier smartphone haut de gamme',
-      price: 899.99,
-      compareAtPrice: 999.99,
-      sku: 'SP-001',
-      barcode: '123456789',
-      inventory: 50,
-      weight: 0.2,
-      dimensions: '15x7x0.8',
-      categoryId: electronicsCategory.id,
-      featured: true,
-      published: true,
-      attributes: {
-        create: [
-          {
-            name: 'Couleur',
-            value: 'Noir',
-          },
-          {
-            name: 'Stockage',
-            value: '128 Go',
-          },
-        ],
-      },
-    },
-  });
-
-  await prisma.product.upsert({
-    where: { slug: 't-shirt-coton' },
-    update: {},
-    create: {
-      name: 'T-Shirt Coton',
-      slug: 't-shirt-coton',
-      description: 'T-shirt en coton bio de qualité supérieure',
-      price: 29.99,
-      compareAtPrice: 39.99,
-      sku: 'TS-001',
-      barcode: '987654321',
-      inventory: 100,
-      weight: 0.2,
-      dimensions: '30x20x2',
-      categoryId: clothingCategory.id,
-      featured: false,
-      published: true,
-      attributes: {
-        create: [
-          {
-            name: 'Taille',
-            value: 'M',
-          },
-          {
-            name: 'Couleur',
-            value: 'Blanc',
-          },
-        ],
-      },
-    },
-  });
-
-  // Création d'un service d'exemple
-  await prisma.service.upsert({
-    where: { slug: 'reparation-smartphone' },
-    update: {},
-    create: {
-      name: 'Réparation Smartphone',
-      slug: 'reparation-smartphone',
-      description: 'Service de réparation pour tous types de smartphones',
-      price: 49.99,
-      duration: 60,
-      categoryId: electronicsCategory.id,
-      published: true,
-    },
-  });
-
-  // Création de plateformes streaming
-  const netflixPlatform = await prisma.platform.upsert({
-    where: { slug: 'netflix' },
-    update: {},
-    create: {
-      name: 'Netflix',
-      slug: 'netflix',
-      description: 'Service de streaming de films et séries',
-      websiteUrl: 'https://www.netflix.com',
-      maxProfilesPerAccount: 5,
-      isActive: true,
-      type: 'VIDEO',
-      pricingModel: 'SUBSCRIPTION'
-    },
-  });
-
-  const disneyPlatform = await prisma.platform.upsert({
-    where: { slug: 'disney-plus' },
-    update: {},
-    create: {
-      name: 'Disney+',
-      slug: 'disney-plus',
-      description: 'Service de streaming Disney, Marvel, Star Wars',
-      websiteUrl: 'https://www.disneyplus.com',
-      maxProfilesPerAccount: 4,
-      isActive: true,
-      type: 'VIDEO',
-      pricingModel: 'SUBSCRIPTION'
-    },
-  });
-
-  // Création d'offres
-  const netflixOffer = await prisma.offer.create({
-    data: {
-      name: 'Netflix Premium',
-      description: 'Accès à un profil Netflix Premium',
-      price: 12.99,
-      duration: 30,
-      profileCount: 1,
-      features: 'Accès illimité, HD, 1 profil',
-      isPopular: true,
-      isActive: true,
-      maxUsers: 1,
-    },
-  });
-
-  const disneyOffer = await prisma.offer.create({
-    data: {
-      name: 'Disney+ Standard',
-      description: 'Accès à un profil Disney+',
-      price: 9.99,
-      duration: 30,
-      profileCount: 1,
-      features: 'Accès illimité, HD, 1 profil',
-      isPopular: false,
-      isActive: true,
-      maxUsers: 1,
-    },
-  });
-
-  // Création des PlatformOffers
-  await prisma.platformOffer.create({
-    data: {
-      offerId: netflixOffer.id,
-      platformId: netflixPlatform.id,
-      profileCount: 1,
-      isDefault: true,
-    },
-  });
-
-  await prisma.platformOffer.create({
-    data: {
-      offerId: disneyOffer.id,
-      platformId: disneyPlatform.id,
-      profileCount: 1,
-      isDefault: true,
-    },
-  });
-
-  // Création de comptes streaming
-  const netflixAccount = await prisma.account.create({
-    data: {
-      platformId: netflixPlatform.id,
-      username: 'compte_netflix_1',
-      email: 'netflix1@boutiknaka.com',
-      password: 'password123',
-      status: 'AVAILABLE',
-      accountProfiles: {
-        create: Array.from({ length: 5 }, (_, i) => ({
-          profileSlot: i + 1,
-          isAssigned: false,
-        })),
-      },
-    },
-  });
-
-  const disneyAccount = await prisma.account.create({
-    data: {
-      platformId: disneyPlatform.id,
-      username: 'compte_disney_1',
-      email: 'disney1@boutiknaka.com',
-      password: 'password123',
-      status: 'AVAILABLE',
-      accountProfiles: {
-        create: Array.from({ length: 4 }, (_, i) => ({
-          profileSlot: i + 1,
-          isAssigned: false,
-        })),
-      },
-    },
-  });
-
-  // Création de paramètres système
-  console.log('🌱 Initialisation des paramètres généraux...');
-
-  const defaultSettings = [
-    { key: 'siteName', value: 'BoutikNaka', type: 'STRING' },
-    { key: 'siteDescription', value: 'Votre boutique en ligne pour tous vos besoins', type: 'TEXT' },
-    { key: 'siteTagline', value: 'Qualité et service à prix abordable', type: 'STRING' },
-    { key: 'contactEmail', value: 'contact@boutiknaka.com', type: 'STRING' },
-    { key: 'contactPhone', value: '+261 34 00 000 00', type: 'STRING' },
-    { key: 'address', value: 'Antananarivo, Madagascar', type: 'TEXT' },
-    { key: 'logoUrl', value: '/images/logo.png', type: 'IMAGE' },
-    { key: 'faviconUrl', value: '/favicon.ico', type: 'IMAGE' },
-    { key: 'adminLogoUrl', value: '/images/admin-logo.png', type: 'IMAGE' },
-    { key: 'currency', value: 'MGA', type: 'STRING' },
-    { key: 'currencySymbol', value: 'Ar', type: 'STRING' },
-    { key: 'facebookUrl', value: 'https://facebook.com/boutiknaka', type: 'STRING' },
-    { key: 'instagramUrl', value: 'https://instagram.com/boutiknaka', type: 'STRING' },
-    { key: 'twitterUrl', value: 'https://twitter.com/boutiknaka', type: 'STRING' },
-    { key: 'youtubeUrl', value: '', type: 'STRING' },
-    { key: 'footerText', value: '© 2023 BoutikNaka. Tous droits réservés.', type: 'TEXT' },
-    { key: 'metaTitle', value: 'BoutikNaka - Votre boutique en ligne', type: 'STRING' },
-    { key: 'metaDescription', value: 'BoutikNaka est votre boutique en ligne pour tous vos besoins numériques et électroniques.', type: 'TEXT' },
-    { key: 'metaKeywords', value: 'boutique, e-commerce, madagascar, streaming, produits, services', type: 'STRING' },
-    { key: 'sloganMG', value: 'Kalitao sy serivisy amin\'ny vidiny mora', type: 'STRING' },
-    { key: 'sloganFR', value: 'Qualité et service à prix abordable', type: 'STRING' },
-  ];
-
-  // Supprimer les paramètres existants
-  await prisma.setting.deleteMany({});
-
-  // Insérer les nouveaux paramètres
-  for (const setting of defaultSettings) {
-    await prisma.setting.create({
-      data: setting
+    const admin = await prisma.user.create({
+      data: {
+        email: 'admin@boutiknaka.com',
+        password: adminPassword,
+        name: 'Admin Principal',
+        role: 'ADMIN',
+        preferredLanguage: 'fr',
+        newsletter: true,
+        customerType: 'STAFF'
+      }
     });
+
+    const staff = await prisma.user.create({
+      data: {
+        email: 'staff@boutiknaka.com',
+        password: staffPassword,
+        name: 'Staff Support',
+        role: 'STAFF',
+        preferredLanguage: 'fr',
+        newsletter: true,
+        customerType: 'STAFF'
+      }
+    });
+
+    const client = await prisma.user.create({
+      data: {
+        email: 'client@example.com',
+        password: clientPassword,
+        name: 'Client Test',
+        firstName: 'Client',
+        lastName: 'Test',
+        role: 'CLIENT',
+        preferredLanguage: 'fr',
+        newsletter: true,
+        customerType: 'INDIVIDUAL',
+        phone: '+33612345678'
+      }
+    });
+
+    // Création des plateformes
+    const netflix = await prisma.platform.create({
+      data: {
+        name: 'Netflix',
+        slug: 'netflix',
+        description: 'Plateforme de streaming vidéo',
+        logo: 'https://netflix.com/logo.png',
+        websiteUrl: 'https://netflix.com',
+        type: 'VIDEO',
+        hasProfiles: true,
+        maxProfilesPerAccount: 5,
+        isActive: true,
+        tags: JSON.stringify(['streaming', 'video', 'films', 'series']),
+        popularity: 5,
+        features: JSON.stringify(['HD', '4K', 'HDR', 'Dolby Atmos']),
+        pricingModel: 'SUBSCRIPTION'
+      }
+    });
+
+    const disney = await prisma.platform.create({
+      data: {
+        name: 'Disney+',
+        slug: 'disney-plus',
+        description: 'Plateforme de streaming Disney',
+        logo: 'https://disney.com/logo.png',
+        websiteUrl: 'https://disneyplus.com',
+        type: 'VIDEO',
+        hasProfiles: true,
+        maxProfilesPerAccount: 7,
+        isActive: true,
+        tags: JSON.stringify(['streaming', 'video', 'films', 'series', 'disney']),
+        popularity: 4.5,
+        features: JSON.stringify(['HD', '4K', 'HDR', 'IMAX']),
+        pricingModel: 'SUBSCRIPTION'
+      }
+    });
+
+    const spotify = await prisma.platform.create({
+      data: {
+        name: 'Spotify',
+        slug: 'spotify',
+        description: 'Plateforme de streaming musical',
+        logo: 'https://spotify.com/logo.png',
+        websiteUrl: 'https://spotify.com',
+        type: 'MUSIC',
+        hasProfiles: false,
+        maxProfilesPerAccount: 1,
+        isActive: true,
+        tags: JSON.stringify(['streaming', 'music', 'audio', 'podcasts']),
+        popularity: 4.8,
+        features: JSON.stringify(['HQ Audio', 'Offline Mode', 'Lyrics']),
+        pricingModel: 'SUBSCRIPTION'
+      }
+    });
+
+    // Création des offres
+    const netflixBasic = await prisma.offer.create({
+      data: {
+        name: 'Netflix Basic',
+        description: 'Offre de base Netflix',
+        type: 'SINGLE',
+        price: 8.99,
+        duration: 1,
+        durationUnit: 'MONTH',
+        features: JSON.stringify(['HD', '1 écran']),
+        isPopular: false,
+        isActive: true,
+        maxUsers: 1,
+        maxProfiles: 1,
+        platformOffers: {
+          create: {
+            platformId: netflix.id,
+            profileCount: 1,
+            isDefault: true
+          }
+        }
+      }
+    });
+
+    const netflixStandard = await prisma.offer.create({
+      data: {
+        name: 'Netflix Standard',
+        description: 'Offre standard Netflix',
+        type: 'FAMILY',
+        price: 13.49,
+        duration: 1,
+        durationUnit: 'MONTH',
+        features: JSON.stringify(['HD', '2 écrans']),
+        isPopular: true,
+        isActive: true,
+        maxUsers: 2,
+        maxProfiles: 2,
+        platformOffers: {
+          create: {
+            platformId: netflix.id,
+            profileCount: 2,
+            isDefault: false
+          }
+        }
+      }
+    });
+
+    const disneyFamily = await prisma.offer.create({
+      data: {
+        name: 'Disney+ Family',
+        description: 'Offre familiale Disney+',
+        type: 'FAMILY',
+        price: 11.99,
+        duration: 1,
+        durationUnit: 'MONTH',
+        features: JSON.stringify(['4K', '4 écrans', 'IMAX']),
+        isPopular: true,
+        isActive: true,
+        maxUsers: 4,
+        maxProfiles: 4,
+        platformOffers: {
+          create: {
+            platformId: disney.id,
+            profileCount: 4,
+            isDefault: true
+          }
+        }
+      }
+    });
+
+    const spotifyPremium = await prisma.offer.create({
+      data: {
+        name: 'Spotify Premium',
+        description: 'Offre premium Spotify',
+        type: 'SINGLE',
+        price: 9.99,
+        duration: 1,
+        durationUnit: 'MONTH',
+        features: JSON.stringify(['HQ Audio', 'Offline Mode']),
+        isPopular: true,
+        isActive: true,
+        maxUsers: 1,
+        profileCount: 1,
+        platformOffers: {
+          create: {
+            platformId: spotify.id,
+            profileCount: 1,
+            isDefault: true
+          }
+        }
+      }
+    });
+
+    // Création des comptes
+    const netflixAccounts = await Promise.all(
+      Array.from({ length: 5 }).map((_, i) => 
+        prisma.account.create({
+          data: {
+            platformId: netflix.id,
+            username: `netflix_account_${i + 1}`,
+            email: `netflix${i + 1}@example.com`,
+            password: 'password123',
+            status: 'AVAILABLE'
+          }
+        })
+      )
+    );
+
+    const disneyAccounts = await Promise.all(
+      Array.from({ length: 3 }).map((_, i) => 
+        prisma.account.create({
+          data: {
+            platformId: disney.id,
+            username: `disney_account_${i + 1}`,
+            email: `disney${i + 1}@example.com`,
+            password: 'password123',
+            status: 'AVAILABLE'
+          }
+        })
+      )
+    );
+
+    const spotifyAccounts = await Promise.all(
+      Array.from({ length: 2 }).map((_, i) => 
+        prisma.account.create({
+          data: {
+            platformId: spotify.id,
+            username: `spotify_account_${i + 1}`,
+            email: `spotify${i + 1}@example.com`,
+            password: 'password123',
+            status: 'AVAILABLE'
+          }
+        })
+      )
+    );
+
+    // Création des clients
+    const customers = await Promise.all(
+      Array.from({ length: 5 }).map((_, i) => 
+        prisma.customer.create({
+          data: {
+            name: `Client ${i + 1}`,
+            email: `client${i + 1}@example.com`
+          }
+        })
+      )
+    );
+
+    // Création des abonnements avec profils
+    // Netflix Standard pour le client 1
+    await prisma.subscription.create({
+      data: {
+        customerId: customers[0].id,
+        offerId: netflixStandard.id,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: 'ACTIVE',
+        platformOfferId: netflixStandard.platformOffers[0].id,
+        profiles: {
+          create: [
+            {
+              accountId: netflixAccounts[0].id,
+              profileSlot: 1,
+              name: 'Profil Principal'
+            },
+            {
+              accountId: netflixAccounts[0].id,
+              profileSlot: 2,
+              name: 'Profil Enfant'
+            }
+          ]
+        }
+      }
+    });
+
+    // Disney+ Family pour le client 2
+    await prisma.subscription.create({
+      data: {
+        customerId: customers[1].id,
+        offerId: disneyFamily.id,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: 'ACTIVE',
+        platformOfferId: disneyFamily.platformOffers[0].id,
+        profiles: {
+          create: [
+            {
+              accountId: disneyAccounts[0].id,
+              profileSlot: 1,
+              name: 'Parent 1'
+            },
+            {
+              accountId: disneyAccounts[0].id,
+              profileSlot: 2,
+              name: 'Parent 2'
+            },
+            {
+              accountId: disneyAccounts[0].id,
+              profileSlot: 3,
+              name: 'Enfant 1'
+            },
+            {
+              accountId: disneyAccounts[0].id,
+              profileSlot: 4,
+              name: 'Enfant 2'
+            }
+          ]
+        }
+      }
+    });
+
+    // Spotify Premium pour le client 3
+    await prisma.subscription.create({
+      data: {
+        customerId: customers[2].id,
+        offerId: spotifyPremium.id,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: 'ACTIVE',
+        platformOfferId: spotifyPremium.platformOffers[0].id,
+        profiles: {
+          create: [
+            {
+              accountId: spotifyAccounts[0].id,
+              profileSlot: 1,
+              name: 'Compte Principal'
+            }
+          ]
+        }
+      }
+    });
+
+    // Netflix Basic pour le client 4 (en attente)
+    await prisma.subscription.create({
+      data: {
+        customerId: customers[3].id,
+        offerId: netflixBasic.id,
+        startDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000),
+        status: 'PENDING',
+        platformOfferId: netflixBasic.platformOffers[0].id,
+        profiles: {
+          create: [
+            {
+              accountId: netflixAccounts[1].id,
+              profileSlot: 1,
+              name: 'Profil Unique'
+            }
+          ]
+        }
+      }
+    });
+
+    // Disney+ Family pour le client 5 (expiré)
+    await prisma.subscription.create({
+      data: {
+        customerId: customers[4].id,
+        offerId: disneyFamily.id,
+        startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        status: 'EXPIRED',
+        platformOfferId: disneyFamily.platformOffers[0].id,
+        profiles: {
+          create: [
+            {
+              accountId: disneyAccounts[1].id,
+              profileSlot: 1,
+              name: 'Famille'
+            },
+            {
+              accountId: disneyAccounts[1].id,
+              profileSlot: 2,
+              name: 'Parents'
+            },
+            {
+              accountId: disneyAccounts[1].id,
+              profileSlot: 3,
+              name: 'Enfants'
+            }
+          ]
+        }
+      }
+    });
+
+    console.log('Base de données initialisée avec succès !');
+  } catch (error) {
+    console.error('Erreur lors de l\'initialisation de la base de données:', error);
+    throw error;
   }
-
-  console.log('✅ Paramètres généraux initialisés avec succès!');
-
-  console.log('✨ Initialisation terminée');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erreur lors de l\'initialisation:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
