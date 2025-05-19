@@ -22,8 +22,8 @@ import { Input } from '@/components/ui/input';
 
 interface User {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string;
 }
 
@@ -615,17 +615,20 @@ export function OrderForm({ users, products, services, offers, initialData }: Or
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex gap-2">
-                            {item.itemType === 'OFFER' && item.item && 
-                              ((item.item as Offer).platformOffers ? (item.item as Offer).platformOffers.length > 0 : false) && (
-                              <button
-                                type="button"
-                                onClick={() => configureSubscription(item, index)}
-                                className="text-blue-600 hover:text-blue-800"
-                                title="Configurer l'abonnement"
-                              >
-                                <Settings size={16} />
-                              </button>
-                            )}
+                            {item.itemType === 'OFFER' && item.item && (() => {
+                              const offer = item.item as Offer;
+                              const hasPlatformOffers = offer.platformOffers && offer.platformOffers.length > 0;
+                              return hasPlatformOffers && (
+                                <button
+                                  type="button"
+                                  onClick={() => configureSubscription(item, index)}
+                                  className="text-blue-600 hover:text-blue-800"
+                                  title="Configurer l'abonnement"
+                                >
+                                  <Settings size={16} />
+                                </button>
+                              );
+                            })()}
                             <button
                               type="button"
                               onClick={() => removeItem(index)}

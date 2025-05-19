@@ -89,27 +89,44 @@ async function getOffers() {
 }
 
 export default async function NewOrderPage() {
-  const [users, products, services, offers] = await Promise.all([
+  const [usersRaw, products, services, offers] = await Promise.all([
     getUsers(),
     getProducts(),
     getServices(),
     getOffers(),
   ]);
 
+  // Formater les données des utilisateurs (null -> chaîne vide)
+  const users = usersRaw.map(user => ({
+    ...user,
+    firstName: user.firstName || "",
+    lastName: user.lastName || "",
+  }));
+
   // Formater les prix en nombre pour éviter les problèmes de sérialisation
   const formattedProducts = products.map(product => ({
     ...product,
     price: Number(product.price),
+    description: product.description || undefined,
   }));
 
   const formattedServices = services.map(service => ({
     ...service,
     price: Number(service.price),
+    description: service.description || undefined,
   }));
 
   const formattedOffers = offers.map(offer => ({
     ...offer,
     price: Number(offer.price),
+    description: offer.description || undefined,
+    platformOffers: offer.platformOffers?.map(po => ({
+      ...po,
+      platform: {
+        ...po.platform,
+        logo: po.platform.logo || undefined
+      }
+    }))
   }));
 
   return (

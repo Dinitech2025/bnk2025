@@ -119,7 +119,13 @@ export default async function SubscriptionPage({ params }: PageProps) {
           <h1 className="text-3xl font-bold tracking-tight">
             Détails de l'abonnement
           </h1>
-          <SubscriptionActions subscription={subscription} />
+          <SubscriptionActions subscription={{
+            id: subscription.id,
+            status: subscription.status,
+            autoRenew: subscription.autoRenew,
+            contactNeeded: subscription.contactNeeded,
+            endDate: subscription.endDate.toISOString()
+          }} />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
