@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
+import type { CheckedState } from "@radix-ui/react-checkbox"
 
 // Schéma de validation pour le formulaire
 const profileFormSchema = z.object({
@@ -299,7 +300,7 @@ export default function EditProfilePage() {
                       <FormControl>
                         <Checkbox
                           checked={field.value}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked: CheckedState) => field.onChange(checked === true)}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">

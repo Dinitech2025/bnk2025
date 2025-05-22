@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import type { CheckedState } from "@radix-ui/react-checkbox"
 
 // Schéma de validation pour le formulaire d'adresse
 const addressFormSchema = z.object({
@@ -368,7 +369,7 @@ export default function EditAddressPage({ params }: EditAddressPageProps) {
                       <FormControl>
                         <Checkbox
                           checked={field.value}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked: CheckedState) => field.onChange(checked === true)}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">

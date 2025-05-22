@@ -1,108 +1,136 @@
-# Projet Next.js avec TypeScript
+# BoutikNaka
 
-Ce projet est une application web moderne construite avec Next.js et TypeScript, utilisant Prisma comme ORM et Tailwind CSS pour le style.
+BoutikNaka est une plateforme e-commerce complète développée avec Next.js, TypeScript et Prisma. Le système comprend une gestion de produits, services, abonnements aux plateformes de streaming, et un panneau d'administration complet.
 
-## Structure du Projet
+## 🌟 Fonctionnalités
 
-```
-├── app/                    # Dossier principal des routes Next.js
-│   ├── admin/             # Interface d'administration
-│   ├── api/               # Routes API
-│   ├── auth/              # Pages d'authentification
-│   ├── profile/           # Pages de profil utilisateur
-│   ├── products/          # Pages des produits
-│   ├── services/          # Pages des services
-│   ├── contact/           # Page de contact
-│   ├── layout.tsx         # Layout principal de l'application
-│   ├── page.tsx           # Page d'accueil
-│   └── globals.css        # Styles globaux
-│
-├── components/            # Composants réutilisables
-│   ├── ui/               # Composants UI génériques
-│   ├── admin/            # Composants spécifiques à l'admin
-│   ├── site-header.tsx   # En-tête du site
-│   ├── site-footer.tsx   # Pied de page du site
-│   └── user-menu.tsx     # Menu utilisateur
-│
-├── lib/                  # Utilitaires et fonctions partagées
-├── prisma/              # Configuration et schémas Prisma
-├── public/              # Fichiers statiques
-├── types/               # Types TypeScript personnalisés
-└── middleware.ts        # Middleware Next.js
-```
+- **Authentification complète** - Inscription, connexion, gestion de profil
+- **Gestion de produits** - Catalogue, catégories, variations, attributs, inventaire
+- **Gestion de services** - Services disponibles par catégories
+- **Plateforme d'abonnements** - Gestion des abonnements aux services de streaming (Netflix, Disney+, etc.)
+- **Gestion des profils** - Attribution de profils utilisateurs aux comptes de plateformes
+- **Système de commandes** - Panier, checkout, historique de commandes
+- **Panneau d'administration** - Interface complète pour gérer tous les aspects de la plateforme
+- **Interface responsive** - Expérience utilisateur optimisée sur tous les appareils
 
-## Configuration Technique
+## 🛠️ Technologies
 
-- **Framework**: Next.js
-- **Language**: TypeScript
-- **Base de données**: Prisma ORM
-- **Styles**: Tailwind CSS
-- **Authentification**: Intégrée via le dossier auth/
-- **API**: Routes API Next.js dans le dossier api/
+- **Frontend:** Next.js 14, React 18, TypeScript, Tailwind CSS
+- **Backend:** API Routes Next.js, Prisma ORM
+- **Base de données:** PostgreSQL
+- **UI Components:** Radix UI, Tailwind CSS, Shadcn UI
+- **Authentification:** Next-Auth
+- **Gestion de formulaires:** React Hook Form, Zod
+- **Gestion de médias:** Cloudinary
+- **Déploiement:** Configuration pour Netlify
 
-## Fonctionnalités Principales
+## 🚀 Installation
 
-- 🔐 Système d'authentification complet
-- 👤 Gestion des profils utilisateurs
-- 📊 Interface d'administration
-- 🛍️ Gestion des produits
-- 🔧 Gestion des services
-- 📱 Interface responsive
-- 📝 Formulaire de contact
+1. Clonez le dépôt
+   ```bash
+   git clone <url-du-depot>
+   cd boutiknaka
+   ```
 
-## Scripts Disponibles
+2. Installez les dépendances
+   ```bash
+   npm install
+   ```
 
-\`\`\`bash
-npm run dev      # Lance le serveur de développement
-npm run build    # Construit l'application pour la production
-npm run start    # Démarre l'application en mode production
-\`\`\`
-
-## Configuration Requise
-
-- Node.js 18.x ou supérieur
-- npm ou yarn
-- Base de données compatible avec Prisma
-
-## Installation
-
-1. Clonez le repository
-2. Installez les dépendances : \`npm install\`
 3. Configurez les variables d'environnement
-4. Lancez les migrations Prisma : \`npx prisma migrate dev\`
-5. Démarrez le serveur : \`npm run dev\`
+   ```bash
+   # Créez un fichier .env avec les variables suivantes:
+   DATABASE_URL="postgresql://user:password@localhost:5432/boutiknaka"
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="votre-secret-ici"
+   CLOUDINARY_CLOUD_NAME="votre-cloud-name"
+   CLOUDINARY_API_KEY="votre-api-key"
+   CLOUDINARY_API_SECRET="votre-api-secret"
+   ```
 
-## Structure des Composants
+4. Initialisez la base de données
+   ```bash
+   npx prisma migrate dev --name init
+   npx prisma db seed
+   ```
 
-### Components Principaux
-- `site-header.tsx`: Navigation principale et en-tête
-- `site-footer.tsx`: Pied de page avec liens et informations
-- `user-menu.tsx`: Menu déroulant pour les utilisateurs connectés
-- `ImageCropper.tsx`: Composant pour le recadrage d'images
+5. Lancez l'application en mode développement
+   ```bash
+   npm run dev
+   ```
 
-### Composants UI
-Le dossier `components/ui/` contient des composants réutilisables pour l'interface utilisateur.
+## 📊 Structure du projet
 
-## Routes Principales
+```
+├── app/                   # Routes et pages de l'application Next.js
+│   ├── (admin)/          # Zone d'administration (route groupée)
+│   ├── (site)/           # Interface utilisateur du site (route groupée)
+│   ├── api/              # Points d'API REST
+│   ├── auth/             # Pages d'authentification
+│   ├── products/         # Pages des produits
+│   ├── services/         # Pages des services
+│   ├── profiles/         # Gestion des profils
+│   └── ...
+├── components/           # Composants React réutilisables
+├── lib/                  # Utilitaires et fonctions partagées
+├── prisma/              # Schéma de base de données et migrations
+├── public/              # Fichiers statiques
+└── scripts/             # Scripts utilitaires et de migration
+```
 
-- `/` - Page d'accueil
-- `/admin` - Interface d'administration
-- `/profile` - Profil utilisateur
-- `/products` - Liste des produits
-- `/services` - Services disponibles
-- `/contact` - Formulaire de contact
-- `/auth` - Pages d'authentification
+## 🛡️ Schéma de base de données
 
-## Middleware
+Le système utilise un schéma Prisma complet gérant:
+- Utilisateurs et authentification
+- Produits, variations et attributs
+- Services et catégories
+- Plateformes et abonnements
+- Profils utilisateurs
+- Commandes et éléments de commande
+- Médias et paramètres système
 
-Le fichier `middleware.ts` gère :
-- La protection des routes
-- La redirection des utilisateurs
-- La validation des sessions
+## 🔄 Scripts disponibles
 
-## Configuration Supplémentaire
+```bash
+# Développement
+npm run dev              # Lancer le serveur de développement
 
-- `next.config.js` - Configuration Next.js
-- `tailwind.config.js` - Configuration Tailwind CSS
-- `tsconfig.json` - Configuration TypeScript
-- `postcss.config.js` - Configuration PostCSS 
+# Base de données
+npm run prisma:studio    # Interface Prisma Studio
+npm run prisma:migrate   # Exécuter les migrations
+npm run prisma:seed      # Remplir la base de données avec des données de test
+
+# Production
+npm run build            # Construire pour la production
+npm run start            # Démarrer en production
+
+# Utilitaires
+npm run update-subscriptions  # Mettre à jour les statuts d'abonnement
+npm run scheduler             # Exécuter les tâches planifiées
+```
+
+## 🧑‍💻 Développement
+
+### Ajout de nouveaux produits/services
+
+1. Utilisez l'interface d'administration `/admin/products` ou `/admin/services`
+2. Ou utilisez l'API via les endpoints `/api/products` et `/api/services`
+
+### Gestion des abonnements
+
+Le système gère automatiquement les abonnements aux plateformes avec:
+- Attribution de profils
+- Renouvellement des abonnements
+- Notifications aux utilisateurs
+
+### Système de paiement
+
+Le projet est configuré pour s'intégrer avec différentes passerelles de paiement via l'API payments.
+
+## 📱 Capture d'écran
+
+*Screenshots à ajouter*
+
+## 📄 Licence
+
+Tous droits réservés. 

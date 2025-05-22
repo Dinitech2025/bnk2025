@@ -102,6 +102,7 @@ const adminNavItems: NavItem[] = [
     submenuItems: [
       { title: 'Paramètres généraux', href: '/admin/settings/general' },
       { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
+      { title: 'Conversion de devises', href: '/admin/settings/currency' },
     ]
   },
 ]
@@ -118,7 +119,7 @@ function AdminSidebar() {
           ? 'Gestion des produits'
           : pathname.startsWith('/admin/services')
             ? 'Gestion des services'
-            : null
+        : null
   )
 
   const toggleSubmenu = (title: string) => {
@@ -211,4 +212,4 @@ function AdminSidebar() {
   )
 }
 
-export default AdminSidebar 
+export default AdminSidebar

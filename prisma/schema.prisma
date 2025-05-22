@@ -77,34 +77,58 @@ model Category {
 }
 
 model Product {
-  id             String             @id @default(cuid())
-  name           String
-  slug           String             @unique
-  description    String?
-  price          Decimal
-  compareAtPrice Decimal?
-  sku            String?            @unique
-  barcode        String?
-  inventory      Int                @default(0)
-  weight         Decimal?
-  dimensions     String?
-  categoryId     String?
-  featured       Boolean            @default(false)
-  published      Boolean            @default(true)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  orderItems     OrderItem[]
-  category       Category?          @relation(fields: [categoryId], references: [id])
-  attributes     ProductAttribute[]
-  images         Media[]            @relation("MediaToProduct")
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  description      String?
+  price            Decimal
+  compareAtPrice   Decimal?
+  sku              String?            @unique
+  barcode          String?            @unique
+  inventory        Int                @default(0)
+  weight           Decimal?
+  dimensions       String?
+  categoryId       String?
+  featured         Boolean            @default(false)
+  published        Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  inventoryHistory InventoryHistory[]
+  orderItems       OrderItem[]
+  category         Category?          @relation(fields: [categoryId], references: [id])
+  attributes       ProductAttribute[]
+  variations       ProductVariation[]
+  images           Media[]            @relation("MediaToProduct")
+
+  @@index([categoryId])
 }
 
 model ProductAttribute {
-  id        String  @id @default(cuid())
-  productId String
-  name      String
-  value     String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id          String            @id @default(cuid())
+  productId   String?
+  name        String
+  value       String
+  variationId String?
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variation   ProductVariation? @relation(fields: [variationId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([variationId])
+}
+
+model ProductVariation {
+  id         String             @id @default(cuid())
+  sku        String?            @unique
+  price      Decimal
+  inventory  Int                @default(0)
+  productId  String
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  attributes ProductAttribute[]
+  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  images     Media[]            @relation("MediaToVariation")
+
+  @@index([productId])
 }
 
 model Service {
@@ -185,16 +209,16 @@ model Subscription {
   endDate              DateTime
   status               String                @default("PENDING")
   autoRenew            Boolean               @default(false)
-  contactNeeded        Boolean               @default(false)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
-  orderId              String?               
+  contactNeeded        Boolean               @default(false)
+  orderId              String?
   accountProfiles      AccountProfile[]      @relation("ProfileAssignment")
   Profile              Profile[]
   offer                Offer                 @relation(fields: [offerId], references: [id])
+  order                Order?                @relation(fields: [orderId], references: [id])
   platformOffer        PlatformOffer?        @relation(fields: [platformOfferId], references: [id])
   user                 User                  @relation(fields: [userId], references: [id])
-  order                Order?                @relation(fields: [orderId], references: [id])
   subscriptionAccounts SubscriptionAccount[]
   UserSubscription     UserSubscription[]
 
@@ -246,13 +270,13 @@ model UserProfile {
 
 model Order {
   id              String         @id @default(cuid())
-  orderNumber     String?        @unique
   userId          String
-  status          String         @default("PENDING")
+  status          String         @default("QUOTE")
   total           Decimal
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   addressId       String?
+  orderNumber     String?        @unique
   shippingAddress Address?       @relation("shippingAddress", fields: [addressId], references: [id])
   user            User           @relation(fields: [userId], references: [id])
   items           OrderItem[]
@@ -273,6 +297,7 @@ model OrderItem {
   productId  String?
   serviceId  String?
   offerId    String?
+  metadata   Json?    // Pour stocker les détails supplémentaires (abonnement, etc.)
   offer      Offer?   @relation(fields: [offerId], references: [id])
   order      Order    @relation(fields: [orderId], references: [id])
   product    Product? @relation(fields: [productId], references: [id])
@@ -280,20 +305,21 @@ model OrderItem {
 }
 
 model Media {
-  id           String        @id @default(cuid())
+  id           String             @id @default(cuid())
   name         String
   fileName     String
   mimeType     String
   path         String
   size         Int
   alt          String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  platforms    Platform[]    @relation("MediaToPlatform")
-  userProfiles UserProfile[] @relation("MediaToUserProfile")
-  offers       Offer[]       @relation("MediaToOffer")
-  products     Product[]     @relation("MediaToProduct")
-  services     Service[]     @relation("MediaToService")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  platforms    Platform[]         @relation("MediaToPlatform")
+  userProfiles UserProfile[]      @relation("MediaToUserProfile")
+  offers       Offer[]            @relation("MediaToOffer")
+  products     Product[]          @relation("MediaToProduct")
+  services     Service[]          @relation("MediaToService")
+  variations   ProductVariation[] @relation("MediaToVariation")
 }
 
 model Setting {
@@ -350,3 +376,65 @@ model PlatformOffer {
   platform      Platform       @relation(fields: [platformId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
 }
+
+model InventoryHistory {
+  id               String   @id @default(cuid())
+  productId        String
+  type             String
+  quantity         Int
+  previousQuantity Int
+  newQuantity      Int
+  reason           String
+  createdAt        DateTime @default(now())
+  product          Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}
+// Gestion des tickets
+model Ticket {
+  id        String   @id @default(cuid())
+  duration  String   // 30min, 1h, 2h, 5h
+  price     Int
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  stockUpdates StockUpdate[]
+  usages       TicketUsage[]
+}
+
+// Historique des mises à jour de stock
+model StockUpdate {
+  id           String   @id @default(cuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id])
+  amount       Int
+  previousStock Int
+  newStock     Int
+  createdAt    DateTime @default(now())
+}
+
+// Utilisation journalière des tickets
+model TicketUsage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  quantity  Int
+  date      DateTime @default(now())
+  reportId  String
+  report    DailyReport @relation(fields: [reportId], references: [id])
+}
+
+// Rapport journalier
+model DailyReport {
+  id           String   @id @default(cuid())
+  date         DateTime @default(now())
+  totalRevenue Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  ticketUsages TicketUsage[]
+}
+

@@ -1,5 +1,3 @@
-'use client'
-
 import { useState, useEffect } from 'react'
 
 interface SiteSettings {
@@ -22,31 +20,40 @@ interface SiteSettings {
   [key: string]: string
 }
 
+// Fonction pour récupérer les paramètres
+async function fetchSiteSettings(): Promise<SiteSettings> {
+  const response = await fetch('/api/settings')
+  if (!response.ok) {
+    throw new Error('Erreur lors du chargement des paramètres')
+  }
+  return response.json()
+}
+
 export function useSiteSettings() {
   const [settings, setSettings] = useState<SiteSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoading(true)
-        const response = await fetch('/api/settings')
-        
-        if (!response.ok) {
-          throw new Error('Erreur lors du chargement des paramètres')
-        }
-        
-        const data = await response.json()
-        setSettings(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Une erreur est survenue')
-      } finally {
-        setIsLoading(false)
-      }
-    }
+    let isMounted = true
 
-    fetchSettings()
+    fetchSiteSettings()
+      .then(data => {
+        if (isMounted) {
+          setSettings(data)
+          setIsLoading(false)
+        }
+      })
+      .catch(err => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Une erreur est survenue')
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   return { settings, isLoading, error }

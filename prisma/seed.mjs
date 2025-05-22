@@ -83,6 +83,27 @@ async function main() {
   });
   console.log('Plateforme créée:', amazonPrime.name);
 
+  // Seeding du cybercafé
+  console.log('Initialisation du cybercafé...');
+  
+  const ticketTypes = [
+    { duration: '30min', price: 500 },
+    { duration: '1h', price: 1000 },
+    { duration: '2h', price: 2000 },
+    { duration: '5h', price: 5000 },
+  ];
+
+  for (const ticketType of ticketTypes) {
+    await prisma.ticket.create({
+      data: {
+        duration: ticketType.duration,
+        price: ticketType.price,
+        stock: 0
+      }
+    });
+  }
+
+  console.log('Types de tickets créés');
   console.log('Seeding terminé!');
 }
 

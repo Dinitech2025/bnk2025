@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSiteSettings, getSetting } from '@/lib/hooks/use-site-settings'
 import dynamic from 'next/dynamic'
+import { CurrencySelector } from '@/components/ui/currency-selector'
 
 // Import dynamique du UserMenu avec ssr: false pour éviter les erreurs d'hydratation
 const UserMenu = dynamic(() => import('@/components/user-menu'), { 
@@ -49,12 +50,24 @@ export function SiteHeader() {
           >
             Services
           </Link>
-          <Link
-            href="/contact"
+          <Link 
+            href="/contact" 
             className="text-sm font-medium transition-colors hover:text-primary"
           >
             Contact
           </Link>
+          <Link 
+            href="/currency-converter" 
+            className="text-sm font-medium transition-colors hover:text-primary"
+          >
+            Convertisseur
+          </Link>
+          <div className="relative group">
+            <CurrencySelector className="w-24" />
+            <div className="absolute right-0 mt-1 w-48 p-2 bg-white shadow-lg rounded-md border hidden group-hover:block text-xs text-gray-500">
+              Sélectionnez une devise pour voir les prix convertis
+            </div>
+          </div>
           <UserMenu />
         </nav>
       </div>

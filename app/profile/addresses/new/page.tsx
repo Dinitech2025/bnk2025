@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import type { CheckedState } from "@radix-ui/react-checkbox"
 
 // Schéma de validation pour le formulaire d'adresse
 const addressFormSchema = z.object({
@@ -240,7 +241,7 @@ export default function NewAddressPage() {
                       <FormControl>
                         <Checkbox
                           checked={field.value}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked: CheckedState) => field.onChange(checked === true)}
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">

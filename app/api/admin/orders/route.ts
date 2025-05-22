@@ -138,18 +138,38 @@ export async function POST(request: Request) {
     console.log('Order items prepared:', JSON.stringify(orderItems, null, 2));
     
     // Récupérer le dernier numéro de commande pour générer le suivant
-    const lastOrder = await prisma.order.findFirst({
-      orderBy: {
-        createdAt: 'desc'
+    const currentYear = new Date().getFullYear();
+    
+    // Trouver le dernier numéro séquentiel utilisé cette année
+    const lastOrders = await prisma.order.findMany({
+      where: {
+        orderNumber: {
+          contains: currentYear.toString()
+        }
       },
-      select: {
-        orderNumber: true
-      }
+      orderBy: {
+        orderNumber: 'desc'
+      },
+      take: 10 // Prendre les 10 derniers pour être sûr
     });
-    
-    // Générer un nouveau numéro de commande
-    const orderNumber = generateOrderNumber(lastOrder?.orderNumber || null);
-    
+
+    // Trouver le plus grand numéro séquentiel
+    let maxSequentialNumber = 0;
+    for (const order of lastOrders) {
+      const match = order.orderNumber?.match(/(?:DEV|CMD)-\d{4}-(\d{4})/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxSequentialNumber) {
+          maxSequentialNumber = num;
+        }
+      }
+    }
+
+    // Générer le nouveau numéro avec le préfixe approprié
+    const prefix = data.status === 'QUOTE' ? `DEV-${currentYear}-` : `CMD-${currentYear}-`;
+    const sequentialNumber = maxSequentialNumber + 1;
+    const orderNumber = `${prefix}${sequentialNumber.toString().padStart(4, '0')}`;
+
     console.log('Creating order with:', {
       userId: data.userId,
       orderNumber,
@@ -264,42 +284,40 @@ export async function POST(request: Request) {
         for (const item of data.items) {
           if (item.itemType === 'OFFER' && item.subscriptionDetails) {
             console.log(`Création d'abonnement à partir de item.subscriptionDetails pour l'item: ${item.offerId}`);
-            const subscriptionData: any = {
-              userId: data.userId,
-              offerId: item.offerId,
-              orderId: order.id,
-              status: 'ACTIVE',
-              startDate: new Date(item.subscriptionDetails.startDate),
-              endDate: new Date(item.subscriptionDetails.endDate),
-              autoRenew: item.subscriptionDetails.autoRenew || false,
-            };
             
-            // Si une plateforme spécifique est sélectionnée
-            if (item.subscriptionDetails.platformOfferId) {
-              subscriptionData.platformOfferId = item.subscriptionDetails.platformOfferId;
-            }
-            
-            // Créer l'abonnement
+            // Créer l'abonnement avec le type correct
             const subscription = await prismaClient.subscription.create({
-              data: subscriptionData
+              data: {
+                userId: data.userId,
+                orderId: order.id,
+                status: 'ACTIVE',
+                startDate: new Date(item.subscriptionDetails.startDate),
+                endDate: new Date(item.subscriptionDetails.endDate),
+                autoRenew: item.subscriptionDetails.autoRenew || false,
+                platformOfferId: item.subscriptionDetails.platformOfferId,
+                offerId: item.offerId
+              }
             });
             
             console.log(`Abonnement créé depuis item.subscriptionDetails: ${subscription.id}`);
-            
-            // Si des comptes et profils ont été sélectionnés
+
+            // Gestion des comptes et profils sélectionnés
             if (item.subscriptionDetails.platformAccounts && 
+                Array.isArray(item.subscriptionDetails.platformAccounts) && 
                 item.subscriptionDetails.platformAccounts.length > 0) {
               
               for (const pa of item.subscriptionDetails.platformAccounts) {
                 if (pa.accountId && pa.platformOfferId) {
                   // Créer l'association entre l'abonnement et le compte
-                  await prismaClient.subscriptionAccount.create({
+                  const subscriptionAccount = await prismaClient.subscriptionAccount.create({
                     data: {
                       subscriptionId: subscription.id,
                       accountId: pa.accountId,
                       status: 'ACTIVE'
                     }
                   });
+                  
+                  console.log(`Association compte-abonnement créée: ${subscription.id} - ${pa.accountId}`);
                   
                   // Assigner les profils sélectionnés
                   if (pa.profileIds && pa.profileIds.length > 0) {
@@ -321,6 +339,7 @@ export async function POST(request: Request) {
                             subscriptionId: subscription.id
                           }
                         });
+                        console.log(`Profil assigné à l'abonnement: ${profile.id} -> ${subscription.id}`);
                       }
                     }
                   }
@@ -335,6 +354,10 @@ export async function POST(request: Request) {
         console.error('Error in transaction:', innerError);
         throw innerError;
       }
+    },
+    {
+      timeout: 10000, // Augmenter le timeout à 10 secondes
+      maxWait: 15000, // Temps d'attente maximum pour obtenir une connexion
     })
 
     console.log('Order created successfully:', result.id);

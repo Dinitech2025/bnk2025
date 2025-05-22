@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { CurrencySelector } from '@/components/ui/currency-selector'
 
 interface AdminHeaderProps {
   user: {
@@ -22,7 +23,7 @@ interface AdminHeaderProps {
   }
 }
 
-function AdminHeader({ user }: AdminHeaderProps) {
+export default function AdminHeader({ user }: AdminHeaderProps) {
   const { data: session, update } = useSession()
   const [userData, setUserData] = useState(user)
   
@@ -80,6 +81,7 @@ function AdminHeader({ user }: AdminHeaderProps) {
               2
             </span>
           </Button>
+          <CurrencySelector className="w-20" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -122,5 +124,3 @@ function AdminHeader({ user }: AdminHeaderProps) {
     </header>
   )
 }
-
-export default AdminHeader 

@@ -30,7 +30,7 @@ import {
   Image as ImageIcon,
   X,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { DurationUnit, FormPlatform, PlatformConfig } from "@/types/offer";
 import type { OfferFormData } from "@/types/offer";
@@ -52,7 +52,15 @@ const DynamicMultiImageUpload = dynamic(
   () => import('@/components/ui/multi-image-upload').then(mod => mod.MultiImageUpload),
   { 
     ssr: false,
-    loading: () => <div className="p-4 border rounded">Chargement de l'uploader d'images...</div> 
+    loading: () => (
+      <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-gray-500">Chargement de l'uploader d'images...</p>
+        </div>
+      </div>
+    ),
+    suspense: true
   }
 );
 
@@ -368,26 +376,33 @@ export function OfferForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-2 border-2 border-dashed border-primary p-4 rounded-md bg-blue-50">
-            <h3 className="text-sm font-medium mb-2 text-blue-700">Nouvel uploader d'images :</h3>
-            <DynamicMultiImageUpload
-              value={formData.images || []}
-              onChange={handleImagesChange}
-              onUpload={handleSingleImageUpload}
-              onMultipleUpload={handleMultipleImageUpload}
-              maxFiles={5}
-              disabled={isSubmitting}
-              allowMultiple={true}
-            />
-          </div>
-
-          {formData.images && formData.images.length > 0 && (
-            <div className="mt-4 border-t pt-4">
-              <p className="text-sm text-muted-foreground">
-                {formData.images.length} image{formData.images.length > 1 ? 's' : ''} téléchargée{formData.images.length > 1 ? 's' : ''}
-              </p>
+          <div className="space-y-4">
+            <Label>Images de l'offre</Label>
+            <div className="min-h-[200px]">
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-sm text-gray-500">Chargement de l'uploader d'images...</p>
+                    </div>
+                  </div>
+                }
+              >
+                <DynamicMultiImageUpload
+                  value={formData.images || []}
+                  onChange={handleImagesChange}
+                  onMultipleUpload={handleMultipleImageUpload}
+                  maxFiles={4}
+                  allowMultiple
+                  disabled={isSubmitting}
+                />
+              </Suspense>
             </div>
-          )}
+            <p className="text-sm text-gray-500">
+              Ajoutez jusqu'à 4 images pour illustrer votre offre. La première image sera utilisée comme image principale.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -423,16 +438,17 @@ export function OfferForm({
           {/* Prix et durée */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="price">Prix (€)</Label>
+              <Label htmlFor="price">Prix (Ar)</Label>
               <Input
                 id="price"
                 type="number"
                 min="0"
-                step="0.01"
+                step="100"
                 value={formData.price}
                 onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                 required
               />
+              <p className="text-sm text-gray-500 mt-1">Le prix doit être en Ariary</p>
             </div>
             <div className="flex space-x-2">
               <div className="flex-grow">

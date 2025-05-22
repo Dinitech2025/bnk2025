@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma, PrismaClient } from '@prisma/client'
+import { generateOrderNumber } from '@/lib/utils'
 
 export async function GET() {
   try {
@@ -155,22 +156,68 @@ export async function POST(request: Request) {
       )
     }
 
-    // Création de l'abonnement de base
-    const subscriptionData = {
-      userId: data.userId,
-      offerId: data.offerId,
-      startDate: new Date(data.startDate),
-      endDate: new Date(data.endDate),
-      status: 'PENDING',
-      autoRenew: data.autoRenew || false,
-    };
+    // Récupérer le dernier numéro de commande
+    const lastOrder = await prisma.order.findFirst({
+      where: {
+        orderNumber: {
+          not: null
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        orderNumber: true
+      }
+    });
 
-    // Transactions pour créer l'abonnement et toutes ses relations
-    const subscription = await prisma.$transaction(
+    // Générer le nouveau numéro de commande
+    const orderNumber = generateOrderNumber(lastOrder?.orderNumber, 'QUOTE');
+
+    // Transactions pour créer l'abonnement et la commande
+    const result = await prisma.$transaction(
       async (tx) => {
+        // Création de la commande
+        const order = await tx.order.create({
+          data: {
+            userId: data.userId,
+            orderNumber,
+            status: 'QUOTE',
+            total: Number(offer.price),
+            items: {
+              create: {
+                quantity: 1,
+                unitPrice: Number(offer.price),
+                totalPrice: Number(offer.price),
+                itemType: 'OFFER',
+                offer: {
+                  connect: {
+                    id: offer.id
+                  }
+                },
+                metadata: {
+                  type: 'subscription',
+                  startDate: data.startDate,
+                  endDate: data.endDate,
+                  autoRenew: data.autoRenew || false,
+                  platformAccounts: data.platformAccounts
+                }
+              }
+            }
+          }
+        });
+
         // Création de l'abonnement initial
         const newSubscription = await tx.subscription.create({
-          data: subscriptionData,
+          data: {
+            userId: data.userId,
+            offerId: data.offerId,
+            orderId: order.id,
+            startDate: new Date(data.startDate),
+            endDate: new Date(data.endDate),
+            status: 'PENDING',
+            autoRenew: data.autoRenew || false,
+          },
           include: {
             user: {
               select: {
@@ -198,116 +245,28 @@ export async function POST(request: Request) {
             throw new Error(`PlatformOffer ${platformOfferId} n'appartient pas à l'offre ${offer.id}`);
           }
 
-          // Si un compte est spécifié
-          if (accountId) {
-            // Obtenir les informations du compte
-            const account = await tx.account.findUnique({
-              where: { id: accountId },
-              include: {
-                accountProfiles: true,
-                platform: true,
-              },
-            });
+          // Créer la relation subscription-account
+          await tx.subscriptionAccount.create({
+            data: {
+              subscriptionId: newSubscription.id,
+              accountId: accountId,
+            },
+          });
 
-            if (!account) {
-              throw new Error(`Compte ${accountId} non trouvé`);
-            }
-
-            // Vérifier la compatibilité entre la plateforme du compte et celle de l'offre
-            if (account.platformId !== platformOffer.platform.id) {
-              throw new Error(`Incompatibilité entre la plateforme du compte ${account.platformId} et celle de l'offre ${platformOffer.platform.id}`);
-            }
-
-            // Associer le compte à l'abonnement
-            await tx.subscriptionAccount.create({
-              data: {
-                subscriptionId: newSubscription.id,
-                accountId: account.id,
-                status: 'ACTIVE',
-              },
-            });
-
-            // Si la plateforme utilise des profils et qu'on a spécifié des profils
-            if (platformOffer.platform.hasProfiles && profileIds && profileIds.length > 0) {
-              // Vérifier que les profils appartiennent bien au compte
-              const profiles = await tx.accountProfile.findMany({
-                where: {
-                  id: { in: profileIds },
-                  accountId: account.id,
-                  isAssigned: false,
-                },
-              });
-
-              if (profiles.length !== profileIds.length) {
-                throw new Error(`Certains profils n'existent pas ou sont déjà assignés`);
-              }
-
-              // Vérifier qu'on a assez de profils
-              if (profiles.length < offer.maxProfiles) {
-                throw new Error(`Pas assez de profils sélectionnés (${profiles.length}/${offer.maxProfiles})`);
-              }
-
-              // Connecter les profils à l'abonnement
-              await tx.accountProfile.updateMany({
-                where: {
-                  id: { in: profileIds },
-                },
-                data: {
-                  isAssigned: true,
-                  subscriptionId: newSubscription.id,
-                },
-              });
-            }
-          } else {
-            // Rechercher un compte disponible pour cette plateforme
-            const availableAccount = await tx.account.findFirst({
-              where: {
-                platformId: platformOffer.platform.id,
-                status: 'AVAILABLE',
-                accountProfiles: {
-                  some: {
-                    isAssigned: false,
-                  },
-                  every: {
-                    isAssigned: false,
-                  },
-                },
-              },
-              include: {
-                accountProfiles: true,
-              },
-            });
-
-            if (!availableAccount) {
-              throw new Error(`Aucun compte disponible pour la plateforme ${platformOffer.platform.name}`);
-            }
-
-            // Associer le compte à l'abonnement
-            await tx.subscriptionAccount.create({
-              data: {
-                subscriptionId: newSubscription.id,
-                accountId: availableAccount.id,
-                status: 'ACTIVE',
-              },
-            });
-
-            // Assigner les profils nécessaires
-            const profilesToAssign = availableAccount.accountProfiles.slice(0, offer.maxProfiles);
-            await tx.accountProfile.updateMany({
-              where: {
-                id: {
-                  in: profilesToAssign.map(profile => profile.id),
-                },
-              },
-              data: {
+          // Pour chaque profil sélectionné
+          for (const profileId of profileIds) {
+            // Marquer le profil comme assigné
+            await tx.accountProfile.update({
+              where: { id: profileId },
+              data: { 
                 isAssigned: true,
-                subscriptionId: newSubscription.id,
+                subscriptionId: newSubscription.id
               },
             });
           }
         }
 
-        // Récupérer l'abonnement avec toutes ses relations
+        // Récupérer l'abonnement complet avec toutes ses relations
         const completeSubscription = await tx.subscription.findUnique({
           where: {
             id: newSubscription.id,
@@ -331,6 +290,11 @@ export async function POST(request: Request) {
             },
             offer: true,
             platformOffer: true,
+            order: {
+              include: {
+                items: true
+              }
+            }
           },
         });
 
@@ -339,10 +303,14 @@ export async function POST(request: Request) {
         }
 
         return completeSubscription;
+      },
+      {
+        timeout: 10000,
+        maxWait: 15000,
       }
     );
 
-    return NextResponse.json(subscription)
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error('Error creating subscription:', error)
     return NextResponse.json(

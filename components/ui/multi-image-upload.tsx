@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { ImagePlus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";import { Button } from "@/components/ui/button";import { ImagePlus, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface MultiImageUploadProps {
   value: string[];

@@ -1,13 +1,13 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
-import { Toaster } from '@/components/ui/toaster'
-import { SonnerToast } from '@/components/ui/toast'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { AuthProvider } from '@/lib/auth-provider'
-import { LayoutWrapper } from '@/components/layout-wrapper'
 import { generateMetadata } from './metadata'
+import { Toaster } from '@/components/ui/toaster'
+import { SonnerToast } from '@/components/ui/toast'
+import { CurrencyProviderWrapper } from '@/components/providers/currency-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -25,13 +25,14 @@ export default async function RootLayout({
     <html lang="fr">
       <body className={inter.className}>
         <AuthProvider>
-          <LayoutWrapper>
+          <CurrencyProviderWrapper>
             {children}
-          </LayoutWrapper>
-          <Toaster />
-          <SonnerToast />
+            <Toaster />
+            <SonnerToast />
+          </CurrencyProviderWrapper>
         </AuthProvider>
       </body>
     </html>
   )
 } 
+ 

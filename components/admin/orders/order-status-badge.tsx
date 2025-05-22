@@ -9,9 +9,8 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
   const getStatusClasses = () => {
     switch (status) {
       case 'QUOTE':
+      case 'WAITING_PAYMENT':
         return 'bg-gray-100 text-gray-800';
-      case 'PENDING':
-        return 'bg-yellow-100 text-yellow-800';
       case 'PAID':
         return 'bg-emerald-100 text-emerald-800';
       case 'PROCESSING':
@@ -37,9 +36,8 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
   const getStatusText = () => {
     switch (status) {
       case 'QUOTE':
+      case 'WAITING_PAYMENT':
         return 'Devis en attente de paiement';
-      case 'PENDING':
-        return 'En attente';
       case 'PAID':
         return 'Commande payée';
       case 'PROCESSING':

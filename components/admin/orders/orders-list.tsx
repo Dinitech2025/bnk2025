@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { Edit2, Trash2, Eye, Search, ChevronUp, ChevronDown, Filter, X, FileText } from 'lucide-react';
+import { Edit2, Trash2, Eye, Search, ChevronUp, ChevronDown, Filter, X, Truck, Receipt, RefreshCw } from 'lucide-react';
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PriceDisplay } from '@/components/ui/price-display';
 import {
   Table,
   TableBody,
@@ -42,51 +43,63 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { InvoiceGeneratorButton } from '@/components/admin/orders/invoice-generator';
+import { toast } from '@/components/ui/use-toast';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
-interface User {
+type OrderWithRelations = {
+  id: string;
+  status: string;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+  orderNumber: string | null;
+  user: {
   id: string;
   firstName: string | null;
   lastName: string | null;
   email: string;
-}
-
-interface OrderItem {
+  };
+  items: Array<{
   id: string;
+    orderId: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
   itemType: string;
-  productId?: string;
-  serviceId?: string;
-  offerId?: string;
-  product?: { id: string; name: string };
-  service?: { id: string; name: string };
-  offer?: { id: string; name: string };
-}
-
-interface Order {
-  id: string;
-  orderNumber?: string;
-  userId: string;
-  status: string;
-  total: number;
-  createdAt: string;
-  updatedAt: string;
-  user: User;
-  items: OrderItem[];
-}
+    productId: string | null;
+    serviceId: string | null;
+    offerId: string | null;
+    offer: { id: string; name: string; } | null;
+    product: { id: string; name: string; } | null;
+    service: { id: string; name: string; } | null;
+  }>;
+};
 
 type SortField = "date" | "total" | "status" | "client";
 type SortOrder = "asc" | "desc";
 
-export default function OrdersList({ orders }: { orders: Order[] }) {
+export default function OrdersList({ orders: initialOrders }: { orders: OrderWithRelations[] }) {
   const router = useRouter();
+  const [orders, setOrders] = useState(initialOrders);
   const [loading, setLoading] = useState<string | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fonction pour changer le statut d'une commande
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -100,25 +113,34 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
         body: JSON.stringify({ status: newStatus }),
       });
 
-      if (!response.ok) {
-        throw new Error('Erreur lors de la mise à jour du statut');
-      }
+      if (!response.ok) throw new Error('Erreur de mise à jour');
+      
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
 
-      // Rafraîchir la page pour voir les changements
-      router.refresh();
+      toast({
+        title: "Statut mis à jour",
+        description: "Le statut de la commande a été modifié avec succès",
+      });
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du statut:', error);
-      alert('Erreur lors de la mise à jour du statut. Veuillez réessayer.');
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le statut",
+        variant: "destructive"
+      });
     } finally {
       setLoading(null);
     }
   };
 
-  // Fonction pour générer et afficher la facture
+  // Fonction pour générer la facture
   const generateInvoice = async (orderId: string) => {
     setInvoiceLoading(orderId);
     try {
-      // Récupérer les données de la facture
       const response = await fetch(`/api/admin/orders/${orderId}/invoice`);
       
       if (!response.ok) {
@@ -126,14 +148,9 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
       }
       
       const invoiceData = await response.json();
-      
-      // Importer dynamiquement le générateur de factures
       const { generateInvoicePDF } = await import('@/lib/invoice-generator');
-      
-      // Générer le PDF
       const pdfDataUrl = generateInvoicePDF(invoiceData);
       
-      // Ouvrir le PDF dans un nouvel onglet
       const newWindow = window.open('');
       if (newWindow) {
         newWindow.document.write(`
@@ -141,42 +158,124 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
         `);
       }
     } catch (error) {
-      console.error('Erreur lors de la génération de la facture:', error);
-      alert('Erreur lors de la génération de la facture. Veuillez réessayer.');
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer la facture",
+        variant: "destructive"
+      });
     } finally {
       setInvoiceLoading(null);
     }
   };
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("desc");
+  // Fonction pour générer le bon de livraison
+  const generateDeliveryNote = async (orderId: string) => {
+    setInvoiceLoading(orderId);
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/delivery-note`);
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération du bon de livraison');
+      }
+      
+      const deliveryData = await response.json();
+      const { generateDeliveryNotePDF } = await import('@/lib/delivery-note-generator');
+      const pdfDataUrl = await generateDeliveryNotePDF(deliveryData);
+      
+      const newWindow = window.open('');
+      if (newWindow) {
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Bon de livraison</title>
+              <style>
+                body, html { margin: 0; padding: 0; height: 100%; }
+                iframe { border: none; width: 100%; height: 100%; }
+              </style>
+            </head>
+            <body>
+              <iframe src="${pdfDataUrl}"></iframe>
+            </body>
+          </html>
+        `);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer le bon de livraison",
+        variant: "destructive"
+      });
+    } finally {
+      setInvoiceLoading(null);
     }
   };
 
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return null;
-    return sortOrder === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
+  // Optimisation du rafraîchissement des données
+  const refreshOrders = async () => {
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    try {
+      const response = await fetch(`/api/admin/orders?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Erreur de chargement');
+      
+      const newOrders = await response.json();
+      setOrders(newOrders);
+      toast({
+        title: "Liste mise à jour",
+        description: "Les commandes ont été actualisées",
+        duration: 2000
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour la liste",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  const filteredAndSortedOrders = useMemo(() => {
-    return orders
-      .filter(order => {
-        const matchesSearch = 
-          order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          `${order.user?.firstName || ''} ${order.user?.lastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesStatus = 
-          statusFilter === "all" ||
-          order.status === statusFilter;
+  // Rafraîchissement automatique
+  useEffect(() => {
+    const interval = setInterval(refreshOrders, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => {
+  // Filtrage des commandes
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm && statusFilter === "all") return orders;
+    
+    return orders.filter(order => {
+      if (statusFilter !== "all" && order.status !== statusFilter) return false;
+      
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          order.orderNumber?.toLowerCase().includes(searchLower) ||
+          order.id.toLowerCase().includes(searchLower) ||
+          `${order.user?.firstName || ''} ${order.user?.lastName || ''}`.toLowerCase().includes(searchLower)
+        );
+      }
+      return true;
+    });
+  }, [orders, searchTerm, statusFilter]);
+
+  // Tri des commandes
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
         let comparison = 0;
         switch (sortField) {
           case "date":
@@ -196,7 +295,39 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
         }
         return sortOrder === "asc" ? comparison : -comparison;
       });
-  }, [orders, searchTerm, statusFilter, sortField, sortOrder]);
+  }, [filteredOrders, sortField, sortOrder]);
+
+  // Pagination
+  const paginatedOrders = sortedOrders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortOrder === "asc" ? 
+      <ChevronUp className="ml-1 h-4 w-4" /> : 
+      <ChevronDown className="ml-1 h-4 w-4" />;
+  };
 
   return (
     <div className="space-y-6">
@@ -205,8 +336,8 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
           <CardTitle>Filtres et recherche</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -214,29 +345,46 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                   placeholder="Rechercher une commande..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 w-[300px]"
                 />
-              </div>
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6"
+                    onClick={clearSearch}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
             </div>
             <Select
               value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value)}
+                onValueChange={setStatusFilter}
             >
-              <SelectTrigger className="w-[220px]">
+                <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Statut" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
                 <SelectItem value="QUOTE">Devis en attente de paiement</SelectItem>
-                <SelectItem value="PENDING">En attente</SelectItem>
-                <SelectItem value="PAID">Commande payée</SelectItem>
+                  <SelectItem value="PAID">Payée</SelectItem>
                 <SelectItem value="PROCESSING">En traitement</SelectItem>
-                <SelectItem value="SHIPPING">En cours de livraison</SelectItem>
-                <SelectItem value="DELIVERED">Commande livrée</SelectItem>
-                <SelectItem value="CANCELLED">Commande annulée</SelectItem>
-                <SelectItem value="FINISHED">Commande terminée</SelectItem>
+                  <SelectItem value="SHIPPING">En livraison</SelectItem>
+                  <SelectItem value="DELIVERED">Livrée</SelectItem>
+                  <SelectItem value="CANCELLED">Annulée</SelectItem>
+                  <SelectItem value="FINISHED">Terminée</SelectItem>
               </SelectContent>
             </Select>
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={refreshOrders}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -252,7 +400,7 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                   onClick={() => handleSort("client")}
                 >
                   <div className="flex items-center">
-                    Client {getSortIcon("client")}
+                    Client {renderSortIcon("client")}
                   </div>
                 </TableHead>
                 <TableHead 
@@ -260,7 +408,7 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                   onClick={() => handleSort("date")}
                 >
                   <div className="flex items-center">
-                    Date {getSortIcon("date")}
+                    Date {renderSortIcon("date")}
                   </div>
                 </TableHead>
                 <TableHead 
@@ -268,7 +416,7 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                   onClick={() => handleSort("total")}
                 >
                   <div className="flex items-center">
-                    Total {getSortIcon("total")}
+                    Total {renderSortIcon("total")}
                   </div>
                 </TableHead>
                 <TableHead 
@@ -276,27 +424,32 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                   onClick={() => handleSort("status")}
                 >
                   <div className="flex items-center">
-                    Statut {getSortIcon("status")}
+                    Statut {renderSortIcon("status")}
                   </div>
                 </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAndSortedOrders.length > 0 ? (
-                filteredAndSortedOrders.map((order) => (
+              {paginatedOrders.length > 0 ? (
+                paginatedOrders.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">
-                      {order.orderNumber || order.id.substring(0, 8) + '...'}
+                      {order.orderNumber || order.id.substring(0, 8)}
                     </TableCell>
                     <TableCell>
+                      <div className="font-medium">
                       {order.user?.firstName || 'N/A'} {order.user?.lastName || ''}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {order.user?.email}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleDateString('fr-FR')}
                     </TableCell>
                     <TableCell>
-                      {Number(order.total).toFixed(2)} €
+                      <PriceDisplay price={Number(order.total)} size="small" />
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -315,16 +468,10 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                             Devis en attente de paiement
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'PENDING')}
-                            disabled={loading === order.id}
-                          >
-                            En attente
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'PAID')}
                             disabled={loading === order.id}
                           >
-                            Commande payée
+                          Payée
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
@@ -336,45 +483,65 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                             onClick={() => updateOrderStatus(order.id, 'SHIPPING')}
                             disabled={loading === order.id}
                           >
-                            En cours de livraison
+                          En livraison
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'DELIVERED')}
                             disabled={loading === order.id}
                           >
-                            Commande livrée
+                          Livrée
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
                             disabled={loading === order.id}
                           >
-                            Commande annulée
+                          Annulée
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'FINISHED')}
                             disabled={loading === order.id}
                           >
-                            Commande terminée
+                          Terminée
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
+                        {(order.status === 'DELIVERED' || order.status === 'FINISHED') && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => generateDeliveryNote(order.id)}
+                                  disabled={invoiceLoading === order.id}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Bon de livraison</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
                                 variant="ghost" 
-                                size="icon" 
-                                onClick={() => generateInvoice(order.id)} 
+                                size="icon"
+                                onClick={() => generateInvoice(order.id)}
                                 disabled={invoiceLoading === order.id}
                               >
-                                <FileText className="h-4 w-4" />
+                                <Receipt className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Aperçu facture</p>
+                              <p>Facture</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -382,11 +549,13 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Link href={`/admin/orders/${order.id}`}>
-                                <Button variant="ghost" size="icon">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => router.push(`/admin/orders/${order.id}`)}
+                              >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                              </Link>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>Voir les détails</p>
@@ -397,11 +566,13 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Link href={`/admin/orders/${order.id}/edit`}>
-                                <Button variant="ghost" size="icon">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => router.push(`/admin/orders/${order.id}/edit`)}
+                              >
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
-                              </Link>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>Modifier</p>
@@ -412,11 +583,13 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Link href={`/admin/orders/${order.id}/delete`}>
-                                <Button variant="ghost" size="icon">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => router.push(`/admin/orders/${order.id}/delete`)}
+                              >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
-                              </Link>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>Supprimer</p>
@@ -438,6 +611,59 @@ export default function OrdersList({ orders }: { orders: Order[] }) {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Select
+            value={itemsPerPage.toString()}
+            onValueChange={(value) => {
+              setItemsPerPage(parseInt(value));
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Éléments par page" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 par page</SelectItem>
+              <SelectItem value="20">20 par page</SelectItem>
+              <SelectItem value="50">50 par page</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-muted-foreground">
+            Affichage de {sortedOrders.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} à {Math.min(currentPage * itemsPerPage, sortedOrders.length)} sur {sortedOrders.length} commandes
+          </p>
+        </div>
+
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              />
+            </PaginationItem>
+            
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  onClick={() => handlePageChange(page)}
+                  isActive={page === currentPage}
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
     </div>
   );
 } 

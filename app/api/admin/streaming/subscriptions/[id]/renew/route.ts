@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
+import { addDays, addMonths, addWeeks, addYears, differenceInDays } from 'date-fns'
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
@@ -30,7 +30,7 @@ export async function POST(
 
     const subscriptionId = params.id
     
-    // Vérifier si l'abonnement existe
+    // Vérifier si l'abonnement existe avec tous les détails nécessaires
     const existingSubscription = await prisma.subscription.findUnique({
       where: {
         id: subscriptionId
@@ -39,11 +39,12 @@ export async function POST(
         offer: true,
         subscriptionAccounts: {
           include: {
-            account: {
-              include: {
-                profiles: true
-              }
-            }
+            account: true
+          }
+        },
+        accountProfiles: {
+          include: {
+            account: true
           }
         }
       }
@@ -56,23 +57,72 @@ export async function POST(
       )
     }
 
-    // Créer le nouvel abonnement
+    // Vérifier si l'abonnement peut être renouvelé
+    if (existingSubscription.status === 'PENDING' || existingSubscription.endDate === null) {
+      return NextResponse.json(
+        { error: 'Cet abonnement ne peut pas être renouvelé' },
+        { status: 400 }
+      )
+    }
+
+    // Calculer les jours restants de l'abonnement actuel
+    const today = new Date()
+    const currentEndDate = new Date(existingSubscription.endDate)
+    const remainingDays = Math.max(0, differenceInDays(currentEndDate, today))
+
+    // Calculer la nouvelle période d'abonnement
+    const startDate = new Date()
+    let endDate = calculateEndDate(
+      startDate, 
+      existingSubscription.offer.duration, 
+      existingSubscription.offer.durationUnit || 'MONTH'
+    )
+
+    // Ajouter les jours restants
+    endDate = addDays(endDate, remainingDays)
+
+    // Créer le nouvel abonnement et mettre à jour l'ancien
     const newSubscription = await prisma.$transaction(async (tx) => {
-      // Créer l'abonnement de base
+      // Créer le nouvel abonnement
       const subscription = await tx.subscription.create({
         data: {
           userId: existingSubscription.userId,
           offerId: existingSubscription.offerId,
           platformOfferId: existingSubscription.platformOfferId,
-          startDate: new Date(),
-          endDate: existingSubscription.endDate,
-          status: 'ACTIVE',
-          autoRenew: existingSubscription.autoRenew
+          startDate: startDate,
+          endDate: endDate,
+          status: 'PENDING',
+          autoRenew: existingSubscription.autoRenew,
+          contactNeeded: false
         }
       })
 
-      // Copier les comptes de plateforme
+      // Créer la commande associée
+      const order = await tx.order.create({
+        data: {
+          userId: existingSubscription.userId,
+          status: 'QUOTE',
+          total: existingSubscription.offer.price,
+          subscriptions: {
+            connect: {
+              id: subscription.id
+            }
+          },
+          items: {
+            create: [{
+              quantity: 1,
+              unitPrice: existingSubscription.offer.price,
+              totalPrice: existingSubscription.offer.price,
+              itemType: 'SUBSCRIPTION',
+              offerId: existingSubscription.offerId
+            }]
+          }
+        }
+      })
+
+      // Copier les comptes de plateforme et leurs profils
       for (const subscriptionAccount of existingSubscription.subscriptionAccounts) {
+        // Créer le lien compte-abonnement
         await tx.subscriptionAccount.create({
           data: {
             subscriptionId: subscription.id,
@@ -80,7 +130,41 @@ export async function POST(
             status: 'ACTIVE'
           }
         })
+
+        // Récupérer les profils actuels du compte
+        const currentProfiles = await tx.accountProfile.findMany({
+          where: {
+            accountId: subscriptionAccount.accountId
+          }
+        })
+
+        // Récupérer les profils de l'ancien abonnement pour ce compte
+        const oldProfiles = existingSubscription.accountProfiles.filter(
+          p => p.accountId === subscriptionAccount.accountId
+        )
+
+        // Libérer les slots des profils de l'ancien abonnement
+        for (const oldProfile of oldProfiles) {
+          await tx.accountProfile.update({
+            where: {
+              id: oldProfile.id
+            },
+            data: {
+              subscriptionId: subscription.id
+            }
+          })
+        }
       }
+
+      // Mettre à jour l'ancien abonnement
+      await tx.subscription.update({
+        where: { id: existingSubscription.id },
+        data: { 
+          status: 'EXPIRED',
+          autoRenew: false,
+          endDate: today
+        }
+      })
 
       return subscription
     })
@@ -103,11 +187,12 @@ function calculateEndDate(startDate: Date, duration: number, unit: string): Date
     case 'DAY':
       return addDays(startDate, duration)
     case 'WEEK':
-      return addWeeks(startDate, duration)
-    case 'YEAR':
-      return addYears(startDate, duration)
+      return addDays(startDate, duration * 7)
     case 'MONTH':
+      return addDays(startDate, duration * 30)
+    case 'YEAR':
+      return addDays(startDate, duration * 360)
     default:
-      return addMonths(startDate, duration)
+      return addDays(startDate, duration * 30)
   }
 } 

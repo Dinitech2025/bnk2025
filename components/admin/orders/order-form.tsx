@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, addMonths, addYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Loader2, Calendar as CalendarIcon, X, Settings, Edit, Info, Check, AlertTriangle } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, X, Settings, Edit, Info, Check, AlertTriangle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,6 +19,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { PriceDisplay } from '@/components/ui/price-display';
+import { useCurrency } from '@/lib/hooks/use-currency';
+import { PriceWithConversion } from '@/components/ui/currency-selector';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface User {
   id: string;
@@ -132,8 +138,8 @@ interface PlatformAccountsData {
 
 export function OrderForm({ users, products, services, offers, initialData }: OrderFormProps) {
   const router = useRouter();
+  const { formatCurrency } = useCurrency();
   
-  // État du formulaire
   const [formData, setFormData] = useState<OrderFormData>({
     userId: '',
     status: 'QUOTE',
@@ -142,53 +148,36 @@ export function OrderForm({ users, products, services, offers, initialData }: Or
     notes: '',
   });
   
-  // État pour l'élément en cours d'ajout
-  const [currentItem, setCurrentItem] = useState({
-    itemType: 'PRODUCT' as 'PRODUCT' | 'SERVICE' | 'OFFER',
+  const [currentItem, setCurrentItem] = useState<{
+    itemType: 'PRODUCT' | 'SERVICE' | 'OFFER';
+    itemId: string;
+    quantity: number;
+  }>({
+    itemType: 'PRODUCT',
     itemId: '',
     quantity: 1,
   });
   
-  // État pour la configuration d'un abonnement
-  const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
-  const [currentSubscriptionItem, setCurrentSubscriptionItem] = useState<OrderItem | null>(null);
-  const [currentItemIndex, setCurrentItemIndex] = useState(-1);
-  const [selectedPlatformOfferId, setSelectedPlatformOfferId] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(addMonths(new Date(), 1));
-  const [autoRenew, setAutoRenew] = useState(false);
+  const [errors, setErrors] = useState<{
+    userId?: string;
+    items?: string;
+    general?: string;
+  }>({});
   
-  // État pour le chargement
   const [isLoading, setIsLoading] = useState(false);
   
-  // Nouvel état pour le popup de configuration des profils
+  // États pour la configuration des abonnements
   const [showProfilesModal, setShowProfilesModal] = useState(false);
   const [currentSubscriptionConfig, setCurrentSubscriptionConfig] = useState<{
     item: OrderItem;
     index: number;
   } | null>(null);
   
-  // Mettre à jour le total à chaque changement de la liste d'articles
   useEffect(() => {
     const total = formData.items.reduce((total, item) => total + item.totalPrice, 0);
     setFormData(prev => ({ ...prev, total }));
   }, [formData.items]);
   
-  // Gérer le changement d'utilisateur
-  const handleUserChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData({ ...formData, userId: e.target.value });
-  };
-  
-  // Gérer le changement de type d'élément
-  const handleItemTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setCurrentItem({
-      ...currentItem,
-      itemType: e.target.value as 'PRODUCT' | 'SERVICE' | 'OFFER',
-      itemId: '',
-    });
-  };
-  
-  // Obtenir la liste d'éléments en fonction du type
   const getItemsForType = () => {
     switch (currentItem.itemType) {
       case 'PRODUCT':
@@ -202,162 +191,76 @@ export function OrderForm({ users, products, services, offers, initialData }: Or
     }
   };
   
-  // Gérer le changement d'élément
-  const handleItemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setCurrentItem({
-      ...currentItem,
-      itemId: e.target.value,
-    });
+  const validateForm = (): boolean => {
+    const newErrors: typeof errors = {};
+
+    if (!formData.userId) {
+      newErrors.userId = 'Veuillez sélectionner un client';
+    }
+
+    if (formData.items.length === 0) {
+      newErrors.items = 'Veuillez ajouter au moins un article';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
   
-  // Gérer le changement de quantité
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const quantity = parseInt(e.target.value) || 1;
-    setCurrentItem({
-      ...currentItem,
-      quantity: Math.max(1, quantity),
-    });
-  };
-  
-  // Gérer le changement de statut
-  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFormData({ ...formData, status: e.target.value });
-  };
-  
-  // Ajouter un article à la commande
-  const addItem = () => {
-    if (!currentItem.itemId) return;
-    
-    const items = getItemsForType();
-    const selectedItem = items.find(item => item.id === currentItem.itemId);
+  const handleAddItem = () => {
+    if (!currentItem.itemId) {
+      setErrors(prev => ({ ...prev, items: 'Veuillez sélectionner un article' }));
+      return;
+    }
+
+    const itemsForType = getItemsForType();
+    const selectedItem = itemsForType.find(item => item.id === currentItem.itemId);
     
     if (!selectedItem) return;
     
-    // Créer le nouvel élément de commande
     const newItem: OrderItem = {
       itemType: currentItem.itemType,
-      itemId: selectedItem.id,
+      itemId: currentItem.itemId,
       quantity: currentItem.quantity,
       unitPrice: selectedItem.price,
       totalPrice: selectedItem.price * currentItem.quantity,
       item: selectedItem,
     };
     
-    // Ajouter les champs spécifiques en fonction du type
-    switch (currentItem.itemType) {
-      case 'PRODUCT':
-        newItem.productId = selectedItem.id;
-        break;
-      case 'SERVICE':
-        newItem.serviceId = selectedItem.id;
-        break;
-      case 'OFFER':
-        newItem.offerId = selectedItem.id;
-        
-        // Vérifier si l'offre a des plateformes
-        const offer = selectedItem as Offer;
-        const hasPlatforms = offer.platformOffers && offer.platformOffers.length > 0;
-        
-        // Calculer la date de fin en fonction de la durée de l'offre
-        const calculatedEndDate = calculateEndDate(offer);
-        
-        if (hasPlatforms) {
-          // Ouvrir le dialogue pour configurer les comptes et profils
+    if (currentItem.itemType === 'OFFER') {
+      // Pour les offres, ouvrir le modal de configuration
           setCurrentSubscriptionConfig({
             item: newItem,
-            index: -1 // Nouvel item
+        index: -1 // -1 indique un nouvel item
           });
           setShowProfilesModal(true);
         } else {
-          // Pas de plateformes, ajouter directement
-          console.log('Aucune plateforme disponible pour cette offre');
-          newItem.subscriptionDetails = {
-            startDate: new Date(),
-            endDate: calculatedEndDate,
-            autoRenew: false
-          };
-          
-          setFormData({
-            ...formData,
-            items: [...formData.items, newItem],
-          });
-          
-          // Réinitialiser le formulaire d'ajout d'article
+      // Pour les autres types, ajouter directement
+      setFormData(prev => ({
+        ...prev,
+        items: [...prev.items, newItem],
+      }));
+
           setCurrentItem({
             itemType: 'PRODUCT',
             itemId: '',
             quantity: 1,
           });
         }
-        break;
-    }
+    
+    setErrors(prev => ({ ...prev, items: undefined }));
   };
   
-  // Calculer la date de fin en fonction de la durée de l'offre
-  const calculateEndDate = (offer: Offer) => {
-    const startDate = new Date();
-    const durationUnit = offer.durationUnit?.toUpperCase() || 'MONTH';
-    const duration = offer.duration || 1;
-    
-    switch (durationUnit) {
-      case 'DAY':
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + duration);
-        return endDate;
-      case 'WEEK':
-        const weekEndDate = new Date(startDate);
-        weekEndDate.setDate(startDate.getDate() + (duration * 7));
-        return weekEndDate;
-      case 'MONTH':
-        return addMonths(startDate, duration);
-      case 'YEAR':
-        return addYears(startDate, duration);
-      default:
-        return addMonths(startDate, duration);
-    }
-  };
-  
-  // Configurer un abonnement existant
-  const configureSubscription = (item: OrderItem, index: number) => {
-    if (item.itemType !== 'OFFER' || !item.item) return;
-    
-    const offer = item.item as Offer;
-    const hasPlatforms = offer.platformOffers && offer.platformOffers.length > 0;
-    
-    if (hasPlatforms) {
-      // Ouvrir le dialogue pour configurer les comptes et profils
-      setCurrentSubscriptionConfig({
-        item,
-        index
-      });
-      setShowProfilesModal(true);
-    } else {
-      // Ouvrir le dialogue de configuration d'abonnement classique
-      setCurrentSubscriptionItem(item);
-      setCurrentItemIndex(index);
-      
-      // Initialiser avec les valeurs actuelles ou par défaut
-      setSelectedPlatformOfferId(item.subscriptionDetails?.platformOfferId || '');
-      setStartDate(item.subscriptionDetails?.startDate || new Date());
-      setEndDate(item.subscriptionDetails?.endDate || addMonths(new Date(), 1));
-      setAutoRenew(item.subscriptionDetails?.autoRenew || false);
-      
-      setShowSubscriptionDialog(true);
-    }
-  };
-  
-  // Gérer la confirmation de la sélection des comptes et profils
   const handleProfilesConfirmation = (platformAccountsData: PlatformAccountsData[]) => {
     if (!currentSubscriptionConfig) return;
     
     const { item, index } = currentSubscriptionConfig;
+    const offer = item.item as Offer;
     
-    // Les données de configuration des comptes et profils seront incluses dans les détails d'abonnement
     const enrichedItem: OrderItem = {
       ...item,
       subscriptionDetails: {
         startDate: new Date(),
-        endDate: calculateEndDate(item.item as Offer),
+        endDate: addMonths(new Date(), offer.duration),
         autoRenew: false,
         platformAccounts: platformAccountsData.map(pad => ({
           platformOfferId: pad.platformOfferId,
@@ -367,536 +270,319 @@ export function OrderForm({ users, products, services, offers, initialData }: Or
       }
     };
     
-    if (index >= 0) {
-      // Mettre à jour un item existant
-      const updatedItems = [...formData.items];
-      updatedItems[index] = enrichedItem;
-      
-      setFormData({
-        ...formData,
-        items: updatedItems
-      });
-    } else {
+    if (index === -1) {
       // Ajouter un nouvel item
-      setFormData({
-        ...formData,
-        items: [...formData.items, enrichedItem]
-      });
-      
-      // Réinitialiser le formulaire d'ajout d'article
+      setFormData(prev => ({
+        ...prev,
+        items: [...prev.items, enrichedItem]
+      }));
+
       setCurrentItem({
         itemType: 'PRODUCT',
         itemId: '',
         quantity: 1
       });
+    } else {
+      // Mettre à jour un item existant
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map((item, i) => i === index ? enrichedItem : item)
+      }));
     }
-    
-    // Fermer le modal
+
     setShowProfilesModal(false);
     setCurrentSubscriptionConfig(null);
   };
   
-  // Supprimer un article
-  const removeItem = (index: number) => {
-    const newItems = [...formData.items];
-    newItems.splice(index, 1);
-    setFormData({
-      ...formData,
-      items: newItems,
-    });
-  };
-  
-  // Préparer les données pour l'API
-  const prepareFormData = () => {
-    // Transformer les données pour l'API
-    const subscriptionConfigs = formData.items
-      .filter(item => item.itemType === 'OFFER' && item.subscriptionDetails)
-      .map(item => {
-        const config = {
-          offerId: item.offerId,
-          platformOfferId: item.subscriptionDetails?.platformOfferId,
-          startDate: item.subscriptionDetails?.startDate.toISOString(),
-          endDate: item.subscriptionDetails?.endDate.toISOString(),
-          autoRenew: item.subscriptionDetails?.autoRenew || false,
-          platformAccounts: item.subscriptionDetails?.platformAccounts || []
-        };
-        
-        return config;
-      });
-    
-    console.log('Subscription configs to send:', subscriptionConfigs);
-    
-    const preparedData = {
-      ...formData,
-      items: formData.items.map(({ item, subscriptionDetails, ...rest }) => ({
-        ...rest,
-      })),
-      subscriptionConfigs,
-    };
-    
-    return preparedData;
-  };
-  
-  // Soumettre le formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.userId || formData.items.length === 0) {
-      alert('Veuillez sélectionner un client et ajouter au moins un article.');
-      return;
-    }
-    
-    // Vérifier que tous les abonnements ont une plateforme sélectionnée si nécessaire
-    const offerItems = formData.items.filter(
-      item => item.itemType === 'OFFER'
-    );
-    
-    // Vérifier que chaque offre a des détails d'abonnement si nécessaire
-    const itemsWithoutSubscriptionDetails = offerItems.filter(
-      item => item.item && (item.item as Offer).platformOffers && (item.item as Offer).platformOffers!.length > 0 && !item.subscriptionDetails
-    );
-    
-    if (itemsWithoutSubscriptionDetails.length > 0) {
-      alert('Certaines offres n\'ont pas été configurées correctement. Veuillez les configurer ou les supprimer.');
-      return;
-    }
-    
-    setIsLoading(true);
-    
+    if (!validateForm()) return;
+
     try {
-      // Préparation des données à envoyer
-      const dataToSend = prepareFormData();
-      console.log('Données envoyées à l\'API:', JSON.stringify(dataToSend, null, 2));
+      setIsLoading(true);
       
-      const res = await fetch('/api/admin/orders', {
+      const apiFormData = {
+      ...formData,
+        items: formData.items.map(item => {
+          const transformedItem = {
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            itemType: item.itemType,
+            subscriptionDetails: item.subscriptionDetails
+          };
+
+          switch (item.itemType) {
+            case 'PRODUCT':
+              return { ...transformedItem, productId: item.itemId };
+            case 'SERVICE':
+              return { ...transformedItem, serviceId: item.itemId };
+            case 'OFFER':
+              return { ...transformedItem, offerId: item.itemId };
+            default:
+              return transformedItem;
+          }
+        })
+      };
+
+      const response = await fetch('/api/admin/orders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSend),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiFormData),
       });
-      
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => null);
-        console.error('Erreur API:', res.status, errorText);
-        throw new Error('Erreur lors de la création de la commande');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la création de la commande');
       }
+
+      const data = await response.json();
       
-      // Récupérer la réponse pour obtenir l'ID de la commande
-      const orderData = await res.json();
-      console.log('Commande créée avec succès:', orderData);
+      // Émettre un événement personnalisé pour notifier la création de la commande
+      const event = new CustomEvent('orderCreated', { detail: data });
+      window.dispatchEvent(event);
       
-      // Rediriger vers la liste des commandes au lieu de la page détail
+      // Rediriger vers la liste des commandes
       router.push('/admin/orders');
-      router.refresh();
+      
     } catch (error) {
-      console.error('Erreur:', error);
-      alert('Une erreur est survenue lors de la création de la commande.');
+      setErrors(prev => ({ 
+        ...prev, 
+        general: error instanceof Error ? error.message : 'Une erreur est survenue' 
+      }));
     } finally {
       setIsLoading(false);
     }
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          {/* Section client */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Information client</h2>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-              <div>
-                <label htmlFor="userId" className="block text-sm font-medium text-gray-700 mb-1">
-                  Client
-                </label>
-                <select
-                  id="userId"
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Client</CardTitle>
+          <CardDescription>Sélectionnez le client pour cette commande</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <div className="flex flex-col space-y-1.5">
+              <Label htmlFor="userId">Client</Label>
+              <Select
                   value={formData.userId}
-                  onChange={handleUserChange}
-                  className="w-full border border-gray-300 rounded-md p-2"
-                  required
-                >
-                  <option value="">Sélectionner un client</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, userId: value }));
+                  setErrors(prev => ({ ...prev, userId: undefined }));
+                }}
+              >
+                <SelectTrigger id="userId">
+                  <SelectValue placeholder="Sélectionner un client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map(user => (
+                    <SelectItem key={user.id} value={user.id}>
                       {user.firstName} {user.lastName} ({user.email})
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-              </div>
-              
-              <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-                  Statut de la commande
-                </label>
-                <select
-                  id="status"
-                  value={formData.status}
-                  onChange={handleStatusChange}
-                  className="w-full border border-gray-300 rounded-md p-2"
-                >
-                  <option value="QUOTE">Devis en attente de paiement</option>
-                  <option value="PENDING">En attente</option>
-                  <option value="PAID">Commande payée</option>
-                  <option value="PROCESSING">En traitement</option>
-                  <option value="SHIPPING">En cours de livraison</option>
-                  <option value="DELIVERED">Commande livrée</option>
-                  <option value="CANCELLED">Commande annulée</option>
-                  <option value="FINISHED">Commande terminée</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {/* Section articles */}
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Articles de la commande</h2>
-            
-            {/* Liste des articles ajoutés */}
-            {formData.items.length > 0 && (
-              <div className="mb-6">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Article
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantité
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Prix unitaire
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {formData.items.map((item, index) => (
-                      <tr key={index}>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          <Badge variant={
-                            item.itemType === 'PRODUCT' ? 'default' :
-                            item.itemType === 'SERVICE' ? 'secondary' :
-                            'outline'
-                          }>
-                            {item.itemType === 'PRODUCT' ? 'Produit' :
-                             item.itemType === 'SERVICE' ? 'Service' :
-                             'Offre'}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {item.item?.name}
-                          {item.itemType === 'OFFER' && item.subscriptionDetails && (
-                            <div className="mt-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {(item.item as Offer).platformOffers?.find(
-                                  po => po.id === item.subscriptionDetails?.platformOfferId
-                                )?.platform.name || 'Plateforme non spécifiée'}
-                              </Badge>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {item.quantity}
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {item.unitPrice.toFixed(2)}€
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {item.totalPrice.toFixed(2)}€
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex gap-2">
-                            {item.itemType === 'OFFER' && item.item && (() => {
-                              const offer = item.item as Offer;
-                              const hasPlatformOffers = offer.platformOffers && offer.platformOffers.length > 0;
-                              return hasPlatformOffers && (
-                                <button
-                                  type="button"
-                                  onClick={() => configureSubscription(item, index)}
-                                  className="text-blue-600 hover:text-blue-800"
-                                  title="Configurer l'abonnement"
-                                >
-                                  <Settings size={16} />
-                                </button>
-                              );
-                            })()}
-                            <button
-                              type="button"
-                              onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-800"
-                              title="Supprimer"
-                            >
-                              <X size={16} />
-                            </button>
+                </SelectContent>
+              </Select>
+              {errors.userId && (
+                <span className="text-sm text-red-500">{errors.userId}</span>
+              )}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="bg-gray-50 font-medium">
-                      <td colSpan={4} className="px-3 py-3 text-right text-sm">
-                        Total:
-                      </td>
-                      <td className="px-3 py-3 text-sm">
-                        {formData.total.toFixed(2)}€
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
-            )}
-            
-            {/* Formulaire d'ajout d'article */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-4 items-end bg-gray-50 p-4 rounded-md">
-              <div>
-                <label htmlFor="itemType" className="block text-sm font-medium text-gray-700 mb-1">
-                  Type d'article
-                </label>
-                <select
-                  id="itemType"
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Articles</CardTitle>
+          <CardDescription>Ajoutez des produits, services ou offres à la commande</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6">
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <Label htmlFor="itemType">Type</Label>
+                <Select
                   value={currentItem.itemType}
-                  onChange={handleItemTypeChange}
-                  className="w-full border border-gray-300 rounded-md p-2"
+                  onValueChange={(value: 'PRODUCT' | 'SERVICE' | 'OFFER') => {
+                    setCurrentItem(prev => ({ ...prev, itemType: value, itemId: '' }));
+                  }}
                 >
-                  <option value="PRODUCT">Produit</option>
-                  <option value="SERVICE">Service</option>
-                  <option value="OFFER">Offre/Abonnement</option>
-                </select>
+                  <SelectTrigger id="itemType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PRODUCT">Produit</SelectItem>
+                    <SelectItem value="SERVICE">Service</SelectItem>
+                    <SelectItem value="OFFER">Offre</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
-              <div>
-                <label htmlFor="itemId" className="block text-sm font-medium text-gray-700 mb-1">
-                  Article
-                </label>
-                <select
-                  id="itemId"
+              <div className="flex-1">
+                <Label htmlFor="itemId">Article</Label>
+                <Select
                   value={currentItem.itemId}
-                  onChange={handleItemChange}
-                  className="w-full border border-gray-300 rounded-md p-2"
+                  onValueChange={(value) => {
+                    setCurrentItem(prev => ({ ...prev, itemId: value }));
+                    setErrors(prev => ({ ...prev, items: undefined }));
+                  }}
                 >
-                  <option value="">Sélectionner un article</option>
-                  {getItemsForType().map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} - {item.price.toFixed(2)}€
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="itemId">
+                    <SelectValue placeholder="Sélectionner un article" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getItemsForType().map(item => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name} - {formatCurrency(item.price)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
-              <div>
-                <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantité
-                </label>
-                <input
+              <div className="w-24">
+                <Label htmlFor="quantity">Quantité</Label>
+                <Input
                   id="quantity"
                   type="number"
                   min="1"
                   value={currentItem.quantity}
-                  onChange={handleQuantityChange}
-                  className="w-full border border-gray-300 rounded-md p-2"
+                  onChange={(e) => setCurrentItem(prev => ({ 
+                    ...prev, 
+                    quantity: Math.max(1, parseInt(e.target.value) || 1)
+                  }))}
                 />
               </div>
               
-              <div>
-                <button
+              <Button
                   type="button"
-                  onClick={addItem}
-                  disabled={!currentItem.itemId}
-                  className="bg-green-600 text-white px-3 py-2 rounded-md text-sm hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed w-full"
+                onClick={handleAddItem}
+                className="flex gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Ajouter
+              </Button>
+          </div>
+          
+            {errors.items && (
+              <Alert variant="destructive">
+                <AlertDescription>{errors.items}</AlertDescription>
+              </Alert>
+            )}
+
+              <div className="space-y-4">
+              {formData.items.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
                 >
-                  Ajouter à la commande
-                </button>
-              </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium">{item.item?.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {item.quantity} x {formatCurrency(item.unitPrice)}
+                    </p>
+                    {item.itemType === 'OFFER' && item.subscriptionDetails?.platformAccounts && (
+                      <div className="mt-2">
+                        {item.subscriptionDetails.platformAccounts.map((pa, i) => (
+                          <Badge key={i} variant="secondary" className="mr-2">
+                            {pa.profileIds.length} profil(s)
+                          </Badge>
+                        ))}
+                </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className="font-medium">
+                      {formatCurrency(item.totalPrice)}
+                    </p>
+                    {item.itemType === 'OFFER' && (
+                        <Button
+                          variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setCurrentSubscriptionConfig({ item, index });
+                          setShowProfilesModal(true);
+                        }}
+                      >
+                        <Settings className="w-4 h-4" />
+                        </Button>
+                    )}
+                        <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          items: prev.items.filter((_, i) => i !== index)
+                        }));
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                        </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          
-          {/* Notes */}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-              Notes (optionnel)
-            </label>
-            <textarea
-              id="notes"
-              value={formData.notes || ''}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full border border-gray-300 rounded-md p-2 h-24"
-              placeholder="Notes internes concernant cette commande..."
-            />
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <div className="text-sm text-muted-foreground">
+            {formData.items.length} article(s)
           </div>
-          
-          {/* Bouton de soumission */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              disabled={isLoading || !formData.userId || formData.items.length === 0}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Création en cours...</span>
-                </>
-              ) : (
-                <span>Créer la commande</span>
-              )}
-            </button>
+          <div className="text-lg font-medium">
+            Total: {formatCurrency(formData.total)}
           </div>
-        </div>
-      </form>
-      
-      {/* Dialogue de configuration d'abonnement */}
-      <Dialog open={showSubscriptionDialog} onOpenChange={setShowSubscriptionDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Configuration de l'abonnement</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {currentSubscriptionItem && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
-                    Plateforme
-                  </label>
-                  <Select
-                    value={selectedPlatformOfferId}
-                    onValueChange={setSelectedPlatformOfferId}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Sélectionner une plateforme" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(currentSubscriptionItem.item as Offer).platformOffers?.map((po) => (
-                        <SelectItem key={po.id} value={po.id}>
-                          {po.platform.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
-                      Date de début
-                    </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(startDate, 'PPP', { locale: fr })}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              setStartDate(date);
-                              // S'assurer que la date de fin est après la date de début
-                              if (date >= endDate) {
-                                const newEndDate = new Date(date);
-                                newEndDate.setMonth(newEndDate.getMonth() + 1);
-                                setEndDate(newEndDate);
-                              }
-                            }
-                          }}
-                          initialFocus
-                          locale={fr}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1">
-                      Date de fin
-                    </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(endDate, 'PPP', { locale: fr })}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={(date) => date && setEndDate(date)}
-                          initialFocus
-                          locale={fr}
-                          disabled={(date) => date < new Date() || date <= startDate}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="autoRenew" className="text-sm font-medium text-gray-700">
-                    Renouvellement automatique
-                  </Label>
-                  <Switch
-                    id="autoRenew"
-                    checked={autoRenew}
-                    onCheckedChange={setAutoRenew}
-                  />
-                </div>
-                
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    Après la création de la commande, vous pourrez configurer les comptes et profils pour cet abonnement depuis la section Abonnements.
-                  </AlertDescription>
+        </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notes</CardTitle>
+          <CardDescription>Ajoutez des notes à la commande (optionnel)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Input
+            placeholder="Notes..."
+            value={formData.notes}
+            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          />
+        </CardContent>
+      </Card>
+
+      {errors.general && (
+        <Alert variant="destructive">
+          <AlertDescription>{errors.general}</AlertDescription>
                 </Alert>
-              </div>
             )}
-          </div>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSubscriptionDialog(false)}>
-              Annuler
-            </Button>
+      <div className="flex justify-end gap-4">
             <Button 
-              onClick={() => {}}
-              disabled={!selectedPlatformOfferId}
+          type="button"
+          variant="outline"
+          onClick={() => router.push('/admin/orders')}
             >
-              Confirmer
+          Annuler
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Nouveau modal pour la configuration des comptes et profils */}
-      {showProfilesModal && (
+        <Button type="submit" disabled={isLoading}>
+          {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Créer la commande
+        </Button>
+      </div>
+
+      {showProfilesModal && currentSubscriptionConfig && (
         <SubscriptionProfilesModal
           isOpen={showProfilesModal}
           onClose={() => {
             setShowProfilesModal(false);
             setCurrentSubscriptionConfig(null);
           }}
-          offer={currentSubscriptionConfig?.item.item as Offer}
+          offer={currentSubscriptionConfig.item.item as Offer}
           onConfirm={handleProfilesConfirmation}
         />
       )}
-    </div>
+    </form>
   );
 }
 

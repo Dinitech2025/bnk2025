@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useCurrency } from '@/lib/hooks/use-currency';
 
 interface InvoiceItem {
   name: string;
@@ -17,109 +18,153 @@ interface Customer {
 }
 
 interface InvoiceData {
+  id: string;
   orderNumber: string;
   createdAt: string;
   status: string;
   total: number;
-  customer: Customer;
+  currency: string;
+  currencySymbol: string;
+  exchangeRate?: number;
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+  };
   items: InvoiceItem[];
+  convertedPrices?: {
+    [key: string]: number;
+  };
 }
 
+/**
+ * Formate un prix avec la devise
+ */
+function formatPrice(price: number, currency: string): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: currency
+  }).format(price);
+}
+
+/**
+ * Récupère le prix converti s'il existe
+ */
+function getConvertedPrice(price: number, exchangeRate?: number): number {
+  if (!exchangeRate) return price;
+  return price * exchangeRate;
+}
+
+/**
+ * Détermine le type de document selon le statut
+ */
+function getDocumentType(status: string): string {
+  return status === 'QUOTE' ? 'DEVIS' : 'FACTURE';
+}
+
+/**
+ * Génère un PDF de facture avec les prix convertis
+ */
 export function generateInvoicePDF(invoiceData: InvoiceData): string {
-  // Créer un nouveau document PDF en français, format A4
-  const doc = new jsPDF();
-  
-  // Configuration de la facture
-  const companyName = 'Boutik Naka';
-  const companyAddress = '123 Rue du Commerce, 75001 Paris';
-  const companyPhone = '+33 1 23 45 67 89';
-  const companyEmail = 'contact@boutiknaka.com';
-  const companyWebsite = 'www.boutiknaka.com';
-  const companyLogo = '';  // URL du logo si nécessaire
-  
-  // Dimensions de la page
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  
-  // Formater la date
-  const invoiceDate = format(new Date(invoiceData.createdAt), 'dd MMMM yyyy', { locale: fr });
-  
-  // Ajouter l'en-tête de la facture
-  doc.setFontSize(24);
-  doc.setTextColor(0, 0, 0);
-  doc.text('FACTURE', pageWidth / 2, margin, { align: 'center' });
-  
-  // Informations de l'entreprise
-  doc.setFontSize(10);
-  doc.text(companyName, margin, margin + 10);
-  doc.text(companyAddress, margin, margin + 15);
-  doc.text(`Tél: ${companyPhone}`, margin, margin + 20);
-  doc.text(`Email: ${companyEmail}`, margin, margin + 25);
-  doc.text(`Site: ${companyWebsite}`, margin, margin + 30);
-  
-  // Informations de la facture
-  doc.setFontSize(12);
-  doc.text(`Facture N°: ${invoiceData.orderNumber}`, pageWidth - margin, margin + 10, { align: 'right' });
-  doc.text(`Date: ${invoiceDate}`, pageWidth - margin, margin + 20, { align: 'right' });
-  doc.text(`Statut: ${getStatusText(invoiceData.status)}`, pageWidth - margin, margin + 30, { align: 'right' });
-  
-  // Informations du client
-  doc.setFontSize(12);
-  doc.text('FACTURÉ À:', margin, margin + 50);
-  doc.setFontSize(10);
-  doc.text(invoiceData.customer.name, margin, margin + 60);
-  doc.text(invoiceData.customer.email, margin, margin + 65);
-  
-  // Préparer les données pour le tableau
-  const tableData = invoiceData.items.map(item => [
-    item.name,
-    getItemTypeText(item.type),
-    item.quantity.toString(),
-    `${item.unitPrice.toFixed(2)} €`,
-    `${item.totalPrice.toFixed(2)} €`
-  ]);
-  
-  // Ajouter le tableau des articles
-  autoTable(doc, {
-    startY: margin + 80,
-    head: [['Article', 'Type', 'Quantité', 'Prix unitaire', 'Total']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: 255,
-      fontStyle: 'bold'
-    },
-    foot: [
-      ['', '', '', 'Total HT', `${(invoiceData.total / 1.2).toFixed(2)} €`],
-      ['', '', '', 'TVA (20%)', `${(invoiceData.total - invoiceData.total / 1.2).toFixed(2)} €`],
-      ['', '', '', 'Total TTC', `${invoiceData.total.toFixed(2)} €`]
-    ],
-    footStyles: {
-      fillColor: [240, 240, 240],
-      fontStyle: 'bold'
-    }
-  });
-  
-  // Ajouter des conditions de paiement
-  let finalY = (doc as any).lastAutoTable.finalY + 20;
-  doc.setFontSize(10);
-  doc.text('CONDITIONS DE PAIEMENT', margin, finalY);
-  doc.setFontSize(8);
-  doc.text('Paiement à réception de la facture. Merci pour votre confiance.', margin, finalY + 5);
-  
-  // Ajouter un pied de page
-  doc.setFontSize(8);
-  doc.text(
-    `${companyName} - SIRET: 123 456 789 00012 - TVA: FR12 123 456 789`, 
-    pageWidth / 2, 
-    pageHeight - 10, 
-    { align: 'center' }
-  );
-  
-  // Retourner le document au format base64
-  return doc.output('dataurlstring');
+  try {
+    // Créer un nouveau document PDF en français, format A4
+    const doc = new jsPDF();
+    
+    // Configuration de la facture
+    const companyName = 'Boutik Naka';
+    const companyAddress = '123 Rue du Commerce, 75001 Paris';
+    const companyPhone = '+33 1 23 45 67 89';
+    const companyEmail = 'contact@boutiknaka.com';
+    const companyWebsite = 'www.boutiknaka.com';
+    const companyLogo = '';  // URL du logo si nécessaire
+    
+    // Dimensions de la page
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    
+    // Formater la date
+    const invoiceDate = format(new Date(invoiceData.createdAt), 'dd MMMM yyyy', { locale: fr });
+    
+    // Ajouter l'en-tête de la facture
+    doc.setFontSize(24);
+    doc.setTextColor(0, 0, 0);
+    doc.text('FACTURE', pageWidth / 2, margin, { align: 'center' });
+    
+    // Informations de l'entreprise
+    doc.setFontSize(10);
+    doc.text(companyName, margin, margin + 10);
+    doc.text(companyAddress, margin, margin + 15);
+    doc.text(`Tél: ${companyPhone}`, margin, margin + 20);
+    doc.text(`Email: ${companyEmail}`, margin, margin + 25);
+    doc.text(`Site: ${companyWebsite}`, margin, margin + 30);
+    
+    // Informations de la facture
+    doc.setFontSize(12);
+    doc.text(`Facture N°: ${invoiceData.orderNumber}`, pageWidth - margin, margin + 10, { align: 'right' });
+    doc.text(`Date: ${invoiceDate}`, pageWidth - margin, margin + 20, { align: 'right' });
+    doc.text(`Statut: ${getStatusText(invoiceData.status)}`, pageWidth - margin, margin + 30, { align: 'right' });
+    
+    // Informations du client
+    doc.setFontSize(12);
+    doc.text('FACTURÉ À:', margin, margin + 50);
+    doc.setFontSize(10);
+    doc.text(invoiceData.customer.name, margin, margin + 60);
+    doc.text(invoiceData.customer.email, margin, margin + 65);
+    
+    // Préparer les données pour le tableau
+    const tableData = invoiceData.items.map(item => [
+      item.name,
+      getItemTypeText(item.type),
+      item.quantity.toString(),
+      `${item.unitPrice.toFixed(2)} €`,
+      `${item.totalPrice.toFixed(2)} €`
+    ]);
+    
+    // Ajouter le tableau des articles
+    autoTable(doc, {
+      startY: margin + 80,
+      head: [['Article', 'Type', 'Quantité', 'Prix unitaire', 'Total']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      foot: [
+        ['', '', '', 'Total HT', `${(invoiceData.total / 1.2).toFixed(2)} €`],
+        ['', '', '', 'TVA (20%)', `${(invoiceData.total - invoiceData.total / 1.2).toFixed(2)} €`],
+        ['', '', '', 'Total TTC', `${invoiceData.total.toFixed(2)} €`]
+      ],
+      footStyles: {
+        fillColor: [240, 240, 240],
+        fontStyle: 'bold'
+      }
+    });
+    
+    // Ajouter des conditions de paiement
+    let finalY = (doc as any).lastAutoTable.finalY + 20;
+    doc.setFontSize(10);
+    doc.text('CONDITIONS DE PAIEMENT', margin, finalY);
+    doc.setFontSize(8);
+    doc.text('Paiement à réception de la facture. Merci pour votre confiance.', margin, finalY + 5);
+    
+    // Ajouter un pied de page
+    doc.setFontSize(8);
+    doc.text(
+      `${companyName} - SIRET: 123 456 789 00012 - TVA: FR12 123 456 789`, 
+      pageWidth / 2, 
+      pageHeight - 10, 
+      { align: 'center' }
+    );
+    
+    // Retourner le document au format base64
+    return doc.output('datauristring');
+  } catch (error) {
+    console.error('Erreur lors de la génération du PDF:', error);
+    throw new Error('Erreur lors de la génération du PDF');
+  }
 }
 
 // Fonction de traduction des statuts
@@ -158,4 +203,4 @@ function getItemTypeText(type: string): string {
     default:
       return type;
   }
-} 
+}

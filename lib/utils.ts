@@ -3,6 +3,16 @@ import { twMerge } from 'tailwind-merge'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
+// Taux de change par défaut (base MGA)
+export const defaultExchangeRates: Record<string, number> = {
+  'MGA': 1,
+  'EUR': 0.000204,  // 1 MGA = 0.000204 EUR
+  'USD': 0.000222,  // 1 MGA = 0.000222 USD
+  'GBP': 0.000175,  // 1 MGA = 0.000175 GBP
+  'CAD': 0.000302,  // 1 MGA = 0.000302 CAD
+  'CHF': 0.000196   // 1 MGA = 0.000196 CHF
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -21,13 +31,14 @@ export function slugify(text: string) {
 }
 
 /**
- * Génère un numéro de commande au format CMD-ANNÉE-NNNN
+ * Génère un numéro de commande au format CMD-ANNÉE-NNNN ou DEV-ANNÉE-NNNN
  * @param lastOrderNumber Le dernier numéro de commande (optionnel)
+ * @param status Le statut de la commande (optionnel)
  * @returns Un nouveau numéro de commande
  */
-export function generateOrderNumber(lastOrderNumber?: string | null): string {
+export function generateOrderNumber(lastOrderNumber?: string | null, status?: string): string {
   const currentYear = new Date().getFullYear();
-  const prefix = `CMD-${currentYear}-`;
+  const prefix = status === 'QUOTE' ? `DEV-${currentYear}-` : `CMD-${currentYear}-`;
   
   // Si aucun numéro précédent n'existe, commencer à 0001
   if (!lastOrderNumber) {
@@ -35,7 +46,7 @@ export function generateOrderNumber(lastOrderNumber?: string | null): string {
   }
   
   // Extraire le numéro séquentiel du dernier numéro de commande
-  const match = lastOrderNumber.match(/CMD-\d{4}-(\d{4})/);
+  const match = lastOrderNumber.match(/(?:CMD|DEV)-\d{4}-(\d{4})/);
   if (!match) {
     return `${prefix}0001`;
   }
@@ -60,10 +71,16 @@ export function formatDate(date: string | Date | null | undefined, formatStr: st
   }
 }
 
-export function formatPrice(price: number) {
+export function formatPrice(price: number, currency?: string, currencySymbol?: string) {
+  // Si la devise et le symbole sont fournis, les utiliser
+  if (currency && currencySymbol) {
+    return `${price.toLocaleString('fr-FR')} ${currencySymbol}`;
+  }
+  
+  // Sinon, utiliser MGA par défaut
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency: 'EUR'
+    currency: 'MGA'
   }).format(price);
 }
 
@@ -86,4 +103,55 @@ export function formatDuration(duration: number, unit: string): string {
   }
   
   return `${duration} ${unitLabel}${duration > 1 ? "s" : ""}`;
-} 
+}
+
+/**
+ * Convertit un montant d'une devise à une autre en utilisant les taux de change fournis
+ */
+export function convertCurrency(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  exchangeRates: Record<string, number>
+): number {
+  // Si les devises sont identiques, retourner le montant tel quel
+  if (fromCurrency === toCurrency) return amount;
+  
+  // Vérifier que les taux de change sont disponibles
+  if (!exchangeRates[fromCurrency] || !exchangeRates[toCurrency]) {
+    throw new Error(`Taux de change non disponible pour ${fromCurrency} ou ${toCurrency}`);
+  }
+  
+  // Convertir d'abord en EUR (devise de base), puis dans la devise cible
+  const amountInEUR = amount / exchangeRates[fromCurrency];
+  const convertedAmount = amountInEUR * exchangeRates[toCurrency];
+  
+  // Arrondir à 2 décimales
+  return Math.round(convertedAmount * 100) / 100;
+}
+
+export function convertDecimalToNumber(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === 'object') {
+    if (obj.constructor?.name === 'Decimal') {
+      return Number(obj.toString());
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => convertDecimalToNumber(item));
+    }
+
+    const result: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = convertDecimalToNumber(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
