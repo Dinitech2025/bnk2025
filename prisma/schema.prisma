@@ -180,6 +180,8 @@ model Account {
   email                String?
   password             String?
   status               String                @default("AVAILABLE")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now()) @updatedAt
   platform             Platform              @relation(fields: [platformId], references: [id], onDelete: Cascade)
   accountProfiles      AccountProfile[]
   profiles             Profile[]

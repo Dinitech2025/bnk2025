@@ -59,7 +59,7 @@ export function generateOrderNumber(lastOrderNumber?: string | null, status?: st
 /**
  * Formate une date en utilisant la localisation française
  */
-export function formatDate(date: string | Date | null | undefined, formatStr: string = 'PPP') {
+export function formatDate(date: string | Date | null | undefined, formatStr: string = "d MMMM yyyy 'à' HH:mm") {
   if (!date) return 'Non spécifié'
   
   try {
@@ -67,7 +67,7 @@ export function formatDate(date: string | Date | null | undefined, formatStr: st
     return format(dateObj, formatStr, { locale: fr })
   } catch (error) {
     console.error('Erreur lors du formatage de la date:', error)
-    return String(date)
+    return 'Date invalide'
   }
 }
 

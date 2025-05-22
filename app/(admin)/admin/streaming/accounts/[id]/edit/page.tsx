@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import ProfilesManager from '@/app/components/streaming/ProfilesManager'
+import ProfilesManager from '@/components/streaming/ProfilesManager'
 
 interface Platform {
   id: string
@@ -35,6 +35,14 @@ interface Platform {
   type: string
   maxProfilesPerAccount: number | null
   websiteUrl: string | null
+  hasProfiles: boolean
+}
+
+interface Subscription {
+  id: string
+  status: string
+  startDate: string
+  endDate: string
 }
 
 interface Profile {
@@ -43,6 +51,8 @@ interface Profile {
   profileSlot: number
   pin: string | null
   isAssigned: boolean
+  subscription: Subscription | null
+  account: Account
 }
 
 interface Account {

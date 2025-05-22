@@ -3,6 +3,38 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
+import { Account as PrismaAccount, Platform, Prisma } from '@prisma/client'
+
+interface AccountWithRelations extends Omit<PrismaAccount, 'createdAt' | 'updatedAt'> {
+  platform: Platform;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  accountProfiles: Array<{
+    id: string;
+    profileSlot: number;
+    name: string | null;
+    isAssigned: boolean;
+    pin: string | null;
+    subscriptionId: string | null;
+    subscription: {
+      id: string;
+      status: string;
+      startDate: Date;
+      endDate: Date;
+      user: {
+        id: string;
+        firstName: string | null;
+        lastName: string | null;
+        email: string;
+      };
+    } | null;
+  }>;
+}
+
+interface AccountDates {
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // GET - Récupérer un compte spécifique
 export async function GET(
@@ -11,6 +43,22 @@ export async function GET(
 ) {
   try {
     // En production: const user = await requireStaff()
+    
+    // Récupérer les dates avec une requête SQL directe
+    const dates = await db.$queryRaw<AccountDates[]>`
+      SELECT "createdAt", "updatedAt"
+      FROM "Account"
+      WHERE id = ${params.id}
+    `
+
+    if (dates.length === 0) {
+      return NextResponse.json(
+        { message: 'Compte non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    console.log('Dates du compte dans la base de données:', dates)
     
     const account = await db.account.findUnique({
       where: { id: params.id },
@@ -23,7 +71,23 @@ export async function GET(
             name: true,
             isAssigned: true,
             pin: true,
-            subscriptionId: true
+            subscriptionId: true,
+            subscription: {
+              select: {
+                id: true,
+                status: true,
+                startDate: true,
+                endDate: true,
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -36,7 +100,39 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(account)
+    // Fusionner les données du compte avec les dates
+    const accountWithDates = {
+      ...account,
+      createdAt: dates[0].createdAt,
+      updatedAt: dates[0].updatedAt
+    }
+
+    console.log('Dates du compte avant formatage:', {
+      createdAt: accountWithDates.createdAt,
+      updatedAt: accountWithDates.updatedAt
+    })
+
+    // Convertir les dates en chaînes ISO
+    const formattedAccount = {
+      ...accountWithDates,
+      createdAt: accountWithDates.createdAt.toISOString(),
+      updatedAt: accountWithDates.updatedAt.toISOString(),
+      accountProfiles: accountWithDates.accountProfiles.map(profile => ({
+        ...profile,
+        subscription: profile.subscription ? {
+          ...profile.subscription,
+          startDate: profile.subscription.startDate.toISOString(),
+          endDate: profile.subscription.endDate.toISOString()
+        } : null
+      }))
+    }
+
+    console.log('Dates du compte après formatage:', {
+      createdAt: formattedAccount.createdAt,
+      updatedAt: formattedAccount.updatedAt
+    })
+
+    return NextResponse.json(formattedAccount)
   } catch (error) {
     console.error('Erreur lors de la récupération du compte:', error)
     return NextResponse.json(
@@ -117,13 +213,44 @@ export async function PUT(
             name: true,
             isAssigned: true,
             pin: true,
-            subscriptionId: true
+            subscriptionId: true,
+            subscription: {
+              select: {
+                id: true,
+                status: true,
+                startDate: true,
+                endDate: true,
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
           }
         }
       }
-    })
+    }) as AccountWithRelations
 
-    return NextResponse.json(updatedAccount)
+    // Formater les dates avant de renvoyer la réponse
+    const formattedAccount = {
+      ...updatedAccount,
+      createdAt: updatedAccount.createdAt ? updatedAccount.createdAt.toISOString() : null,
+      updatedAt: updatedAccount.updatedAt ? updatedAccount.updatedAt.toISOString() : null,
+      accountProfiles: updatedAccount.accountProfiles.map(profile => ({
+        ...profile,
+        subscription: profile.subscription ? {
+          ...profile.subscription,
+          startDate: profile.subscription.startDate.toISOString(),
+          endDate: profile.subscription.endDate.toISOString()
+        } : null
+      }))
+    }
+
+    return NextResponse.json(formattedAccount)
   } catch (error) {
     console.error('Erreur lors de la mise à jour du compte:', error)
     return NextResponse.json(
@@ -168,13 +295,44 @@ export async function PATCH(
             name: true,
             isAssigned: true,
             pin: true,
-            subscriptionId: true
+            subscriptionId: true,
+            subscription: {
+              select: {
+                id: true,
+                status: true,
+                startDate: true,
+                endDate: true,
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
           }
         }
       }
-    })
+    }) as AccountWithRelations
 
-    return NextResponse.json(updatedAccount)
+    // Formater les dates avant de renvoyer la réponse
+    const formattedAccount = {
+      ...updatedAccount,
+      createdAt: updatedAccount.createdAt ? updatedAccount.createdAt.toISOString() : null,
+      updatedAt: updatedAccount.updatedAt ? updatedAccount.updatedAt.toISOString() : null,
+      accountProfiles: updatedAccount.accountProfiles.map(profile => ({
+        ...profile,
+        subscription: profile.subscription ? {
+          ...profile.subscription,
+          startDate: profile.subscription.startDate.toISOString(),
+          endDate: profile.subscription.endDate.toISOString()
+        } : null
+      }))
+    }
+
+    return NextResponse.json(formattedAccount)
   } catch (error) {
     console.error('Erreur lors de la mise à jour partielle du compte:', error)
     return NextResponse.json(

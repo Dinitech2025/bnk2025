@@ -41,14 +41,22 @@ interface Account {
   platform: Platform
 }
 
+interface User {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  email: string
+}
+
 interface Subscription {
   id: string
   status: string
   startDate: string
   endDate: string
+  user: User
 }
 
-interface Profile {
+interface AccountProfile {
   id: string
   name: string | null
   profileSlot: number
@@ -60,7 +68,7 @@ interface Profile {
 
 interface ProfilesManagerProps {
   accountId: string
-  profiles: Profile[]
+  profiles: AccountProfile[]
   maxProfiles: number
   onProfilesChange: () => void
 }
@@ -71,17 +79,7 @@ export default function ProfilesManager({
   maxProfiles,
   onProfilesChange 
 }: ProfilesManagerProps) {
-  if (profiles.length > 0 && !profiles[0].account.platform.hasProfiles) {
-    return (
-      <div className="p-4 text-center">
-        <p className="text-muted-foreground">
-          Cette plateforme ne supporte pas la gestion des profils.
-        </p>
-      </div>
-    );
-  }
-
-  const [editingProfile, setEditingProfile] = useState<Profile | null>(null)
+  const [editingProfile, setEditingProfile] = useState<AccountProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [deleteProfileId, setDeleteProfileId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -90,8 +88,20 @@ export default function ProfilesManager({
     pin: '',
     isAssigned: false
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleEditProfile = (profile: Profile) => {
+  // Vérifier si les profils existent
+  if (!profiles || profiles.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">
+          Aucun profil disponible.
+        </p>
+      </div>
+    )
+  }
+
+  const handleEditProfile = (profile: AccountProfile) => {
     setEditingProfile(profile)
     setFormData({
       name: profile.name || '',
@@ -104,6 +114,7 @@ export default function ProfilesManager({
   const handleSaveProfile = async () => {
     if (!editingProfile) return
 
+    setIsSubmitting(true)
     try {
       const response = await fetch(`/api/admin/streaming/profiles/${editingProfile.id}`, {
         method: 'PATCH',
@@ -128,6 +139,8 @@ export default function ProfilesManager({
     } catch (error) {
       console.error('Erreur:', error)
       toast.error(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du profil')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -160,7 +173,7 @@ export default function ProfilesManager({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">
-          Profils ({profiles.length}/{profiles.length > 0 && profiles[0].account.platform.hasProfiles ? maxProfiles : 0})
+          Profils ({profiles.length}/{maxProfiles})
         </h3>
       </div>
 
@@ -168,7 +181,7 @@ export default function ProfilesManager({
         <TableHeader>
           <TableRow>
             <TableHead>Profil</TableHead>
-            <TableHead>Compte</TableHead>
+            <TableHead>Client</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead>Abonnement</TableHead>
             <TableHead>PIN</TableHead>
@@ -176,28 +189,45 @@ export default function ProfilesManager({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {profiles.map((profile) => {
-            const { account } = profile as { account: Account }
-            return (
+          {profiles.map((profile) => (
             <TableRow key={profile.id}>
               <TableCell>
-                <div className="font-medium">Profil {profile.profileSlot}</div>
-                {profile.name && (
-                  <div className="text-sm text-muted-foreground">{profile.name}</div>
-                )}
+                <div className="space-y-1">
+                  {profile.name ? (
+                    <>
+                      <div className="text-lg font-semibold">
+                        {profile.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        P{profile.profileSlot}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-lg font-semibold">
+                      P{profile.profileSlot}
+                    </div>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-gray-400" />
-                  <Link 
-                      href={`/admin/streaming/accounts/${account.id}`}
-                    className="hover:underline"
-                  >
-                      {account.username || 'Sans nom'}
-                  </Link>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                    {account.platform.name}
+                  {profile.subscription?.user ? (
+                    <div>
+                      <div className="font-medium">
+                        {profile.subscription.user.firstName && profile.subscription.user.lastName
+                          ? `${profile.subscription.user.firstName} ${profile.subscription.user.lastName}`
+                          : profile.subscription.user.email}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {profile.subscription.user.email}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Compte non disponible
+                    </span>
+                  )}
                 </div>
               </TableCell>
               <TableCell>
@@ -206,13 +236,17 @@ export default function ProfilesManager({
                 </Badge>
               </TableCell>
               <TableCell>
-                {profile.subscription ? (
+                {profile.isAssigned && profile.subscription ? (
                   <div>
                     <Badge variant={profile.subscription.status === 'ACTIVE' ? 'success' : 'secondary'}>
                       {profile.subscription.status}
                     </Badge>
                     <div className="text-sm text-muted-foreground mt-1">
-                      Expire le {formatDate(profile.subscription.endDate)}
+                      {profile.subscription.endDate ? (
+                        `Expire le ${formatDate(profile.subscription.endDate)}`
+                      ) : (
+                        "Date d'expiration non définie"
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -238,30 +272,24 @@ export default function ProfilesManager({
                     variant="ghost"
                     size="icon"
                     onClick={() => setDeleteProfileId(profile.id)}
-                    className="text-red-500 hover:text-red-700"
                   >
                     <Trash className="h-4 w-4" />
                   </Button>
                 </div>
               </TableCell>
             </TableRow>
-            )
-          })}
+          ))}
         </TableBody>
       </Table>
 
       <Dialog open={isEditing} onOpenChange={(open) => !open && setIsEditing(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Modifier le profil {editingProfile?.profileSlot}
-              {editingProfile?.name && ` (${editingProfile.name})`}
-            </DialogTitle>
+            <DialogTitle>Modifier le profil</DialogTitle>
             <DialogDescription>
               Modifiez les informations du profil
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nom du profil</Label>
@@ -269,29 +297,19 @@ export default function ProfilesManager({
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Entrez un nom pour ce profil (optionnel)"
+                placeholder="Entrez un nom pour ce profil"
               />
-              <p className="text-sm text-muted-foreground">
-                Laissez vide pour utiliser le nom par défaut
-              </p>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="pin">Code PIN</Label>
               <Input
                 id="pin"
                 value={formData.pin}
                 onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
-                placeholder="Entrez un code PIN (optionnel)"
+                placeholder="••••"
                 maxLength={4}
-                pattern="[0-9]*"
-                inputMode="numeric"
               />
-              <p className="text-sm text-muted-foreground">
-                Laissez vide pour supprimer le code PIN
-              </p>
             </div>
-
             <div className="flex items-center space-x-2">
               <Switch
                 id="isAssigned"
@@ -301,7 +319,6 @@ export default function ProfilesManager({
               <Label htmlFor="isAssigned">Profil assigné</Label>
             </div>
           </div>
-
           <DialogFooter>
             <Button
               variant="outline"
@@ -311,8 +328,16 @@ export default function ProfilesManager({
             </Button>
             <Button
               onClick={handleSaveProfile}
+              disabled={isSubmitting}
             >
-              Enregistrer
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                'Enregistrer'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -321,9 +346,9 @@ export default function ProfilesManager({
       <Dialog open={!!deleteProfileId} onOpenChange={(open) => !open && setDeleteProfileId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
+            <DialogTitle>Supprimer le profil</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce profil ? Cette action ne peut pas être annulée.
+              Êtes-vous sûr de vouloir supprimer ce profil ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -340,7 +365,7 @@ export default function ProfilesManager({
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Suppression...
                 </>
               ) : (
