@@ -206,7 +206,7 @@ export default function ProfilesManager({
                     <div className="text-lg font-semibold">
                       P{profile.profileSlot}
                     </div>
-                  )}
+                )}
                 </div>
               </TableCell>
               <TableCell>
@@ -218,8 +218,8 @@ export default function ProfilesManager({
                         {profile.subscription.user.firstName && profile.subscription.user.lastName
                           ? `${profile.subscription.user.firstName} ${profile.subscription.user.lastName}`
                           : profile.subscription.user.email}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
+                </div>
+                <div className="text-sm text-muted-foreground">
                         {profile.subscription.user.email}
                       </div>
                     </div>

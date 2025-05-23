@@ -25,6 +25,19 @@ interface Platform {
   isActive: boolean
   createdAt: Date
   updatedAt: Date
+  hasMultipleOffers: boolean
+  providerOffers: ProviderOffer[]
+}
+
+interface ProviderOffer {
+  id: string
+  name: string
+  price: number
+  currency: string
+  deviceCount: number
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
 export default function PlatformDetailsPage() {
@@ -156,6 +169,68 @@ export default function PlatformDetailsPage() {
             )}
           </CardContent>
         </Card>
+
+        {platform.hasMultipleOffers && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Offres fournisseur</CardTitle>
+              <CardDescription>Liste des offres disponibles pour cette plateforme</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {platform.providerOffers && platform.providerOffers.length > 0 ? (
+                <div className="space-y-4">
+                  {platform.providerOffers.map((offer) => (
+                    <div 
+                      key={offer.id} 
+                      className="p-4 border rounded-lg space-y-3 bg-muted/50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold">{offer.name}</h3>
+                        <Badge variant={offer.isActive ? 'default' : 'secondary'}>
+                          {offer.isActive ? 'Actif' : 'Inactif'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Prix mensuel</p>
+                          <p className="font-medium">
+                            {offer.price.toLocaleString('tr-TR', { 
+                              style: 'currency', 
+                              currency: offer.currency 
+                            })}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-muted-foreground">Appareils autorisés</p>
+                          <p className="font-medium">{offer.deviceCount}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground pt-2 border-t">
+                        <p>Créé le {formatDate(offer.createdAt)}</p>
+                        <p>Mis à jour le {formatDate(offer.updatedAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>Aucune offre fournisseur disponible</p>
+                </div>
+              )}
+
+              <div className="pt-4">
+                <Link href={`/admin/streaming/platforms/${platform.id}/provider-offers`}>
+                  <Button className="w-full">
+                    Gérer les offres
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

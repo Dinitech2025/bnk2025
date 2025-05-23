@@ -73,6 +73,7 @@ interface Platform {
 interface PlatformOffer {
   id: string
   platform: Platform
+  profileCount: number
 }
 
 interface Offer {
@@ -372,7 +373,9 @@ export function SubscriptionForm({ users, offers, platforms }: SubscriptionFormP
     const selectedAccount = getSelectedAccount(platform.id, selection.accountId);
     
     const availableProfiles = selectedAccount?.accountProfiles.filter(p => !p.isAssigned) || [];
-    const profilesToSelect = selectedOffer?.maxProfiles || 0;
+    // Récupérer le nombre de profils de la platformOffer
+    const platformOffer = selectedOffer?.platformOffers.find(po => po.id === selection.platformOfferId);
+    const profilesToSelect = platformOffer?.profileCount || 0;
     const canSelectMoreProfiles = selection.profileIds.length < profilesToSelect;
     
     return (
@@ -743,7 +746,9 @@ export function SubscriptionForm({ users, offers, platforms }: SubscriptionFormP
                     </div>
                     <div className="flex items-center">
                       <User className="h-4 w-4 mr-2 text-purple-500" />
-                      <span>{selectedOffer.maxProfiles} profil{selectedOffer.maxProfiles > 1 ? 's' : ''}</span>
+                      <span>
+                        {selectedOffer.platformOffers.reduce((total, po) => total + (po.profileCount || 0), 0)} profil(s)
+                      </span>
                     </div>
                   </div>
                   

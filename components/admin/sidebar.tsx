@@ -87,7 +87,8 @@ const adminNavItems: NavItem[] = [
       { title: 'Plateformes', href: '/admin/streaming/platforms' },
       { title: 'Offres', href: '/admin/streaming/offers' },
       { title: 'Comptes', href: '/admin/streaming/accounts' },
-      { title: 'Profiles', href: '/admin/streaming/profiles' }
+      { title: 'Profiles', href: '/admin/streaming/profiles' },
+      { title: 'Cartes Cadeaux', href: '/admin/streaming/gift-cards' }
     ]
   },
   {

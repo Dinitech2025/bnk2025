@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 interface Platform {
   id: string
@@ -66,6 +67,33 @@ export default function PlatformsPage() {
 
     fetchPlatforms()
   }, [router])
+
+  const handleDelete = async (platformId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette plateforme ?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/streaming/platforms/${platformId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        if (data.error === 'FOREIGN_KEY_CONSTRAINT') {
+          toast.error('Impossible de supprimer cette plateforme car elle est utilisée par des comptes ou des cartes cadeaux')
+          return
+        }
+        throw new Error(data.message || 'Erreur lors de la suppression')
+      }
+
+      setPlatforms(prev => prev.filter(p => p.id !== platformId))
+      toast.success('Plateforme supprimée avec succès')
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+      toast.error('Erreur lors de la suppression de la plateforme')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -208,6 +236,7 @@ export default function PlatformsPage() {
                         <Pencil className="h-4 w-4" />
                       </Link>
                       <button
+                        onClick={() => handleDelete(platform.id)}
                         className="p-1.5 bg-gray-50 rounded-full hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
                         title="Supprimer"
                       >

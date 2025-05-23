@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { SonnerToast } from '@/components/ui/toast'
 import { requireStaff } from '@/lib/auth'
 import dynamic from 'next/dynamic'
+import { ThemeProvider } from 'next-themes'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -33,17 +34,24 @@ export default async function AdminLayout({
   const user = await requireStaff()
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <AdminSidebar />
-      <div className="flex-1 flex flex-col">
-        {/* @ts-ignore - Nous savons que les props sont correctes */}
-        <AdminHeader user={user} />
-        <main className="flex-1 p-6">
-          {children}
-        </main>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+    >
+      <div className="min-h-screen flex bg-gray-50">
+        <AdminSidebar />
+        <div className="flex-1 flex flex-col">
+          {/* @ts-ignore - Nous savons que les props sont correctes */}
+          <AdminHeader user={user} />
+          <main className="flex-1 p-6">
+            {children}
+          </main>
+        </div>
+        <Toaster />
+        <SonnerToast />
       </div>
-      <Toaster />
-      <SonnerToast />
-    </div>
+    </ThemeProvider>
   )
 } 

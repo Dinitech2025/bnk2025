@@ -15,8 +15,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Combobox, ComboboxOption } from "@/components/ui/combobox"
-import type { ProductAttribute, ProductImage, ProductVariation } from '@/types/product'
-
+import { Combobox, ComboboxOption } from "@/components/ui/combobox"
 interface VariationsFormProps {
   variations: ProductVariation[]
   attributes: ProductAttribute[]

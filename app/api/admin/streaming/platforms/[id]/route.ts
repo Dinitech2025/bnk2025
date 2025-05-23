@@ -4,23 +4,41 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
 import { slugify } from '@/lib/utils'
-import { Platform, Prisma } from '@prisma/client'
+import { Platform, Prisma, PlatformProviderOffer } from '@prisma/client'
 
-interface PlatformUpdateData {
+type PlatformUpdateData = {
   name: string
   slug: string
   description: string | null
   logo: string | null
-  logoMedia?: { connect: { id: string } }
   websiteUrl: string | null
-  hasProfiles?: boolean
-  maxProfilesPerAccount?: number | null
   isActive: boolean
+  type: string
+  hasProfiles: boolean
+  maxProfilesPerAccount: number | null
+  hasMultipleOffers: boolean
+  hasGiftCards: boolean
+  features: string | null
+  tags: string | null
+  popularity: number | null
+  pricingModel: string | null
+  logoMediaId: string | null
 }
 
 interface UpdatePlatformData extends Partial<Platform> {
   logoMediaId?: string | null
 }
+
+type PlatformWithRelations = Prisma.PlatformGetPayload<{
+  include: {
+    logoMedia: {
+      select: {
+        path: true
+      }
+    }
+    providerOffers: true
+  }
+}>
 
 // GET - Récupérer une plateforme spécifique
 export async function GET(
@@ -37,9 +55,21 @@ export async function GET(
         id: params.id,
       },
       include: {
-        logoMedia: true,
+        logoMedia: {
+          select: {
+            path: true
+          }
+        },
+        providerOffers: {
+          where: {
+            isActive: true
+          },
+          orderBy: {
+            name: 'asc'
+          }
+        }
       },
-    })
+    }) as PlatformWithRelations | null
 
     if (!platform) {
       return NextResponse.json(
@@ -52,6 +82,11 @@ export async function GET(
     const formattedPlatform = {
       ...platform,
       logo: platform.logoMedia?.path || platform.logo,
+      providerOffers: platform.providerOffers?.map(offer => ({
+        ...offer,
+        price: parseFloat(offer.price.toString()),
+        deviceCount: parseInt(offer.deviceCount.toString())
+      })) || []
     }
 
     return NextResponse.json(formattedPlatform)
@@ -99,6 +134,9 @@ export async function PUT(
       where: {
         id: params.id,
       },
+      include: {
+        providerOffers: true
+      }
     })
 
     if (!existingPlatform) {
@@ -124,27 +162,33 @@ export async function PUT(
       }
     }
 
-    // Préparer les données de mise à jour de base
-    const baseUpdateData: PlatformUpdateData = {
+    // Si la plateforme n'a plus d'offres multiples, supprimer les offres fournisseur
+    if (!data.hasMultipleOffers && existingPlatform.hasMultipleOffers) {
+      await db.platformProviderOffer.deleteMany({
+        where: {
+          platformId: params.id
+        }
+      })
+    }
+
+    // Préparer les données de mise à jour
+    const updateData: PlatformUpdateData = {
       name: data.name,
       slug,
       description: data.description || null,
       logo: data.logo || null,
       websiteUrl: data.websiteUrl || null,
       isActive: data.isActive ?? existingPlatform.isActive,
-    }
-
-    // Ajouter la gestion du logo média si nécessaire
-    if (data.logoMediaId) {
-      baseUpdateData.logoMedia = { connect: { id: data.logoMediaId } }
-    }
-
-    // Ajouter la gestion des profils si nécessaire
-    if (typeof data.hasProfiles === 'boolean') {
-      baseUpdateData.hasProfiles = data.hasProfiles
-      baseUpdateData.maxProfilesPerAccount = data.hasProfiles ? (data.maxProfilesPerAccount || 5) : null
-    } else if (data.maxProfilesPerAccount !== undefined) {
-      baseUpdateData.maxProfilesPerAccount = data.maxProfilesPerAccount
+      type: data.type || existingPlatform.type,
+      hasProfiles: data.hasProfiles ?? existingPlatform.hasProfiles,
+      maxProfilesPerAccount: data.maxProfilesPerAccount ?? existingPlatform.maxProfilesPerAccount,
+      hasMultipleOffers: data.hasMultipleOffers ?? existingPlatform.hasMultipleOffers,
+      hasGiftCards: data.hasGiftCards ?? existingPlatform.hasGiftCards,
+      features: data.features || existingPlatform.features,
+      tags: data.tags || existingPlatform.tags,
+      popularity: data.popularity || existingPlatform.popularity,
+      pricingModel: data.pricingModel || existingPlatform.pricingModel,
+      logoMediaId: data.logoMediaId || existingPlatform.logoMediaId
     }
 
     // Mettre à jour la plateforme
@@ -152,16 +196,26 @@ export async function PUT(
       where: {
         id: params.id,
       },
-      data: baseUpdateData as unknown as Prisma.PlatformUpdateInput,
+      data: updateData,
       include: {
-        logoMedia: true,
+        logoMedia: {
+          select: {
+            path: true
+          }
+        },
+        providerOffers: true
       },
-    })
+    }) as PlatformWithRelations
 
     // Formater les données pour l'API
     const formattedPlatform = {
       ...updatedPlatform,
       logo: updatedPlatform.logoMedia?.path || updatedPlatform.logo,
+      providerOffers: updatedPlatform.providerOffers?.map(offer => ({
+        ...offer,
+        price: parseFloat(offer.price.toString()),
+        deviceCount: parseInt(offer.deviceCount.toString())
+      })) || []
     }
 
     return NextResponse.json(formattedPlatform)
@@ -240,7 +294,7 @@ export async function DELETE(
     //   )
     // }
 
-    // Vérifier si la plateforme existe
+    // Vérifier si la plateforme existe avec ses relations
     const existingPlatform = await db.platform.findUnique({
       where: {
         id: params.id,
@@ -248,6 +302,8 @@ export async function DELETE(
       include: {
         accounts: true,
         platformOffers: true,
+        providerOffers: true,
+        giftCards: true
       },
     })
 
@@ -257,6 +313,32 @@ export async function DELETE(
         { status: 404 }
       )
     }
+
+    // Vérifier s'il y a des dépendances
+    if (existingPlatform.accounts.length > 0 || 
+        existingPlatform.giftCards.length > 0) {
+      return NextResponse.json(
+        { 
+          message: 'Impossible de supprimer cette plateforme car elle est utilisée par des comptes ou des cartes cadeaux',
+          error: 'FOREIGN_KEY_CONSTRAINT'
+        },
+        { status: 400 }
+      )
+    }
+
+    // Supprimer d'abord les offres fournisseur
+    await db.platformProviderOffer.deleteMany({
+      where: {
+        platformId: params.id
+      }
+    })
+
+    // Supprimer les offres de plateforme
+    await db.platformOffer.deleteMany({
+      where: {
+        platformId: params.id
+      }
+    })
 
     // Supprimer la plateforme
     await db.platform.delete({
@@ -271,18 +353,6 @@ export async function DELETE(
     )
   } catch (error) {
     console.error('Erreur lors de la suppression de la plateforme:', error)
-    
-    // Vérifier si l'erreur est liée à des contraintes de clé étrangère
-    if (error instanceof Error && error.message.includes('foreign key constraint')) {
-      return NextResponse.json(
-        { 
-          message: 'Impossible de supprimer cette plateforme car elle est utilisée par des comptes ou des offres',
-          error: 'FOREIGN_KEY_CONSTRAINT'
-        },
-        { status: 400 }
-      )
-    }
-    
     return NextResponse.json(
       { message: 'Erreur serveur' },
       { status: 500 }

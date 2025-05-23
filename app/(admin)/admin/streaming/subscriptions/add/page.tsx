@@ -50,9 +50,21 @@ async function getFormData() {
     prisma.offer.findMany({
       where: {
         isActive: true,
+        platformOffers: {
+          some: {
+            platform: {
+              isActive: true
+            }
+          }
+        }
       },
       include: {
         platformOffers: {
+          where: {
+            platform: {
+              isActive: true
+            }
+          },
           include: {
             platform: {
               select: {
@@ -100,6 +112,10 @@ async function getFormData() {
   const transformedOffers = offers.map((offer: any) => ({
     ...offer,
     features: offer.features ? JSON.parse(offer.features as string) : [],
+    platformOffers: offer.platformOffers.map((po: any) => ({
+      ...po,
+      profileCount: po.platform.maxProfilesPerAccount || 1
+    }))
   }))
 
   return { users, offers: transformedOffers, platforms }

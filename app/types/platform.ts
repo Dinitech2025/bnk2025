@@ -14,6 +14,8 @@ export interface Platform {
   popularity: number | null;
   features: string | null;
   pricingModel: string | null;
+  hasMultipleOffers: boolean;
+  hasGiftCards: boolean;
 }
 
 // Enum pour les types de plateformes

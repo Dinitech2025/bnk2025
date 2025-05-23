@@ -146,26 +146,30 @@ model Service {
 }
 
 model Platform {
-  id                    String          @id @default(cuid())
+  id                    String                  @id @default(cuid())
   name                  String
-  slug                  String          @unique
+  slug                  String                  @unique
   description           String?
   logo                  String?
   websiteUrl            String?
-  type                  String          @default("VIDEO")
-  hasProfiles           Boolean         @default(true)
-  maxProfilesPerAccount Int?            @default(5)
-  isActive              Boolean         @default(true)
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  type                  String                  @default("VIDEO")
+  hasProfiles           Boolean                 @default(true)
+  maxProfilesPerAccount Int?                    @default(5)
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
   tags                  String?
-  popularity            Float?          @default(0)
+  popularity            Float?                  @default(0)
   features              String?
-  pricingModel          String?         @default("SUBSCRIPTION")
+  pricingModel          String?                 @default("SUBSCRIPTION")
   logoMediaId           String?
+  hasMultipleOffers     Boolean                 @default(false)
+  hasGiftCards          Boolean                 @default(false)
   accounts              Account[]
-  logoMedia             Media?          @relation("MediaToPlatform", fields: [logoMediaId], references: [id])
+  giftCards             GiftCard[]
+  logoMedia             Media?                  @relation("MediaToPlatform", fields: [logoMediaId], references: [id])
   platformOffers        PlatformOffer[]
+  providerOffers        PlatformProviderOffer[]
 
   @@index([isActive])
   @@index([type])
@@ -174,18 +178,26 @@ model Platform {
 }
 
 model Account {
-  id                   String                @id @default(cuid())
+  id                   String                 @id @default(cuid())
   platformId           String
-  username             String?
+  username             String
   email                String?
-  password             String?
-  status               String                @default("AVAILABLE")
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @default(now()) @updatedAt
-  platform             Platform              @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  password             String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  providerOfferId      String?
+  expiresAt            DateTime?
+  status               String                 @default("INACTIVE")
+  availability         Boolean                @default(false)
+  platform             Platform               @relation(fields: [platformId], references: [id])
+  providerOffer        PlatformProviderOffer? @relation(fields: [providerOfferId], references: [id])
   accountProfiles      AccountProfile[]
+  usedGiftCards        GiftCard[]             @relation("UsedGiftCards")
   profiles             Profile[]
   subscriptionAccounts SubscriptionAccount[]
+
+  @@index([platformId])
+  @@index([providerOfferId])
 }
 
 model AccountProfile {
@@ -299,7 +311,7 @@ model OrderItem {
   productId  String?
   serviceId  String?
   offerId    String?
-  metadata   Json?    // Pour stocker les détails supplémentaires (abonnement, etc.)
+  metadata   Json?
   offer      Offer?   @relation(fields: [offerId], references: [id])
   order      Order    @relation(fields: [orderId], references: [id])
   product    Product? @relation(fields: [productId], references: [id])
@@ -392,51 +404,93 @@ model InventoryHistory {
 
   @@index([productId])
 }
-// Gestion des tickets
-model Ticket {
-  id        String   @id @default(cuid())
-  duration  String   // 30min, 1h, 2h, 5h
-  price     Int
-  stock     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  // Relations
+model Ticket {
+  id           String        @id @default(cuid())
+  duration     String
+  price        Int
+  stock        Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   stockUpdates StockUpdate[]
   usages       TicketUsage[]
 }
 
-// Historique des mises à jour de stock
 model StockUpdate {
-  id           String   @id @default(cuid())
-  ticketId     String
-  ticket       Ticket   @relation(fields: [ticketId], references: [id])
-  amount       Int
+  id            String   @id @default(cuid())
+  ticketId      String
+  amount        Int
   previousStock Int
-  newStock     Int
-  createdAt    DateTime @default(now())
+  newStock      Int
+  createdAt     DateTime @default(now())
+  ticket        Ticket   @relation(fields: [ticketId], references: [id])
 }
 
-// Utilisation journalière des tickets
 model TicketUsage {
-  id        String   @id @default(cuid())
-  ticketId  String
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
-  quantity  Int
-  date      DateTime @default(now())
-  reportId  String
-  report    DailyReport @relation(fields: [reportId], references: [id])
+  id       String      @id @default(cuid())
+  ticketId String
+  quantity Int
+  date     DateTime    @default(now())
+  reportId String
+  report   DailyReport @relation(fields: [reportId], references: [id])
+  ticket   Ticket      @relation(fields: [ticketId], references: [id])
 }
 
-// Rapport journalier
 model DailyReport {
-  id           String   @id @default(cuid())
-  date         DateTime @default(now())
+  id           String        @id @default(cuid())
+  date         DateTime      @default(now())
   totalRevenue Int
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   ticketUsages TicketUsage[]
 }
 
+model GiftCard {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  amount     Float
+  currency   String    @default("TRY")
+  status     String    @default("ACTIVE")
+  platformId String
+  usedById   String?
+  usedAt     DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  platform   Platform  @relation(fields: [platformId], references: [id])
+  usedBy     Account?  @relation("UsedGiftCards", fields: [usedById], references: [id])
+
+  @@index([platformId])
+  @@index([status])
+  @@index([code])
+}
+
+model PlatformProviderOffer {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  platformId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  currency    String    @default("TRY")
+  deviceCount Int       @default(1)
+  price       Float
+  accounts    Account[]
+  platform    Platform  @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([platformId, name])
+  @@index([platformId])
+  @@index([isActive])
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum Availability {
+  AVAILABLE
+  UNAVAILABLE
+}

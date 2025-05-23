@@ -3,38 +3,6 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
-import { Account as PrismaAccount, Platform, Prisma } from '@prisma/client'
-
-interface AccountWithRelations extends Omit<PrismaAccount, 'createdAt' | 'updatedAt'> {
-  platform: Platform;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-  accountProfiles: Array<{
-    id: string;
-    profileSlot: number;
-    name: string | null;
-    isAssigned: boolean;
-    pin: string | null;
-    subscriptionId: string | null;
-    subscription: {
-      id: string;
-      status: string;
-      startDate: Date;
-      endDate: Date;
-      user: {
-        id: string;
-        firstName: string | null;
-        lastName: string | null;
-        email: string;
-      };
-    } | null;
-  }>;
-}
-
-interface AccountDates {
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 // GET - Récupérer un compte spécifique
 export async function GET(
@@ -42,219 +10,109 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // En production: const user = await requireStaff()
-    
-    // Récupérer les dates avec une requête SQL directe
-    const dates = await db.$queryRaw<AccountDates[]>`
-      SELECT "createdAt", "updatedAt"
-      FROM "Account"
-      WHERE id = ${params.id}
-    `
-
-    if (dates.length === 0) {
-      return NextResponse.json(
-        { message: 'Compte non trouvé' },
-        { status: 404 }
-      )
-    }
-
-    console.log('Dates du compte dans la base de données:', dates)
-    
     const account = await db.account.findUnique({
       where: { id: params.id },
       include: {
         platform: true,
         accountProfiles: {
-          select: {
-            id: true,
-            profileSlot: true,
-            name: true,
-            isAssigned: true,
-            pin: true,
-            subscriptionId: true,
+          include: {
             subscription: {
-              select: {
-                id: true,
-                status: true,
-                startDate: true,
-                endDate: true,
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true
-                  }
-                }
-              }
-            }
+              include: {
+                user: true
           }
         }
-      },
+          }
+        }
+      }
     })
 
     if (!account) {
       return NextResponse.json(
-        { message: 'Compte non trouvé' },
+        { error: 'Compte non trouvé' },
         { status: 404 }
       )
     }
 
-    // Fusionner les données du compte avec les dates
-    const accountWithDates = {
+    // Charger les offres fournisseur séparément
+    const providerOffers = await db.$queryRaw`
+      SELECT * FROM "PlatformProviderOffer"
+      WHERE "platformId" = ${account.platformId}
+    `
+
+    const response = {
       ...account,
-      createdAt: dates[0].createdAt,
-      updatedAt: dates[0].updatedAt
+      platform: {
+        ...account.platform,
+        providerOffers
+      }
     }
 
-    console.log('Dates du compte avant formatage:', {
-      createdAt: accountWithDates.createdAt,
-      updatedAt: accountWithDates.updatedAt
-    })
-
-    // Convertir les dates en chaînes ISO
-    const formattedAccount = {
-      ...accountWithDates,
-      createdAt: accountWithDates.createdAt.toISOString(),
-      updatedAt: accountWithDates.updatedAt.toISOString(),
-      accountProfiles: accountWithDates.accountProfiles.map(profile => ({
-        ...profile,
-        subscription: profile.subscription ? {
-          ...profile.subscription,
-          startDate: profile.subscription.startDate.toISOString(),
-          endDate: profile.subscription.endDate.toISOString()
-        } : null
-      }))
-    }
-
-    console.log('Dates du compte après formatage:', {
-      createdAt: formattedAccount.createdAt,
-      updatedAt: formattedAccount.updatedAt
-    })
-
-    return NextResponse.json(formattedAccount)
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Erreur lors de la récupération du compte:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur' },
+      { error: 'Une erreur est survenue lors de la récupération du compte' },
       { status: 500 }
     )
   }
 }
 
-// PUT - Mettre à jour toutes les informations d'un compte
+// PUT - Mettre à jour un compte
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // En production: const user = await requireStaff()
-    
     const data = await request.json()
-    const { username, email, password, status, platformId } = data
 
-    // Vérifier si les champs obligatoires sont présents
-    if (!username || !password || !platformId) {
+    if (!data.username || !data.password) {
       return NextResponse.json(
-        { message: 'Veuillez fournir tous les champs requis' },
+        { error: 'Données manquantes' },
         { status: 400 }
       )
     }
 
-    // Vérifier si le compte existe
-    const existingAccount = await db.account.findUnique({
-      where: { id: params.id },
-      include: { accountProfiles: true }
-    })
+    const updateData = {
+      username: data.username,
+      email: data.email || null,
+      password: data.password,
+      status: data.status || 'AVAILABLE',
+    } as any
 
-    if (!existingAccount) {
-      return NextResponse.json(
-        { message: 'Compte non trouvé' },
-        { status: 404 }
-      )
+    // Gérer la mise à jour de l'offre fournisseur
+    if (data.providerOfferId) {
+      updateData.providerOffer = {
+        connect: { id: data.providerOfferId }
+      }
+    } else {
+      updateData.providerOffer = {
+        disconnect: true
+      }
     }
 
-    // Si on change de plateforme et que le compte a des profils, interdire le changement
-    if (existingAccount.platformId !== platformId && existingAccount.accountProfiles.length > 0) {
-      return NextResponse.json(
-        { message: 'Impossible de changer la plateforme d\'un compte qui a déjà des profils' },
-        { status: 400 }
-      )
-    }
-
-    // Mettre à jour les noms des profils si le nom d'utilisateur change
-    if (username !== existingAccount.username) {
-      await Promise.all(existingAccount.accountProfiles.map(profile => 
-        db.accountProfile.update({
-          where: { id: profile.id },
-          data: {
-            name: `${username} - Profil ${profile.profileSlot}`
-          }
-        })
-      ));
-    }
-
-    // Mettre à jour le compte
     const updatedAccount = await db.account.update({
       where: { id: params.id },
-      data: {
-        username,
-        email: email || null,
-        password,
-        status,
-        platformId,
-      },
+      data: updateData,
       include: {
         platform: true,
+        providerOffer: true,
         accountProfiles: {
-          select: {
-            id: true,
-            profileSlot: true,
-            name: true,
-            isAssigned: true,
-            pin: true,
-            subscriptionId: true,
+          include: {
             subscription: {
-              select: {
-                id: true,
-                status: true,
-                startDate: true,
-                endDate: true,
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true
-                  }
-                }
+              include: {
+                user: true
               }
             }
           }
         }
       }
-    }) as AccountWithRelations
+    })
 
-    // Formater les dates avant de renvoyer la réponse
-    const formattedAccount = {
-      ...updatedAccount,
-      createdAt: updatedAccount.createdAt ? updatedAccount.createdAt.toISOString() : null,
-      updatedAt: updatedAccount.updatedAt ? updatedAccount.updatedAt.toISOString() : null,
-      accountProfiles: updatedAccount.accountProfiles.map(profile => ({
-        ...profile,
-        subscription: profile.subscription ? {
-          ...profile.subscription,
-          startDate: profile.subscription.startDate.toISOString(),
-          endDate: profile.subscription.endDate.toISOString()
-        } : null
-      }))
-    }
-
-    return NextResponse.json(formattedAccount)
+    return NextResponse.json(updatedAccount)
   } catch (error) {
     console.error('Erreur lors de la mise à jour du compte:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur lors de la mise à jour du compte' },
+      { error: 'Une erreur est survenue lors de la mise à jour du compte' },
       { status: 500 }
     )
   }
@@ -266,114 +124,134 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    // En production: const user = await requireStaff()
-    
     const data = await request.json()
 
     // Vérifier si le compte existe
     const existingAccount = await db.account.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        accountProfiles: true
+      }
     })
 
     if (!existingAccount) {
       return NextResponse.json(
-        { message: 'Compte non trouvé' },
+        { error: 'Compte non trouvé' },
         { status: 404 }
       )
     }
 
-    // Mettre à jour le compte avec seulement les champs fournis
+    // Si on essaie de rendre le compte disponible alors que tous les profils sont assignés
+    if (
+      data.status === 'AVAILABLE' &&
+      existingAccount.accountProfiles.length > 0 &&
+      existingAccount.accountProfiles.every(profile => profile.isAssigned)
+    ) {
+      return NextResponse.json(
+        { error: 'Impossible de rendre le compte disponible car tous les profils sont assignés' },
+        { status: 400 }
+      )
+    }
+
     const updatedAccount = await db.account.update({
       where: { id: params.id },
       data,
       include: {
         platform: true,
         accountProfiles: {
-          select: {
-            id: true,
-            profileSlot: true,
-            name: true,
-            isAssigned: true,
-            pin: true,
-            subscriptionId: true,
+          include: {
             subscription: {
-              select: {
-                id: true,
-                status: true,
-                startDate: true,
-                endDate: true,
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true
-                  }
-                }
+              include: {
+                user: true
               }
             }
           }
         }
       }
-    }) as AccountWithRelations
+    })
 
-    // Formater les dates avant de renvoyer la réponse
-    const formattedAccount = {
+    // Charger les offres fournisseur séparément
+    const providerOffers = await db.$queryRaw`
+      SELECT * FROM "PlatformProviderOffer"
+      WHERE "platformId" = ${updatedAccount.platformId}
+    `
+
+    const response = {
       ...updatedAccount,
-      createdAt: updatedAccount.createdAt ? updatedAccount.createdAt.toISOString() : null,
-      updatedAt: updatedAccount.updatedAt ? updatedAccount.updatedAt.toISOString() : null,
-      accountProfiles: updatedAccount.accountProfiles.map(profile => ({
-        ...profile,
-        subscription: profile.subscription ? {
-          ...profile.subscription,
-          startDate: profile.subscription.startDate.toISOString(),
-          endDate: profile.subscription.endDate.toISOString()
-        } : null
-      }))
+      platform: {
+        ...updatedAccount.platform,
+        providerOffers
+      }
     }
 
-    return NextResponse.json(formattedAccount)
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('Erreur lors de la mise à jour partielle du compte:', error)
+    console.error('Erreur lors de la mise à jour du compte:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur lors de la mise à jour du compte' },
+      { error: 'Une erreur est survenue lors de la mise à jour du compte' },
       { status: 500 }
     )
   }
 }
 
-// DELETE - Supprimer un compte (et tous ses profils en cascade)
+// DELETE - Supprimer un compte
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // En production: const user = await requireStaff()
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
     
     // Vérifier si le compte existe
     const existingAccount = await db.account.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        accountProfiles: true,
+        subscriptionAccounts: true
+      }
     })
 
     if (!existingAccount) {
       return NextResponse.json(
-        { message: 'Compte non trouvé' },
+        { error: 'Compte non trouvé' },
         { status: 404 }
       )
     }
 
-    // Supprimer le compte (les profils seront supprimés en cascade grâce à la configuration Prisma)
+    // Vérifier si le compte a des abonnements actifs
+    if (existingAccount.subscriptionAccounts.length > 0) {
+      return NextResponse.json(
+        { error: 'Impossible de supprimer un compte qui a des abonnements actifs' },
+        { status: 400 }
+      )
+    }
+
+    // Supprimer d'abord les profils
+    if (existingAccount.accountProfiles.length > 0) {
+      await db.accountProfile.deleteMany({
+        where: { accountId: params.id }
+      })
+    }
+
+    // Supprimer le compte
     await db.account.delete({
       where: { id: params.id }
     })
 
     return NextResponse.json(
-      { message: 'Compte supprimé avec succès' }
+      { message: 'Compte supprimé avec succès' },
+      { status: 200 }
     )
   } catch (error) {
     console.error('Erreur lors de la suppression du compte:', error)
     return NextResponse.json(
-      { message: 'Erreur serveur lors de la suppression du compte' },
+      { error: 'Une erreur est survenue lors de la suppression du compte' },
       { status: 500 }
     )
   }

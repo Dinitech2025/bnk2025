@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import ProfilesManager from '@/components/streaming/ProfilesManager'
+import { Badge } from "@/components/ui/badge"
+import Image from 'next/image'
 
 interface Platform {
   id: string
@@ -36,6 +38,17 @@ interface Platform {
   maxProfilesPerAccount: number | null
   websiteUrl: string | null
   hasProfiles: boolean
+  hasMultipleOffers: boolean
+  providerOffers: ProviderOffer[]
+}
+
+interface ProviderOffer {
+  id: string
+  name: string
+  price: number
+  currency: string
+  deviceCount: number
+  description?: string | null
 }
 
 interface Subscription {
@@ -43,6 +56,12 @@ interface Subscription {
   status: string
   startDate: string
   endDate: string
+  user: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+  }
 }
 
 interface Profile {
@@ -55,6 +74,17 @@ interface Profile {
   account: Account
 }
 
+interface AccountProfile {
+  id: string
+  name: string | null
+  profileSlot: number
+  pin: string | null
+  isAssigned: boolean
+  subscriptionId: string | null
+  subscription: Subscription | null
+  account: Account
+}
+
 interface Account {
   id: string
   username: string | null
@@ -63,15 +93,19 @@ interface Account {
   status: string
   platformId: string
   platform: Platform
-  accountProfiles: Profile[]
+  providerOfferId: string | null
+  accountProfiles: AccountProfile[]
+  createdAt: string
+  updatedAt: string
 }
 
 interface FormData {
-  username: string | null
+  username: string
   email: string | null
   password: string
   status: string
   platformId: string
+  providerOfferId: string | null
 }
 
 export default function EditAccountPage() {
@@ -81,20 +115,21 @@ export default function EditAccountPage() {
   
   const [account, setAccount] = useState<Account | null>(null)
   const [formData, setFormData] = useState<FormData>({
-    username: null,
+    username: '',
     email: null,
     password: '',
     status: 'AVAILABLE',
-    platformId: ''
+    platformId: '',
+    providerOfferId: null
   })
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null)
 
   useEffect(() => {
     fetchAccountDetails()
-    fetchPlatforms()
   }, [id])
 
   const fetchAccountDetails = async () => {
@@ -104,14 +139,32 @@ export default function EditAccountPage() {
       if (!response.ok) throw new Error('Erreur lors du chargement des détails du compte')
       
       const data = await response.json()
+      console.log('Données du compte:', data) // Pour le débogage
+      
       setAccount(data)
       setFormData({
-        username: data.username,
+        username: data.username || '',
         email: data.email,
         password: data.password,
         status: data.status,
-        platformId: data.platformId
+        platformId: data.platformId,
+        providerOfferId: data.providerOfferId
       })
+      
+      // S'assurer que les offres fournisseur sont disponibles
+      if (data.platform.hasMultipleOffers && (!data.platform.providerOffers || data.platform.providerOffers.length === 0)) {
+        // Charger les offres fournisseur si elles ne sont pas incluses
+        const platformResponse = await fetch(`/api/admin/streaming/platforms/${data.platformId}`)
+        if (platformResponse.ok) {
+          const platformData = await platformResponse.json()
+          setSelectedPlatform({
+            ...data.platform,
+            providerOffers: platformData.providerOffers || []
+          })
+        }
+      } else {
+        setSelectedPlatform(data.platform)
+      }
     } catch (error) {
       console.error('Erreur:', error)
       setError('Une erreur est survenue lors du chargement des détails du compte')
@@ -138,15 +191,32 @@ export default function EditAccountPage() {
   }
 
   const handleSelectChange = (value: string) => {
-    setFormData(prev => ({ ...prev, platformId: value }))
+    setFormData(prev => ({ 
+      ...prev, 
+      platformId: value,
+      providerOfferId: null // Reset provider offer when platform changes
+    }))
+    
+    // Mettre à jour la plateforme sélectionnée
+    const platform = platforms.find(p => p.id === value) || null
+    setSelectedPlatform(platform)
+  }
+
+  const handleProviderOfferChange = (value: string) => {
+    setFormData(prev => ({ ...prev, providerOfferId: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Valider les données du formulaire
-    if (!formData.username || !formData.password || !formData.platformId) {
+    if (!formData.username || !formData.password) {
       toast.error('Veuillez remplir tous les champs obligatoires')
+      return
+    }
+    
+    // Vérifier si une offre fournisseur est requise
+    if (selectedPlatform?.hasMultipleOffers && !formData.providerOfferId) {
+      toast.error('Veuillez sélectionner une offre fournisseur')
       return
     }
     
@@ -160,13 +230,16 @@ export default function EditAccountPage() {
         body: JSON.stringify(formData),
       })
       
-      if (!response.ok) throw new Error('Erreur lors de la mise à jour du compte')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erreur lors de la mise à jour du compte')
+      }
       
       toast.success('Compte mis à jour avec succès')
       router.push(`/admin/streaming/accounts/${id}`)
     } catch (error) {
       console.error('Erreur:', error)
-      toast.error('Erreur lors de la mise à jour du compte')
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du compte')
     } finally {
       setIsSubmitting(false)
     }
@@ -223,7 +296,9 @@ export default function EditAccountPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="p-6 space-y-6">
+      {/* En-tête */}
+      <div className="flex items-center justify-between">
       <div className="flex items-center">
         <Button 
           variant="ghost" 
@@ -235,32 +310,80 @@ export default function EditAccountPage() {
           Retour
         </Button>
         <h1 className="text-2xl font-bold">Modifier le compte</h1>
+        </div>
       </div>
 
-      <div className="grid gap-6">
-        <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Informations du compte</CardTitle>
               <CardDescription>
-                Modifiez les informations du compte de streaming
+              Modifier les informations de connexion du compte
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <CardContent className="space-y-6">
+            {/* Plateforme */}
+            <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="h-12 w-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                  {selectedPlatform?.logo ? (
+                    <Image
+                      src={selectedPlatform.logo}
+                      alt={selectedPlatform.name}
+                      width={48}
+                      height={48}
+                      className="object-contain"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm">
+                      {selectedPlatform?.name.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium">{selectedPlatform?.name}</div>
+                  <Badge variant="outline">{selectedPlatform?.type}</Badge>
+                </div>
+              </div>
+
+              {/* Offre fournisseur */}
+              {selectedPlatform?.hasMultipleOffers && (
+                <div className="mt-4">
+                  <Label htmlFor="providerOfferId">Offre fournisseur</Label>
+                  <Select
+                    value={formData.providerOfferId || ''}
+                    onValueChange={handleProviderOfferChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une offre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedPlatform.providerOffers.map((offer) => (
+                        <SelectItem key={offer.id} value={offer.id}>
+                          {offer.name} - {offer.price} {offer.currency}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Champs de formulaire */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Nom d'utilisateur</Label>
                   <Input
                     id="username"
                     name="username"
-                    value={formData.username || ''}
+                  value={formData.username}
                     onChange={handleChange}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email (optionnel)</Label>
+                <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     name="email"
@@ -268,7 +391,6 @@ export default function EditAccountPage() {
                     value={formData.email || ''}
                     onChange={handleChange}
                   />
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -284,22 +406,22 @@ export default function EditAccountPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="platform">Plateforme</Label>
-                <Select
-                  value={formData.platformId}
-                  onValueChange={handleSelectChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez une plateforme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {platforms.map((platform) => (
-                      <SelectItem key={platform.id} value={platform.id}>
-                        {platform.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Statut</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.status === 'AVAILABLE'}
+                    onCheckedChange={(checked) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        status: checked ? 'AVAILABLE' : 'UNAVAILABLE'
+                      }))
+                    }
+                  />
+                  <span>
+                    {formData.status === 'AVAILABLE' ? 'Disponible' : 'Indisponible'}
+                  </span>
+                </div>
+              </div>
               </div>
             </CardContent>
             <CardFooter className="flex justify-end space-x-2">
@@ -330,6 +452,8 @@ export default function EditAccountPage() {
           </Card>
         </form>
 
+      {/* Gestion des profils */}
+      {account && (
         <Card>
           <CardHeader>
             <CardTitle>Gestion des profils</CardTitle>
@@ -346,7 +470,7 @@ export default function EditAccountPage() {
             />
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   )
 } 

@@ -67,22 +67,39 @@ export async function GET(request: NextRequest) {
 
     const platforms = await db.platform.findMany({
       where,
+      include: {
+        logoMedia: {
       select: {
-        id: true,
-        name: true,
-        logo: true,
-        hasProfiles: true,
-        maxProfilesPerAccount: true,
-        isActive: true,
-        type: true,
-        websiteUrl: true
+            path: true
+          }
+        }
       },
       orderBy: {
         name: 'asc'
       }
     })
 
-    return NextResponse.json(platforms)
+    // Récupérer les offres fournisseur séparément pour chaque plateforme
+    const platformsWithOffers = await Promise.all(
+      platforms.map(async (platform) => {
+        const providerOffers = await db.platformProviderOffer.findMany({
+          where: {
+            platformId: platform.id,
+            isActive: true
+          },
+          orderBy: {
+            name: 'asc'
+          }
+        })
+
+        return {
+          ...platform,
+          providerOffers
+        }
+      })
+    )
+
+    return NextResponse.json(platformsWithOffers)
   } catch (error) {
     console.error('Erreur lors de la récupération des plateformes:', error)
     return NextResponse.json(
@@ -153,6 +170,12 @@ export async function POST(request: NextRequest) {
           ['VIDEO', 'AUDIO', 'GAMING'].includes(data.type || 'VIDEO') ? 5 : null,
         hasProfiles: data.hasProfiles ?? true,
         isActive: data.isActive ?? true,
+        hasMultipleOffers: data.hasMultipleOffers ?? false,
+        hasGiftCards: data.hasGiftCards ?? false,
+        features: data.features || null,
+        tags: data.tags || null,
+        popularity: data.popularity || 0,
+        pricingModel: data.pricingModel || 'SUBSCRIPTION'
       },
     })
 

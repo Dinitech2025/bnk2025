@@ -72,16 +72,27 @@ export function formatDate(date: string | Date | null | undefined, formatStr: st
 }
 
 export function formatPrice(price: number, currency?: string, currencySymbol?: string) {
-  // Si la devise et le symbole sont fournis, les utiliser
+  const formatOptions: Intl.NumberFormatOptions = {
+    style: 'currency',
+    currency: currency || 'MGA'
+  }
+
+  // Cas spécial pour la Lire turque (TL)
+  if (currency === 'TRY') {
+    return new Intl.NumberFormat('tr-TR', {
+      style: 'currency',
+      currency: 'TRY',
+      currencyDisplay: 'symbol'
+    }).format(price)
+  }
+
+  // Si la devise et le symbole sont fournis, utiliser le format personnalisé
   if (currency && currencySymbol) {
-    return `${price.toLocaleString('fr-FR')} ${currencySymbol}`;
+    return `${price.toLocaleString('fr-FR')} ${currencySymbol}`
   }
   
   // Sinon, utiliser MGA par défaut
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'MGA'
-  }).format(price);
+  return new Intl.NumberFormat('fr-FR', formatOptions).format(price)
 }
 
 /**
@@ -154,4 +165,26 @@ export function convertDecimalToNumber(obj: any): any {
   }
 
   return obj;
+}
+
+/**
+ * Génère un code aléatoire pour les cartes cadeaux
+ * Format: XXXX-XXXX-XXXX (X = caractère alphanumérique)
+ */
+export function generateRandomCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const segments = 3
+  const segmentLength = 4
+  
+  const generateSegment = () => {
+    return Array.from(
+      { length: segmentLength }, 
+      () => chars.charAt(Math.floor(Math.random() * chars.length))
+    ).join('')
+  }
+
+  return Array.from(
+    { length: segments },
+    generateSegment
+  ).join('-')
 }
