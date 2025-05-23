@@ -62,32 +62,38 @@ export default function AdminHeader({ user }: AdminHeaderProps) {
     : userData.email?.charAt(0).toUpperCase()
 
   return (
-    <header className="h-16 border-b bg-white flex items-center px-6">
+    <header className="h-12 sm:h-16 border-b bg-white flex items-center px-3 sm:px-6">
       <div className="w-full flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              className="w-full bg-background pl-8 h-9 rounded-md border border-input px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
+        {/* Espace gauche pour équilibrer */}
+        <div className="flex items-center space-x-2 sm:space-x-4 flex-1">
+          {/* Vide pour équilibrer */}
         </div>
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
+        
+        {/* Logo/Titre centré */}
+        <div className="flex items-center justify-center">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            BoutikNaka
+            <span className="ml-1 sm:ml-2 text-xs bg-blue-600 text-white px-1.5 sm:px-2 py-0.5 rounded-md">
+              Admin
+            </span>
+          </h1>
+        </div>
+        
+        {/* Actions droite */}
+        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-end">
+          <Button variant="ghost" size="icon" className="relative h-7 w-7 sm:h-8 sm:w-8">
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-primary text-[8px] sm:text-[10px] font-medium text-primary-foreground flex items-center justify-center">
               2
             </span>
           </Button>
-          <CurrencySelector className="w-20" />
+          <CurrencySelector className="w-16 sm:w-20 text-xs sm:text-sm" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar>
+              <Button variant="ghost" className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-full">
+                <Avatar className="h-6 w-6 sm:h-8 sm:w-8">
                   <AvatarImage src={userData.image || ''} alt={userData.name || ''} />
-                  <AvatarFallback>{initials}</AvatarFallback>
+                  <AvatarFallback className="text-xs sm:text-sm">{initials}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>

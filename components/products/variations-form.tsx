@@ -15,7 +15,21 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Combobox, ComboboxOption } from "@/components/ui/combobox"
-import { Combobox, ComboboxOption } from "@/components/ui/combobox"
+
+// Types pour les variations de produits
+interface ProductAttribute {
+  name: string
+  value: string
+}
+
+interface ProductVariation {
+  sku?: string
+  price: number
+  inventory: number
+  attributes: ProductAttribute[]
+  images: { path: string }[]
+}
+
 interface VariationsFormProps {
   variations: ProductVariation[]
   attributes: ProductAttribute[]
@@ -128,7 +142,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
     const updatedVariations = [...normalizedVariations]
     updatedVariations[variationIndex] = {
       ...updatedVariations[variationIndex],
-      attributes: updatedVariations[variationIndex].attributes.filter((_, i) => i !== attributeIndex)
+      attributes: updatedVariations[variationIndex].attributes.filter((_: ProductAttribute, i: number) => i !== attributeIndex)
     }
     onChange(updatedVariations)
   }
@@ -294,7 +308,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
   const removeAttributeFromNewVariation = (index: number) => {
     setNewVariation({
       ...newVariation,
-      attributes: newVariation.attributes.filter((_, i) => i !== index)
+      attributes: newVariation.attributes.filter((_: ProductAttribute, i: number) => i !== index)
     })
   }
 
@@ -416,7 +430,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
                   </Button>
                 </div>
                 
-                {newVariation.attributes.map((attr, attrIndex) => (
+                {newVariation.attributes.map((attr: ProductAttribute, attrIndex: number) => (
                   <div key={attrIndex} className="grid grid-cols-5 gap-4 items-center">
                     <div className="col-span-2">
                       <Combobox
@@ -461,7 +475,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
                 
                 {newVariation.images.length > 0 && (
                   <div className="grid grid-cols-4 gap-2 mt-2">
-                    {newVariation.images.map((image, imgIndex) => (
+                    {newVariation.images.map((image: { path: string }, imgIndex: number) => (
                       <div key={imgIndex} className="relative h-24 w-24">
                         <Image
                           src={image.path}
@@ -560,7 +574,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
                   </Button>
                 </div>
                 {variation.attributes.length > 0 ? (
-                  variation.attributes.map((attr, attrIndex) => (
+                  variation.attributes.map((attr: ProductAttribute, attrIndex: number) => (
                     <div key={attrIndex} className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2">
                         <Combobox
@@ -601,7 +615,7 @@ export function VariationsForm({ variations, attributes, onChange }: VariationsF
                 <div className="mt-4">
                   <Label>Images</Label>
                   <div className="grid grid-cols-4 gap-2 mt-2">
-                    {variation.images.map((image, imgIndex) => (
+                    {variation.images.map((image: { path: string }, imgIndex: number) => (
                       <div key={imgIndex} className="relative h-24 w-24">
                         <Image
                           src={image.path}

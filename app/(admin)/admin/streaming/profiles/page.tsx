@@ -44,6 +44,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { ResponsiveList } from '@/components/ui/responsive-list'
+import { ProfileCard } from '@/components/cards/profile-card'
+import { PageHeader } from '@/components/ui/page-header'
 
 interface Platform {
   id: string
@@ -231,36 +234,47 @@ export default function ProfilesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Profils ({filteredProfiles.length})</h1>
-        <div className="flex items-center space-x-4">
-          <div className="text-xs text-muted-foreground">
-            Données synchronisées en temps réel
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        title="Profils"
+        count={filteredProfiles.length}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onClearSearch={clearSearch}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        actions={
+          <div className="flex items-center space-x-2">
+            <Link href="/admin/streaming/profiles/debug">
+              <Button variant="secondary" size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm">
+                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Débogage
+              </Button>
+            </Link>
+            <Link href="/admin/streaming/profiles/new">
+              <Button size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Nouveau profil
+              </Button>
+            </Link>
           </div>
-          <Link href="/admin/streaming/profiles/debug">
-            <Button variant="secondary" size="sm">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              Débogage
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Actualiser
-          </Button>
-          <Link href="/admin/streaming/profiles/new">
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Nouveau profil
-            </Button>
-          </Link>
-        </div>
-      </div>
+        }
+      >
+        <Select
+          value={statusFilter}
+          onValueChange={(value: "all" | "assigned" | "unassigned") => setStatusFilter(value)}
+        >
+          <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
+            <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="assigned">Assignés</SelectItem>
+            <SelectItem value="unassigned">Non assignés</SelectItem>
+          </SelectContent>
+        </Select>
+      </PageHeader>
 
       {showDebug && (
         <div className="bg-blue-50 border border-blue-200 rounded p-4">
@@ -297,44 +311,54 @@ export default function ProfilesPage() {
         </div>
       )}
       
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par nom, compte, plateforme..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-          {searchTerm && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-0 top-0 h-full"
-              onClick={clearSearch}
-            >
-              <XIcon className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(value: "all" | "assigned" | "unassigned") => setStatusFilter(value)}
-        >
-          <SelectTrigger className="w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filtrer par statut" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les statuts</SelectItem>
-            <SelectItem value="assigned">Assignés</SelectItem>
-            <SelectItem value="unassigned">Non assignés</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-lg border">
+      <ResponsiveList
+        gridChildren={
+          paginatedProfiles.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-muted-foreground">
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="text-sm">Chargement des profils...</div>
+                </div>
+              ) : profiles.length > 0 && (searchTerm || statusFilter !== "all") ? (
+                <>
+                  Aucun profil ne correspond à vos critères
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      clearSearch()
+                      setStatusFilter("all")
+                    }}
+                    className="ml-2"
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                </>
+              ) : profiles.length > 0 ? (
+                <>
+                  Les profils existent mais aucun n'est filtré correctement
+                  <div className="text-xs mt-2">
+                    {profiles.length} profils trouvés au total
+                  </div>
+                </>
+              ) : (
+                <>
+                  Aucun profil disponible
+                  <div className="text-xs mt-2">
+                    Vérifiez que vous avez créé des profils de compte
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            paginatedProfiles.map((profile) => (
+              <ProfileCard
+                key={profile.id}
+                profile={profile}
+              />
+            ))
+          )
+        }
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -479,7 +503,7 @@ export default function ProfilesPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </ResponsiveList>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">

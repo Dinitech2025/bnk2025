@@ -21,11 +21,17 @@ export async function GET() {
     const accountCount = await prisma.account.count();
     
     // 4. Vérifiez si les relations sont correctes en comptant les profils par compte
-    const profilesPerAccount = await prisma.$queryRaw`
+    const profilesPerAccountRaw = await prisma.$queryRaw`
       SELECT "accountId", COUNT(*) as "profileCount"
       FROM "AccountProfile"
       GROUP BY "accountId"
     `;
+    
+    // Convertir les BigInt en numbers pour éviter l'erreur de sérialisation JSON
+    const profilesPerAccount = (profilesPerAccountRaw as any[]).map(item => ({
+      accountId: item.accountId,
+      profileCount: Number(item.profileCount) // Convertir BigInt en number
+    }));
     
     // 5. Renvoyez toutes les informations de débogage
     return NextResponse.json({

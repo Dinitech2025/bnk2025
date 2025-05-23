@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
     const updatedAccounts = await Promise.all(formattedAccounts.map(async (account: any) => {
       const isActive = account.status === 'ACTIVE'
       let isAvailable = false
+      let activeSubscription = null
 
       if (isActive) {
         if (account.platform.hasProfiles) {
@@ -126,8 +127,32 @@ export async function GET(request: NextRequest) {
           const hasUnassignedProfiles = account.accountProfiles.some((profile: any) => !profile.isAssigned)
           isAvailable = hasUnassignedProfiles
         } else {
-          // Pour les plateformes sans profils, le compte est disponible s'il est actif
-          isAvailable = true
+          // Pour les plateformes sans profils, vérifier s'il y a un abonnement actif
+          activeSubscription = await prisma.subscription.findFirst({
+            where: {
+              subscriptionAccounts: {
+                some: {
+                  accountId: account.id
+                }
+              },
+              status: 'ACTIVE',
+              endDate: {
+                gte: new Date() // Date de fin dans le futur
+              }
+            },
+            include: {
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true
+                }
+              }
+            }
+          })
+
+          // Le compte est disponible seulement s'il n'y a pas d'abonnement actif
+          isAvailable = !activeSubscription
         }
       }
 
@@ -140,10 +165,11 @@ export async function GET(request: NextRequest) {
         `
       }
 
-      // Retourner le compte avec la disponibilité mise à jour
+      // Retourner le compte avec la disponibilité mise à jour et l'abonnement actif
       return {
         ...account,
-        availability: isAvailable
+        availability: isAvailable,
+        activeSubscription: activeSubscription
       }
     }))
 
@@ -286,6 +312,7 @@ export async function POST(request: NextRequest) {
 
       // Déterminer la disponibilité selon les nouvelles règles
       let isAvailable = false
+      let activeSubscription = null
       
       if (status === 'ACTIVE') {
         if (platform.hasProfiles) {
@@ -293,8 +320,32 @@ export async function POST(request: NextRequest) {
           const hasUnassignedProfiles = accountWithDetails.accountProfiles.some(profile => !profile.isAssigned)
           isAvailable = hasUnassignedProfiles
         } else {
-          // Pour les plateformes sans profils, le compte est disponible s'il est actif
-          isAvailable = true
+          // Pour les plateformes sans profils, vérifier s'il y a un abonnement actif
+          activeSubscription = await prisma.subscription.findFirst({
+            where: {
+              subscriptionAccounts: {
+                some: {
+                  accountId: accountWithDetails.id
+                }
+              },
+              status: 'ACTIVE',
+              endDate: {
+                gte: new Date() // Date de fin dans le futur
+              }
+            },
+            include: {
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true
+                }
+              }
+            }
+          })
+
+          // Le compte est disponible seulement s'il n'y a pas d'abonnement actif
+          isAvailable = !activeSubscription
         }
       }
 

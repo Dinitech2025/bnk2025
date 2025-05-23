@@ -24,4 +24,7 @@ export async function GET() {
     console.error('Erreur lors du lancement de Prisma Studio:', error)
     return new NextResponse('Erreur interne du serveur', { status: 500 })
   }
-} 
+}
+
+// Forcer le mode dynamique pour cette route
+export const dynamic = 'force-dynamic' 

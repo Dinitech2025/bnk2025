@@ -25,9 +25,12 @@ import {
   FolderTree,
   Store,
   Tag,
-  List
+  List,
+  Menu,
+  X
 } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface SubmenuItem {
   title: string;
@@ -110,6 +113,7 @@ const adminNavItems: NavItem[] = [
 
 function AdminSidebar() {
   const pathname = usePathname() || '';
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(
     // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
     pathname.startsWith('/admin/streaming') 
@@ -127,89 +131,126 @@ function AdminSidebar() {
     setOpenSubmenu(openSubmenu === title ? null : title)
   }
 
+  const toggleMobileSidebar = () => {
+    setIsMobileOpen(!isMobileOpen)
+  }
+
+  const closeMobileSidebar = () => {
+    setIsMobileOpen(false)
+  }
+
   return (
-    <aside className="w-72 bg-slate-900 text-white min-h-screen flex flex-col">
-      <div className="p-4 border-b border-slate-800">
-        <Link href="/admin" className="flex items-center">
-          <span className="text-xl font-bold">BoutikNaka</span>
-          <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded-md">Admin</span>
-        </Link>
-      </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-1">
-          {adminNavItems.map((item) => (
-            <li key={item.title}>
-              {item.submenu ? (
-                <div className="mb-1">
-                  <button
-                    onClick={() => toggleSubmenu(item.title)}
+    <>
+      {/* Bouton hamburger pour mobile/tablette */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 lg:hidden bg-white shadow-md"
+        onClick={toggleMobileSidebar}
+      >
+        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
+
+      {/* Overlay pour mobile */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={closeMobileSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={cn(
+        "w-72 bg-slate-900 text-white min-h-screen flex flex-col transition-transform duration-300 ease-in-out z-40",
+        "lg:relative lg:translate-x-0", // Toujours visible sur desktop
+        "fixed", // Fixe sur mobile/tablette
+        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0" // Contrôle de l'affichage mobile
+      )}>
+        <div className="p-4 border-b border-slate-800">
+          <Link href="/admin" className="flex items-center" onClick={closeMobileSidebar}>
+            <span className="text-xl font-bold">BoutikNaka</span>
+            <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded-md">Admin</span>
+          </Link>
+        </div>
+        <nav className="flex-1 p-4">
+          <ul className="space-y-1">
+            {adminNavItems.map((item) => (
+              <li key={item.title}>
+                {item.submenu ? (
+                  <div className="mb-1">
+                    <button
+                      onClick={() => toggleSubmenu(item.title)}
+                      className={cn(
+                        'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                        (pathname.startsWith(`/admin/streaming`) && item.title === 'Gestion des abonnements') ||
+                        (pathname.startsWith(`/admin/products`) && item.title === 'Gestion des produits') ||
+                        (pathname.startsWith(`/admin/services`) && item.title === 'Gestion des services') ||
+                        (pathname.startsWith(`/admin/settings`) && item.title === 'Paramètres')
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </div>
+                      {openSubmenu === item.title ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </button>
+                    {openSubmenu === item.title && (
+                      <ul className="mt-1 ml-4 space-y-1 border-l border-slate-700 pl-2">
+                        {item.submenuItems?.map((subItem) => (
+                          <li key={subItem.href}>
+                            <Link
+                              href={subItem.href}
+                              onClick={closeMobileSidebar}
+                              className={cn(
+                                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                                pathname === subItem.href
+                                  ? 'bg-slate-800 text-white'
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                              )}
+                            >
+                              {subItem.title}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    href={item.href || '#'}
+                    onClick={closeMobileSidebar}
                     className={cn(
-                      'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                      (pathname.startsWith(`/admin/streaming`) && item.title === 'Gestion des abonnements') ||
-                      (pathname.startsWith(`/admin/products`) && item.title === 'Gestion des produits') ||
-                      (pathname.startsWith(`/admin/services`) && item.title === 'Gestion des services') ||
-                      (pathname.startsWith(`/admin/settings`) && item.title === 'Paramètres')
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                      pathname === item.href
                         ? 'bg-slate-800 text-white'
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </div>
-                    {openSubmenu === item.title ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
-                  {openSubmenu === item.title && (
-                    <ul className="mt-1 ml-4 space-y-1 border-l border-slate-700 pl-2">
-                      {item.submenuItems?.map((subItem) => (
-                        <li key={subItem.href}>
-                          <Link
-                            href={subItem.href}
-                            className={cn(
-                              'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                              pathname === subItem.href
-                                ? 'bg-slate-800 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                            )}
-                          >
-                            {subItem.title}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : (
-                <Link
-                  href={item.href || '#'}
-                  className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                    pathname === item.href
-                      ? 'bg-slate-800 text-white'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.title}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="p-4 border-t border-slate-800">
-        <Link
-          href="/"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-        >
-          <span>Retour au site</span>
-        </Link>
-      </div>
-    </aside>
+                    <item.icon className="h-4 w-4" />
+                    {item.title}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="p-4 border-t border-slate-800">
+          <Link
+            href="/"
+            onClick={closeMobileSidebar}
+            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            <span>Retour au site</span>
+          </Link>
+        </div>
+      </aside>
+    </>
   )
 }
 

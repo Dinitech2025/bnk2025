@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { syncExchangeRates } from '@/lib/currency-service'
 
+// Forcer le mode dynamique pour cette route
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     // Vérifier l'authentification et les autorisations

@@ -42,10 +42,10 @@ export default async function AdminLayout({
     >
       <div className="min-h-screen flex bg-gray-50">
         <AdminSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col lg:ml-0">
           {/* @ts-ignore - Nous savons que les props sont correctes */}
           <AdminHeader user={user} />
-          <main className="flex-1 p-6">
+          <main className="flex-1 p-3 sm:p-6 lg:p-6 pt-12 sm:pt-16 lg:pt-6">
             {children}
           </main>
         </div>

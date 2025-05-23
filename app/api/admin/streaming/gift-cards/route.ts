@@ -20,36 +20,57 @@ export async function GET(request: NextRequest) {
     const platformId = searchParams.get('platformId')
     const status = searchParams.get('status')
 
-    if (!platformId) {
-      return NextResponse.json(
-        { error: 'ID de plateforme requis' },
-        { status: 400 }
-      )
+    // Construire les conditions de filtrage
+    const whereConditions: any = {}
+
+    // Si platformId est fourni, filtrer par plateforme
+    if (platformId) {
+      // Vérifier si la plateforme existe
+      const platform = await prisma.platform.findUnique({
+        where: { id: platformId }
+      })
+
+      if (!platform) {
+        return NextResponse.json(
+          { error: 'Plateforme non trouvée' },
+          { status: 404 }
+        )
+      }
+
+      whereConditions.platformId = platformId
+      
+      // Pour la récupération par plateforme spécifique (pour recharge), 
+      // retourner seulement les cartes actives et disponibles
+      whereConditions.status = 'ACTIVE'
+      whereConditions.usedById = null
+      whereConditions.usedAt = null
+      whereConditions.OR = [
+        { expiresAt: null },
+        { expiresAt: { gt: new Date() } }
+      ]
     }
 
-    // Vérifier si la plateforme existe
-    const platform = await prisma.platform.findUnique({
-      where: { id: platformId }
-    })
-
-    if (!platform) {
-      return NextResponse.json(
-        { error: 'Plateforme non trouvée' },
-        { status: 404 }
-      )
+    // Si status est fourni, filtrer par statut
+    if (status && !platformId) {
+      whereConditions.status = status
     }
 
-    // Récupérer les cartes cadeaux disponibles
+    // Récupérer les cartes cadeaux
     const giftCards = await prisma.giftCard.findMany({
-      where: {
-        platformId,
-        status: 'ACTIVE',
-        usedById: null,
-        usedAt: null,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } }
-        ]
+      where: whereConditions,
+      include: {
+        platform: {
+          select: {
+            id: true,
+            name: true,
+            logo: true
+          }
+        },
+        usedBy: {
+          select: {
+            email: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'

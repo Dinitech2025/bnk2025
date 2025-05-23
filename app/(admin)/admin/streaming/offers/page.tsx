@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { Plus, Search, Eye, Pencil, Trash, X, ChevronUp, ChevronDown, Loader2, Tag, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useCallback } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
+import { 
   Table,
   TableBody,
   TableCell,
@@ -13,25 +11,24 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { 
+  Eye, 
+  Pencil, 
+  Search,
+  X as XIcon,
+  ChevronUp,
+  ChevronDown,
+  Filter,
+  Plus,
+  RefreshCw,
+  Tag,
+  Clock,
+  Trash2
+} from 'lucide-react'
 import Link from 'next/link'
 import { formatDuration } from '@/lib/utils'
-import { PriceWithConversion } from '@/components/ui/currency-selector'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -39,62 +36,196 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Offer, Platform, PlatformConfig } from "@/types/offer"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { toast } from '@/components/ui/use-toast'
+import { PriceDisplay } from '@/components/ui/price-display'
 import Image from 'next/image'
+import { ResponsiveList } from '@/components/ui/responsive-list'
+import { OfferCard } from '@/components/cards/offer-card'
+import { PageHeader } from '@/components/ui/page-header'
 
-type SortField = "name" | "price" | "duration" | "platformCount";
-type SortOrder = "asc" | "desc";
+interface Platform {
+  id: string
+  name: string
+  logo: string | null
+}
+
+interface PlatformConfig {
+  id: string
+  platformId: string
+  profileCount: number
+  isDefault: boolean
+  platform?: Platform
+}
+
+interface Offer {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  duration: number
+  durationUnit: string
+  isActive: boolean
+  images: string[]
+  platformConfigs: PlatformConfig[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+type SortField = "name" | "price" | "duration" | "platformCount" | "status" | "createdAt"
+type SortOrder = "asc" | "desc"
 
 export default function OffersPage() {
-  const router = useRouter()
   const [offers, setOffers] = useState<Offer[]>([])
+  const [filteredOffers, setFilteredOffers] = useState<Offer[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [sortField, setSortField] = useState<SortField>("name")
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [isActionLoading, setIsActionLoading] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null)
+
+  const fetchOffers = useCallback(async () => {
+    try {
+      setIsRefreshing(true)
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/admin/streaming/offers?t=${timestamp}`, {
+        cache: 'no-store'
+      })
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des offres')
+      }
+      
+      const data = await response.json()
+      console.log('Offres récupérées:', data)
+      
+      if (!Array.isArray(data)) {
+        console.error('Les données reçues ne sont pas un tableau:', data)
+        setError('Format de données incorrect')
+        setOffers([])
+        return
+      }
+      
+      setOffers(data)
+      setFilteredOffers(data)
+      setError(null)
+    } catch (error) {
+      console.error('Erreur:', error)
+      setError('Une erreur est survenue lors du chargement des offres')
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetchOffers()
-  }, [])
+  }, [fetchOffers])
 
-  const fetchOffers = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/admin/streaming/offers')
-      if (!response.ok) throw new Error('Erreur lors du chargement des offres')
-      const data = await response.json()
-      setOffers(data)
-    } catch (error) {
-      console.error('Erreur:', error)
-      toast.error('Erreur lors du chargement des offres')
-    } finally {
-      setIsLoading(false)
+  useEffect(() => {
+    applyFiltersAndSort()
+  }, [searchTerm, sortField, sortOrder, statusFilter, offers])
+
+  const applyFiltersAndSort = () => {
+    if (!offers || offers.length === 0) {
+      setFilteredOffers([])
+      return
     }
+
+    let filtered = [...offers]
+
+    // Filtre par terme de recherche
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase().trim()
+      filtered = filtered.filter(offer =>
+        offer.name.toLowerCase().includes(search) ||
+        (offer.description && offer.description.toLowerCase().includes(search))
+      )
+    }
+
+    // Filtre par statut
+    if (statusFilter !== "all") {
+      if (statusFilter === "active") {
+        filtered = filtered.filter(offer => offer.isActive)
+      } else if (statusFilter === "inactive") {
+        filtered = filtered.filter(offer => !offer.isActive)
+      }
+    }
+
+    // Tri
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any
+
+      switch (sortField) {
+        case "name":
+          aValue = a.name.toLowerCase()
+          bValue = b.name.toLowerCase()
+          break
+        case "price":
+          aValue = a.price
+          bValue = b.price
+          break
+        case "duration":
+          aValue = a.duration * getDurationMultiplier(a.durationUnit)
+          bValue = b.duration * getDurationMultiplier(b.durationUnit)
+          break
+        case "platformCount":
+          aValue = a.platformConfigs.length
+          bValue = b.platformConfigs.length
+          break
+        case "status":
+          aValue = a.isActive ? 1 : 0
+          bValue = b.isActive ? 1 : 0
+          break
+        case "createdAt":
+          aValue = new Date(a.createdAt).getTime()
+          bValue = new Date(b.createdAt).getTime()
+          break
+        default:
+          aValue = a.name.toLowerCase()
+          bValue = b.name.toLowerCase()
+      }
+
+      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1
+      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1
+      return 0
+    })
+
+    setFilteredOffers(filtered)
+    setCurrentPage(1)
   }
 
-  const handleDelete = async () => {
-    if (!deleteId) return
-    
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/admin/streaming/offers/${deleteId}`, {
-        method: 'DELETE',
-      })
-      
-      if (!response.ok) throw new Error('Erreur lors de la suppression')
-      
-      toast.success('Offre supprimée avec succès')
-      fetchOffers()
-    } catch (error) {
-      console.error('Erreur:', error)
-      toast.error('Erreur lors de la suppression de l\'offre')
-    } finally {
-      setIsDeleting(false)
-      setDeleteId(null)
+  function getDurationMultiplier(unit: string): number {
+    switch (unit) {
+      case 'DAY': return 1
+      case 'WEEK': return 7
+      case 'MONTH': return 30
+      case 'YEAR': return 365
+      default: return 1
     }
   }
 
@@ -107,192 +238,251 @@ export default function OffersPage() {
     }
   }
 
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ChevronUp className="h-4 w-4 opacity-0 group-hover:opacity-50" />
-    return sortOrder === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+  const clearSearch = () => {
+    setSearchTerm('')
   }
 
-  const filteredAndSortedOffers = useMemo(() => {
-    return offers
-      .filter(offer => {
-        const matchesSearch = 
-          offer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          offer.description?.toLowerCase().includes(searchTerm.toLowerCase())
-        
-        const matchesStatus = 
-          statusFilter === "all" ||
-          (statusFilter === "active" && offer.isActive) ||
-          (statusFilter === "inactive" && !offer.isActive)
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ChevronUp className="h-4 w-4 opacity-30" />
+    }
+    return sortOrder === "asc" ? 
+      <ChevronUp className="h-4 w-4" /> : 
+      <ChevronDown className="h-4 w-4" />
+  }
 
-        return matchesSearch && matchesStatus
-      })
-      .sort((a, b) => {
-        let comparison = 0
-        switch (sortField) {
-          case "name":
-            comparison = a.name.localeCompare(b.name)
-            break
-          case "price":
-            comparison = a.price - b.price
-            break
-          case "duration":
-            const aValue = a.duration * getDurationMultiplier(a.durationUnit)
-            const bValue = b.duration * getDurationMultiplier(b.durationUnit)
-            comparison = aValue - bValue
-            break
-          case "platformCount":
-            comparison = a.platformConfigs.length - b.platformConfigs.length
-            break
-        }
-        return sortOrder === "asc" ? comparison : -comparison
-      })
-  }, [offers, searchTerm, statusFilter, sortField, sortOrder])
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
 
-  function getDurationMultiplier(unit: string): number {
-    switch (unit) {
-      case 'DAY': return 1
-      case 'WEEK': return 7
-      case 'MONTH': return 30
-      case 'YEAR': return 365
-      default: return 1
+  const handleRefresh = async () => {
+    await fetchOffers()
+  }
+
+  const handleDelete = async (offerId: string) => {
+    setSelectedOfferId(offerId)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!selectedOfferId) return
+
+    try {
+      setIsActionLoading(selectedOfferId)
+      const response = await fetch(`/api/admin/streaming/offers/${selectedOfferId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.message || 'Erreur lors de la suppression')
+      }
+
+      setOffers(prev => prev.filter(o => o.id !== selectedOfferId))
+      toast({
+        title: 'Succès',
+        description: 'Offre supprimée avec succès'
+      })
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Erreur lors de la suppression de l\'offre'
+      })
+    } finally {
+      setIsActionLoading(null)
+      setDeleteDialogOpen(false)
+      setSelectedOfferId(null)
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Offres de Streaming</h1>
-          <p className="text-muted-foreground">
-            Gérez les offres d'abonnement disponibles sur votre plateforme
-          </p>
-        </div>
-        <Link href="/admin/streaming/offers/add">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter une offre
+  // Pagination
+  const totalPages = Math.ceil(filteredOffers.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedOffers = filteredOffers.slice(startIndex, startIndex + itemsPerPage)
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">{error}</p>
+          <Button 
+            onClick={fetchOffers}
+            variant="outline"
+            className="mt-4"
+          >
+            Réessayer
           </Button>
-        </Link>
+        </div>
       </div>
+    )
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtres et recherche</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="search"
-                  placeholder="Rechercher une offre..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(value: "all" | "active" | "inactive") => setStatusFilter(value)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="active">Actives</SelectItem>
-                <SelectItem value="inactive">Inactives</SelectItem>
-              </SelectContent>
-            </Select>
-            {(searchTerm || statusFilter !== "all") && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm("")
-                  setStatusFilter("all")
-                }}
-                size="icon"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="rounded-lg border">
+          <div className="p-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-16 w-full mb-4" />
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+    )
+  }
 
-      <Card>
-        <CardContent className="pt-6">
+  return (
+    <>
+      <div className="space-y-4 sm:space-y-6">
+        <PageHeader
+          title="Offres de streaming"
+          count={filteredOffers.length}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          onClearSearch={clearSearch}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+          actions={
+            <Link href="/admin/streaming/offers/add">
+              <Button size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Nouvelle offre
+              </Button>
+            </Link>
+          }
+        >
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value)}
+          >
+            <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
+              <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <SelectValue placeholder="Statut" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les statuts</SelectItem>
+              <SelectItem value="active">Actives</SelectItem>
+              <SelectItem value="inactive">Inactives</SelectItem>
+            </SelectContent>
+          </Select>
+        </PageHeader>
+
+        <ResponsiveList
+          gridChildren={
+            paginatedOffers.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="text-sm">Chargement des offres...</div>
+                  </div>
+                ) : searchTerm || statusFilter !== "all" ? (
+                  <>
+                    Aucune offre ne correspond à vos critères
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        clearSearch()
+                        setStatusFilter("all")
+                      }}
+                      className="ml-2"
+                    >
+                      Réinitialiser les filtres
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    Aucune offre disponible
+                    <div className="text-xs mt-2">
+                      Créez une nouvelle offre pour commencer
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              paginatedOffers.map((offer) => (
+                <OfferCard
+                  key={offer.id}
+                  offer={offer}
+                  onDelete={handleDelete}
+                  isActionLoading={isActionLoading}
+                />
+              ))
+            )
+          }
+        >
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("name")}
-                >
+                <TableHead onClick={() => handleSort("name")} className="cursor-pointer">
                   <div className="flex items-center">
-                    Nom {getSortIcon("name")}
+                    Offre {renderSortIcon("name")}
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("price")}
-                >
+                <TableHead onClick={() => handleSort("price")} className="cursor-pointer">
                   <div className="flex items-center">
-                    Prix {getSortIcon("price")}
+                    Prix {renderSortIcon("price")}
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("duration")}
-                >
+                <TableHead onClick={() => handleSort("duration")} className="cursor-pointer">
                   <div className="flex items-center">
-                    Durée {getSortIcon("duration")}
+                    Durée {renderSortIcon("duration")}
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer"
-                  onClick={() => handleSort("platformCount")}
-                >
+                <TableHead onClick={() => handleSort("platformCount")} className="cursor-pointer">
                   <div className="flex items-center">
-                    Plateformes {getSortIcon("platformCount")}
+                    Plateformes {renderSortIcon("platformCount")}
                   </div>
                 </TableHead>
-                <TableHead>Statut</TableHead>
+                <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Statut {renderSortIcon("status")}
+                  </div>
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={index}>
-                    {Array.from({ length: 6 }).map((_, cellIndex) => (
-                      <TableCell key={cellIndex}>
-                        <Skeleton className="h-6 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : filteredAndSortedOffers.length === 0 ? (
+              {paginatedOffers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center h-24">
-                    {searchTerm || statusFilter !== "all" ? 
-                      "Aucune offre ne correspond aux critères de recherche" : 
-                      "Aucune offre trouvée. Ajoutez votre première offre."
-                    }
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    {isLoading ? (
+                      <div className="flex flex-col items-center justify-center space-y-4">
+                        <Skeleton className="h-8 w-32" />
+                        <div className="text-sm">Chargement des offres...</div>
+                      </div>
+                    ) : searchTerm || statusFilter !== "all" ? (
+                      <>
+                        Aucune offre ne correspond à vos critères
+                        <Button
+                          variant="link"
+                          onClick={() => {
+                            clearSearch()
+                            setStatusFilter("all")
+                          }}
+                          className="ml-2"
+                        >
+                          Réinitialiser les filtres
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        Aucune offre disponible
+                        <div className="text-xs mt-2">
+                          Créez une nouvelle offre pour commencer
+                        </div>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAndSortedOffers.map((offer) => (
-                  <TableRow 
-                    key={offer.id} 
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/admin/streaming/offers/${offer.id}`)}
-                  >
+                paginatedOffers.map((offer) => (
+                  <TableRow key={offer.id} className="hover:bg-gray-50">
                     <TableCell>
                       <div className="flex items-center space-x-3">
-                        <div className="relative w-16 h-8 rounded-lg overflow-hidden bg-gray-100">
+                        <div className="relative w-12 h-8 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
                           {offer.images && offer.images.length > 0 ? (
                             <Image
                               src={offer.images[0]}
@@ -301,7 +491,7 @@ export default function OffersPage() {
                               className="object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-sm">
+                            <div className="text-xs font-medium text-gray-600">
                               {offer.name.substring(0, 2).toUpperCase()}
                             </div>
                           )}
@@ -319,63 +509,71 @@ export default function OffersPage() {
                     <TableCell>
                       <div className="flex items-center">
                         <Tag className="h-4 w-4 mr-2 text-green-600" />
-                        <PriceWithConversion price={offer.price} />
+                        <PriceDisplay price={offer.price} size="small" />
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                        {formatDuration(offer.duration, offer.durationUnit)}
+                        <span className="text-sm">{formatDuration(offer.duration, offer.durationUnit)}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {offer.platformConfigs.map(config => (
+                        {offer.platformConfigs.slice(0, 2).map(config => (
                           <Badge
-                            key={config.platformId}
+                            key={config.id}
                             variant={config.isDefault ? "default" : "secondary"}
-                            className="whitespace-nowrap"
+                            className="text-xs"
                           >
-                            {config.platform?.name} ({config.profileCount})
+                            {config.platform?.name || 'Plateforme'} ({config.profileCount})
                           </Badge>
                         ))}
+                        {offer.platformConfigs.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{offer.platformConfigs.length - 2}
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={offer.isActive ? "default" : "secondary"}>
-                        {offer.isActive ? "Active" : "Inactive"}
+                      <Badge variant={offer.isActive ? 'success' : 'secondary'}>
+                        {offer.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link href={`/admin/streaming/offers/${offer.id}`}>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Link href={`/admin/streaming/offers/${offer.id}/edit`}>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                      <div className="flex items-center justify-end space-x-2">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDeleteId(offer.id)
-                          }}
-                          className="text-red-500 hover:text-red-700"
+                          asChild
+                          className="hover:bg-gray-100"
+                          title="Voir les détails"
                         >
-                          <Trash className="h-4 w-4" />
+                          <Link href={`/admin/streaming/offers/${offer.id}`}>
+                            <Eye className="h-4 w-4 text-gray-700" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          className="hover:bg-gray-100"
+                          title="Modifier"
+                        >
+                          <Link href={`/admin/streaming/offers/${offer.id}/edit`}>
+                            <Pencil className="h-4 w-4 text-gray-700" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(offer.id)}
+                          className="hover:bg-gray-100"
+                          disabled={isActionLoading === offer.id}
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4 text-gray-700" />
                         </Button>
                       </div>
                     </TableCell>
@@ -384,32 +582,85 @@ export default function OffersPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </ResponsiveList>
 
-      {/* Confirmation de suppression */}
-      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
-            <DialogDescription>
-              Êtes-vous sûr de vouloir supprimer cette offre ? Cette action ne peut pas être annulée et peut affecter les abonnements existants.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>
-              Annuler
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete} 
-              disabled={isDeleting}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => {
+                setItemsPerPage(parseInt(value))
+                setCurrentPage(1)
+              }}
             >
-              {isDeleting ? "Suppression..." : "Confirmer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Éléments par page" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 par page</SelectItem>
+                <SelectItem value="20">20 par page</SelectItem>
+                <SelectItem value="50">50 par page</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Affichage de {filteredOffers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} à {Math.min(currentPage * itemsPerPage, filteredOffers.length)} sur {filteredOffers.length} offres
+            </p>
+          </div>
+
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => handlePageChange(page)}
+                    isActive={page === currentPage}
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette offre ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. L'offre sera définitivement supprimée et peut affecter les abonnements existants.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isActionLoading !== null}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isActionLoading !== null}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isActionLoading === selectedOfferId ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 } 

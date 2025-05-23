@@ -68,6 +68,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PriceDisplay } from '@/components/ui/price-display'
+import { ResponsiveList } from '@/components/ui/responsive-list'
+import { SubscriptionCard } from '@/components/cards/subscription-card'
+import { PageHeader } from '@/components/ui/page-header'
 
 interface Platform {
   id: string
@@ -482,6 +485,14 @@ export default function SubscriptionsPage() {
     }
   }
 
+  const calculateRemainingDays = (endDate: string): number => {
+    const endDateTime = new Date(endDate);
+    const today = new Date();
+    const diffTime = endDateTime.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE':
@@ -533,401 +544,422 @@ export default function SubscriptionsPage() {
 
   return (
     <>
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Abonnements ({filteredSubscriptions.length})</h1>
-          <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Actualiser
-          </Button>
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        title="Abonnements"
+        count={filteredSubscriptions.length}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onClearSearch={clearSearch}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        actions={
           <Link href="/admin/streaming/subscriptions/add">
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Nouvel abonnement
             </Button>
           </Link>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par client, offre, plateforme..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-          {searchTerm && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-0 top-0 h-full"
-              onClick={clearSearch}
-            >
-              <XIcon className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
+        }
+      >
         <Select
           value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value)}
+          onValueChange={(value) => setStatusFilter(value)}
         >
-          <SelectTrigger className="w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filtrer par statut" />
+          <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
+            <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <SelectValue placeholder="Statut" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les statuts</SelectItem>
             <SelectItem value="ACTIVE">Actifs</SelectItem>
             <SelectItem value="PENDING">En attente</SelectItem>
-              <SelectItem value="EXPIRED">Expirés</SelectItem>
+            <SelectItem value="EXPIRED">Expirés</SelectItem>
             <SelectItem value="CANCELLED">Annulés</SelectItem>
-              <SelectItem value="incomplete">⚠️ Incomplets</SelectItem>
-              <SelectItem value="platform_mismatch">⚠️ Plateforme incohérente</SelectItem>
+            <SelectItem value="incomplete">⚠️ Incomplets</SelectItem>
+            <SelectItem value="platform_mismatch">⚠️ Plateforme incohérente</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </PageHeader>
 
       <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-                <TableHead onClick={() => handleSort("client")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Client {renderSortIcon("client")}
+        <ResponsiveList
+          gridChildren={
+            paginatedSubscriptions.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="text-sm">Chargement des abonnements...</div>
                   </div>
-                </TableHead>
-                <TableHead onClick={() => handleSort("offer")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Offre & Plateforme {renderSortIcon("offer")}
-                  </div>
-                </TableHead>
-                <TableHead onClick={() => handleSort("account")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Compte & Profils {renderSortIcon("account")}
-                  </div>
-                </TableHead>
-                <TableHead onClick={() => handleSort("period")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Période {renderSortIcon("period")}
-                  </div>
-                </TableHead>
-                <TableHead onClick={() => handleSort("remainingDays")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Jours restants {renderSortIcon("remainingDays")}
-                  </div>
-                </TableHead>
-                <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
-                  <div className="flex items-center">
-                    Statut {renderSortIcon("status")}
-                  </div>
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-              {paginatedSubscriptions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    {isLoading ? (
-                      <div className="flex flex-col items-center justify-center space-y-4">
-                        <Skeleton className="h-8 w-32" />
-                        <div className="text-sm">Chargement des abonnements...</div>
-                      </div>
-                    ) : searchTerm || statusFilter !== "all" ? (
-                    <>
-                      Aucun abonnement ne correspond à vos critères
-                      <Button
-                        variant="link"
-                        onClick={() => {
-                          clearSearch()
-                          setStatusFilter("all")
-                        }}
-                        className="ml-2"
-                      >
-                        Réinitialiser les filtres
-                      </Button>
-                    </>
-                  ) : (
-                      <>
-                        Aucun abonnement disponible
-                        <div className="text-xs mt-2">
-                          Créez un nouvel abonnement pour commencer
-                        </div>
-                      </>
-                  )}
-                </TableCell>
-              </TableRow>
+                ) : searchTerm || statusFilter !== "all" ? (
+                  <>
+                    Aucun abonnement ne correspond à vos critères
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        clearSearch()
+                        setStatusFilter("all")
+                      }}
+                      className="ml-2"
+                    >
+                      Réinitialiser les filtres
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    Aucun abonnement disponible
+                    <div className="text-xs mt-2">
+                      Créez un nouvel abonnement pour commencer
+                    </div>
+                  </>
+                )}
+              </div>
             ) : (
-                paginatedSubscriptions.map((subscription) => (
-                  <TableRow 
-                    key={subscription.id}
-                    className={getStatusColor(subscription.status)}
-                  >
-                  <TableCell>
-                      <div className="font-medium">
-                        {subscription.user.firstName} {subscription.user.lastName}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {subscription.user.email}
+              paginatedSubscriptions.map((subscription) => (
+                <SubscriptionCard
+                  key={subscription.id}
+                  subscription={subscription}
+                  onStatusChange={handleStatusChange}
+                  onClientContacted={handleClientContacted}
+                  onRenew={openRenewDialog}
+                  onDelete={handleDelete}
+                  isActionLoading={isActionLoading}
+                  calculateRemainingDays={calculateRemainingDays}
+                  getStatusColor={getStatusColor}
+                />
+              ))
+            )
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                  <TableHead onClick={() => handleSort("client")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Client {renderSortIcon("client")}
                     </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("offer")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Offre & Plateforme {renderSortIcon("offer")}
+                    </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("account")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Compte & Profils {renderSortIcon("account")}
+                    </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("period")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Période {renderSortIcon("period")}
+                    </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("remainingDays")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Jours restants {renderSortIcon("remainingDays")}
+                    </div>
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("status")} className="cursor-pointer">
+                    <div className="flex items-center">
+                      Statut {renderSortIcon("status")}
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+                {paginatedSubscriptions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {isLoading ? (
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                          <Skeleton className="h-8 w-32" />
+                          <div className="text-sm">Chargement des abonnements...</div>
+                        </div>
+                      ) : searchTerm || statusFilter !== "all" ? (
+                      <>
+                        Aucun abonnement ne correspond à vos critères
+                        <Button
+                          variant="link"
+                          onClick={() => {
+                            clearSearch()
+                            setStatusFilter("all")
+                          }}
+                          className="ml-2"
+                        >
+                          Réinitialiser les filtres
+                        </Button>
+                      </>
+                    ) : (
+                        <>
+                          Aucun abonnement disponible
+                          <div className="text-xs mt-2">
+                            Créez un nouvel abonnement pour commencer
+                          </div>
+                        </>
+                    )}
                   </TableCell>
+                </TableRow>
+              ) : (
+                  paginatedSubscriptions.map((subscription) => (
+                    <TableRow 
+                      key={subscription.id}
+                      className={getStatusColor(subscription.status)}
+                    >
                     <TableCell>
-                      <div className="flex items-start">
-                        <div className="flex-1">
-                        <div className="font-medium">{subscription.offer.name}</div>
-                        <div className="text-sm text-muted-foreground flex items-center space-x-1">
-                            <PriceDisplay price={subscription.offer.price} size="small" />
-                            <span>/</span>
-                            <span>{subscription.offer.duration} {subscription.offer.durationUnit?.toLowerCase() || 'jours'}</span>
+                        <div className="font-medium">
+                          {subscription.user.firstName} {subscription.user.lastName}
                         </div>
-                        </div>
-                        {subscription.platformOffer?.platform ? (
-                          <div className="flex flex-col items-end">
-                            <div className="flex items-center space-x-2">
-                              {subscription.platformOffer.platform.logo && (
-                                <img 
-                                  src={subscription.platformOffer.platform.logo}
-                                  alt={subscription.platformOffer.platform.name}
-                                  className="w-6 h-6 rounded"
-                                />
-                              )}
-                              <span className="font-medium">{subscription.platformOffer.platform.name}</span>
-                            </div>
-                            {subscription.platformOffer.platform.hasProfiles && (
-                              <div className="text-xs text-muted-foreground">
-                                {subscription.platformOffer.platform.maxProfilesPerAccount} profils max
+                        <div className="text-sm text-muted-foreground">
+                          {subscription.user.email}
+                      </div>
+                    </TableCell>
+                      <TableCell>
+                        <div className="flex items-start">
+                          <div className="flex-1">
+                          <div className="font-medium">{subscription.offer.name}</div>
+                          <div className="text-sm text-muted-foreground flex items-center space-x-1">
+                              <PriceDisplay price={subscription.offer.price} size="small" />
+                              <span>/</span>
+                              <span>{subscription.offer.duration} {subscription.offer.durationUnit?.toLowerCase() || 'jours'}</span>
+                          </div>
+                          </div>
+                          {subscription.platformOffer?.platform ? (
+                            <div className="flex flex-col items-end">
+                              <div className="flex items-center space-x-2">
+                                {subscription.platformOffer.platform.logo && (
+                                  <img 
+                                    src={subscription.platformOffer.platform.logo}
+                                    alt={subscription.platformOffer.platform.name}
+                                    className="w-6 h-6 rounded"
+                                  />
+                                )}
+                                <span className="font-medium">{subscription.platformOffer.platform.name}</span>
                               </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex-shrink-0">
-                            {/* Plateforme non spécifiée, mais n'affichons rien */}
-                          </div>
-                        )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                      {subscription.subscriptionAccounts.length > 0 ? (
-                        <div className="space-y-3">
-                          {subscription.subscriptionAccounts.map((sa, index) => {
-                            // Vérifier si la plateforme du compte correspond à celle de l'offre
-                            const isPlatformMismatch = subscription.platformOffer?.platform &&
-                              sa.account.platform.id !== subscription.platformOffer.platform.id;
-                            
-                            return (
-                              <div 
-                                key={index} 
-                                className={`border-l-2 pl-2 py-1 ${isPlatformMismatch ? 'border-red-400' : 'border-blue-400'}`}
-                              >
-                                <div className="flex items-center space-x-1">
-                                  <User className={`h-4 w-4 ${isPlatformMismatch ? 'text-red-500' : 'text-blue-500'}`} />
-                                  <Link 
-                                    href={`/admin/streaming/accounts/${sa.account.id}`}
-                                    className="hover:underline font-medium"
-                                  >
-                                    {sa.account.username || sa.account.email || 'Compte sans nom'}
-                                  </Link>
-                                  <span className={`text-xs rounded-full px-2 py-0.5 ml-2 ${
-                                    isPlatformMismatch 
-                                      ? 'bg-red-100 text-red-800' 
-                                      : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {sa.account.platform.name}
-                                  </span>
-                                  
-                                  {isPlatformMismatch && (
-                                    <span className="text-xs bg-red-100 text-red-800 rounded px-1 ml-1 flex items-center">
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      Plateforme incorrecte
+                              {subscription.platformOffer.platform.hasProfiles && (
+                                <div className="text-xs text-muted-foreground">
+                                  {subscription.platformOffer.platform.maxProfilesPerAccount} profils max
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex-shrink-0">
+                              {/* Plateforme non spécifiée, mais n'affichons rien */}
+                            </div>
+                          )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                        {subscription.subscriptionAccounts.length > 0 ? (
+                          <div className="space-y-3">
+                            {subscription.subscriptionAccounts.map((sa, index) => {
+                              // Vérifier si la plateforme du compte correspond à celle de l'offre
+                              const isPlatformMismatch = subscription.platformOffer?.platform &&
+                                sa.account.platform.id !== subscription.platformOffer.platform.id;
+                              
+                              return (
+                                <div 
+                                  key={index} 
+                                  className={`border-l-2 pl-2 py-1 ${isPlatformMismatch ? 'border-red-400' : 'border-blue-400'}`}
+                                >
+                                  <div className="flex items-center space-x-1">
+                                    <User className={`h-4 w-4 ${isPlatformMismatch ? 'text-red-500' : 'text-blue-500'}`} />
+                                    <Link 
+                                      href={`/admin/streaming/accounts/${sa.account.id}`}
+                                      className="hover:underline font-medium"
+                                    >
+                                      {sa.account.username || sa.account.email || 'Compte sans nom'}
+                                    </Link>
+                                    <span className={`text-xs rounded-full px-2 py-0.5 ml-2 ${
+                                      isPlatformMismatch 
+                                        ? 'bg-red-100 text-red-800' 
+                                        : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {sa.account.platform.name}
                                     </span>
+                                    
+                                    {isPlatformMismatch && (
+                                      <span className="text-xs bg-red-100 text-red-800 rounded px-1 ml-1 flex items-center">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        Plateforme incorrecte
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Profils associés à ce compte spécifique */}
+                                  {subscription.accountProfiles.length > 0 && 
+                                   subscription.accountProfiles.filter(p => p.accountId === sa.account.id).length > 0 ? (
+                                    <div className="ml-4 mt-1">
+                                      <div className="text-xs text-muted-foreground mb-1">Profils:</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {subscription.accountProfiles
+                                          .filter(p => p.accountId === sa.account.id)
+                                          .map((profile, idx) => (
+                                            <div 
+                                              key={idx} 
+                                              className={`flex items-center text-xs rounded-full px-2 py-1 ${
+                                                isPlatformMismatch 
+                                                  ? 'bg-red-50' 
+                                                  : 'bg-gray-100'
+                                              }`}
+                                              title={`Slot ${profile.profileSlot}`}
+                                            >
+                                              <span className={`w-4 h-4 rounded-full flex items-center justify-center mr-1 text-[10px] ${
+                                                isPlatformMismatch 
+                                                  ? 'bg-red-200' 
+                                                  : 'bg-gray-300'
+                                              }`}>
+                                                {profile.profileSlot}
+                                              </span>
+                                              <span>{profile.name || `Profil ${profile.profileSlot}`}</span>
+                                            </div>
+                                          ))
+                                        }
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    sa.account.platform.hasProfiles && (
+                                      <div className="ml-4 mt-1 text-xs text-muted-foreground italic">
+                                        Aucun profil assigné
+                                      </div>
+                                    )
                                   )}
                                 </div>
-                                
-                                {/* Profils associés à ce compte spécifique */}
-                                {subscription.accountProfiles.length > 0 && 
-                                 subscription.accountProfiles.filter(p => p.accountId === sa.account.id).length > 0 ? (
-                                  <div className="ml-4 mt-1">
-                                    <div className="text-xs text-muted-foreground mb-1">Profils:</div>
-                                    <div className="flex flex-wrap gap-2">
-                                      {subscription.accountProfiles
-                                        .filter(p => p.accountId === sa.account.id)
-                                        .map((profile, idx) => (
-                                          <div 
-                                            key={idx} 
-                                            className={`flex items-center text-xs rounded-full px-2 py-1 ${
-                                              isPlatformMismatch 
-                                                ? 'bg-red-50' 
-                                                : 'bg-gray-100'
-                                            }`}
-                                            title={`Slot ${profile.profileSlot}`}
-                                          >
-                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center mr-1 text-[10px] ${
-                                              isPlatformMismatch 
-                                                ? 'bg-red-200' 
-                                                : 'bg-gray-300'
-                                            }`}>
-                                              {profile.profileSlot}
-                                            </span>
-                                            <span>{profile.name || `Profil ${profile.profileSlot}`}</span>
-                                          </div>
-                                        ))
-                                      }
-                                    </div>
-                                  </div>
-                                ) : (
-                                  sa.account.platform.hasProfiles && (
-                                    <div className="ml-4 mt-1 text-xs text-muted-foreground italic">
-                                      Aucun profil assigné
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex items-center text-amber-600">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>Aucun compte associé</span>
-                          <span className="ml-2 text-xs bg-amber-100 text-amber-800 rounded px-1">Obligatoire</span>
-                    </div>
-                      )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col text-sm">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3 text-blue-500" />
-                        <span>{formatDate(subscription.startDate)}</span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex items-center text-amber-600">
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            <span>Aucun compte associé</span>
+                            <span className="ml-2 text-xs bg-amber-100 text-amber-800 rounded px-1">Obligatoire</span>
                       </div>
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Calendar className="h-3 w-3 text-red-500" />
-                        <span>{formatDate(subscription.endDate)}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const endDate = new Date(subscription.endDate);
-                      const today = new Date();
-                      const diffTime = endDate.getTime() - today.getTime();
-                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      return (
-                        <div className={`text-sm ${diffDays <= 7 ? 'text-red-500 font-medium' : ''}`}>
-                          {diffDays > 0 ? `${diffDays} jours` : 'Expiré'}
+                        )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col text-sm">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="h-3 w-3 text-blue-500" />
+                          <span>{formatDate(subscription.startDate)}</span>
                         </div>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={subscription.status}
-                      onValueChange={(value) => handleStatusChange(subscription.id, value)}
-                      disabled={isActionLoading === subscription.id}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue>
-                          <Badge
-                            variant={
-                              subscription.status === 'ACTIVE' ? 'success' :
-                              subscription.status === 'PENDING' ? 'warning' :
-                              subscription.status === 'EXPIRED' ? 'destructive' :
-                              subscription.status === 'CANCELLED' ? 'outline' :
-                              subscription.status === 'CONTACT_NEEDED' ? 'warning' :
-                              'default'
-                            }
+                        <div className="flex items-center space-x-1 mt-1">
+                          <Calendar className="h-3 w-3 text-red-500" />
+                          <span>{formatDate(subscription.endDate)}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const remainingDays = calculateRemainingDays(subscription.endDate);
+                        return (
+                          <div className={`text-sm ${remainingDays <= 7 ? 'text-red-500 font-medium' : ''}`}>
+                            {remainingDays > 0 ? `${remainingDays} jours` : 'Expiré'}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={subscription.status}
+                        onValueChange={(value) => handleStatusChange(subscription.id, value)}
+                        disabled={isActionLoading === subscription.id}
+                      >
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue>
+                            <Badge
+                              variant={
+                                subscription.status === 'ACTIVE' ? 'success' :
+                                subscription.status === 'PENDING' ? 'warning' :
+                                subscription.status === 'EXPIRED' ? 'destructive' :
+                                subscription.status === 'CANCELLED' ? 'outline' :
+                                subscription.status === 'CONTACT_NEEDED' ? 'warning' :
+                                'default'
+                              }
+                            >
+                              {subscription.status === 'ACTIVE' ? 'Actif' :
+                               subscription.status === 'PENDING' ? 'En attente' :
+                               subscription.status === 'EXPIRED' ? 'Expiré' :
+                               subscription.status === 'CANCELLED' ? 'Annulé' :
+                               subscription.status === 'CONTACT_NEEDED' ? 'Contact requis' :
+                               subscription.status}
+                            </Badge>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">
+                            <Badge variant="success">Actif</Badge>
+                          </SelectItem>
+                          <SelectItem value="PENDING">
+                            <Badge variant="warning">En attente</Badge>
+                          </SelectItem>
+                          <SelectItem value="EXPIRED">
+                            <Badge variant="destructive">Expiré</Badge>
+                          </SelectItem>
+                          <SelectItem value="CANCELLED">
+                            <Badge variant="outline">Annulé</Badge>
+                          </SelectItem>
+                          <SelectItem value="CONTACT_NEEDED">
+                            <Badge variant="warning">Contact requis</Badge>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        {(subscription.status === 'CONTACT_NEEDED' || 
+                          subscription.status === 'EXPIRED' || 
+                          subscription.status === 'CANCELLED') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openRenewDialog(subscription.id)}
+                            disabled={isActionLoading === subscription.id}
+                            className="hover:bg-gray-100"
+                            title="Renouveler l'abonnement"
                           >
-                            {subscription.status === 'ACTIVE' ? 'Actif' :
-                             subscription.status === 'PENDING' ? 'En attente' :
-                             subscription.status === 'EXPIRED' ? 'Expiré' :
-                             subscription.status === 'CANCELLED' ? 'Annulé' :
-                             subscription.status === 'CONTACT_NEEDED' ? 'Contact requis' :
-                             subscription.status}
-                          </Badge>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVE">
-                          <Badge variant="success">Actif</Badge>
-                        </SelectItem>
-                        <SelectItem value="PENDING">
-                          <Badge variant="warning">En attente</Badge>
-                        </SelectItem>
-                        <SelectItem value="EXPIRED">
-                          <Badge variant="destructive">Expiré</Badge>
-                        </SelectItem>
-                        <SelectItem value="CANCELLED">
-                          <Badge variant="outline">Annulé</Badge>
-                        </SelectItem>
-                        <SelectItem value="CONTACT_NEEDED">
-                          <Badge variant="warning">Contact requis</Badge>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      {(subscription.status === 'CONTACT_NEEDED' || 
-                        subscription.status === 'EXPIRED' || 
-                        subscription.status === 'CANCELLED') && (
+                            <Calendar className="h-4 w-4 text-gray-700" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => openRenewDialog(subscription.id)}
-                          disabled={isActionLoading === subscription.id}
+                          asChild
                           className="hover:bg-gray-100"
-                          title="Renouveler l'abonnement"
+                          title="Voir les détails"
                         >
-                          <Calendar className="h-4 w-4 text-gray-700" />
+                          <Link href={`/admin/streaming/subscriptions/${subscription.id}`}>
+                            <Eye className="h-4 w-4 text-gray-700" />
+                          </Link>
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        className="hover:bg-gray-100"
-                        title="Voir les détails"
-                      >
-                        <Link href={`/admin/streaming/subscriptions/${subscription.id}`}>
-                          <Eye className="h-4 w-4 text-gray-700" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        className="hover:bg-gray-100"
-                        title="Modifier"
-                      >
-                        <Link href={`/admin/streaming/subscriptions/${subscription.id}/edit`}>
-                          <Pencil className="h-4 w-4 text-gray-700" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(subscription.id)}
-                        className="hover:bg-gray-100"
-                        disabled={isActionLoading === subscription.id}
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-4 w-4 text-gray-700" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          className="hover:bg-gray-100"
+                          title="Modifier"
+                        >
+                          <Link href={`/admin/streaming/subscriptions/${subscription.id}/edit`}>
+                            <Pencil className="h-4 w-4 text-gray-700" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(subscription.id)}
+                          className="hover:bg-gray-100"
+                          disabled={isActionLoading === subscription.id}
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4 text-gray-700" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </ResponsiveList>
       </div>
 
         <div className="flex items-center justify-between">
