@@ -1,4 +1,4 @@
-import { Service, Category } from '@prisma/client'
+import { Service, ServiceCategory } from '@prisma/client'
 import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -40,7 +40,7 @@ interface ServiceFormProps {
   initialData?: Service & {
     images: { path: string }[]
   } | null
-  categories: Category[]
+  categories: Pick<ServiceCategory, 'id' | 'name' | 'slug' | 'description' | 'parentId' | 'image'>[]
   onSubmit: (data: ServiceFormValues) => void
 }
 

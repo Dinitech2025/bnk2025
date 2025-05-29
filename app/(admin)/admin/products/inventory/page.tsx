@@ -77,6 +77,8 @@ async function getProducts() {
       
       return {
         ...product,
+        // Convertir les Decimals en numbers pour éviter les warnings React
+        price: Number(product.price),
         variations: convertDecimalToNumber(variations),
         totalInventory: product.inventory + (
           Array.isArray(variations) 

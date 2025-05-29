@@ -62,12 +62,14 @@ function useExchangeRates() {
     setIsLoading(true)
     setError(null)
     
-    fetch('/api/admin/settings/currency')
+    fetch('/api/admin/settings/currency', {
+      credentials: 'include'
+    })
       .then(response => response.json())
       .then(data => {
         let finalRates = {...defaultExchangeRates};
-        if (Object.keys(data).length > 0) {
-          finalRates = {...data};
+        if (data.exchangeRates && Object.keys(data.exchangeRates).length > 0) {
+          finalRates = {...data.exchangeRates};
         }
         setExchangeRates(finalRates)
       })
@@ -89,12 +91,15 @@ function useExchangeRates() {
     return fetch('/api/admin/settings/currency', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(newRates)
     })
   }
 
   const syncRates = (force: boolean = false) => {
-    return fetch(`/api/admin/settings/currency/sync?force=${force}`)
+    return fetch(`/api/admin/settings/currency/sync?force=${force}`, {
+      credentials: 'include'
+    })
   }
 
   return {
@@ -199,11 +204,11 @@ export default function CurrencyConverterAdminPage() {
             type: 'success',
             text: 'Les taux de change ont été synchronisés avec succès.'
           })
-          fetchRates()
+          fetchRates() // Recharger les taux
         } else {
           setSyncMessage({
-            type: 'info',
-            text: data.message || 'Aucune mise à jour nécessaire.'
+            type: 'error',
+            text: data.error || 'Erreur lors de la synchronisation.'
           })
         }
       })
@@ -211,7 +216,7 @@ export default function CurrencyConverterAdminPage() {
         console.error('Erreur lors de la synchronisation:', error)
         setSyncMessage({
           type: 'error',
-          text: 'Une erreur s\'est produite lors de la synchronisation.'
+          text: 'Erreur lors de la synchronisation des taux de change.'
         })
       })
       .finally(() => {
@@ -219,33 +224,24 @@ export default function CurrencyConverterAdminPage() {
       })
   }
 
-  // Effectuer la conversion
   const handleConvert = () => {
-    if (!amount || !fromCurrency || !toCurrency) return
+    const amountNum = parseFloat(amount)
+    if (isNaN(amountNum) || !fromCurrency || !toCurrency) {
+      return
+    }
     
-    const numAmount = parseFloat(amount)
-    if (isNaN(numAmount)) return
-    
-    const result = convertCurrency(
-      numAmount,
-      fromCurrency,
-      toCurrency,
-      exchangeRates
-    )
-    
+    const result = convertCurrency(amountNum, fromCurrency, toCurrency, exchangeRates)
     setConvertedAmount(result)
   }
   
-  // Inverser les devises
   const handleSwapCurrencies = () => {
+    const temp = fromCurrency
     setFromCurrency(toCurrency)
-    setToCurrency(fromCurrency)
-    setConvertedAmount(null)
+    setToCurrency(temp)
   }
   
-  // Formater le montant avec le symbole de la devise
   const formatAmountWithSymbol = (amount: number, currencyCode: string) => {
-    return `${amount.toLocaleString('fr-FR')} ${currencySymbols[currencyCode] || currencyCode}`
+    return `${amount.toFixed(2)} ${currencySymbols[currencyCode] || currencyCode}`
   }
   
   // Tester l'API et afficher les résultats
@@ -253,7 +249,9 @@ export default function CurrencyConverterAdminPage() {
     try {
       setDebugInfo('Chargement...')
       
-      const response = await fetch('/api/admin/settings/currency')
+      const response = await fetch('/api/admin/settings/currency', {
+        credentials: 'include'
+      })
       
       if (response.ok) {
         const data = await response.json()
@@ -267,7 +265,6 @@ export default function CurrencyConverterAdminPage() {
           - ToCurrency: "${toCurrency}"
         `
         setDebugInfo(info)
-        console.log('Réponse API brute:', data)
       } else {
         setDebugInfo(`Erreur API: ${response.status}`)
       }
@@ -325,15 +322,6 @@ export default function CurrencyConverterAdminPage() {
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Devises</SelectLabel>
-                        <div className="px-3 py-2">
-                          <Input 
-                            placeholder="Rechercher une devise..." 
-                            className="mb-2"
-                            onChange={(e) => {
-                              // La recherche est gérée automatiquement par le composant Command
-                            }}
-                          />
-                        </div>
                         {popularCurrencies
                           .filter(currency => exchangeRates[currency] !== undefined)
                           .map((currency) => (
@@ -369,15 +357,6 @@ export default function CurrencyConverterAdminPage() {
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Devises</SelectLabel>
-                        <div className="px-3 py-2">
-                          <Input 
-                            placeholder="Rechercher une devise..." 
-                            className="mb-2"
-                            onChange={(e) => {
-                              // La recherche est gérée automatiquement par le composant Command
-                            }}
-                          />
-                        </div>
                         {popularCurrencies
                           .filter(currency => exchangeRates[currency] !== undefined)
                           .map((currency) => (

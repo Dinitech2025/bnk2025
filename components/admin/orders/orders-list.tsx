@@ -362,7 +362,7 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
               value={statusFilter}
                 onValueChange={setStatusFilter}
             >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Statut" />
               </SelectTrigger>
               <SelectContent>

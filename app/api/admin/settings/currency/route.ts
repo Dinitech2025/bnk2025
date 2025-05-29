@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
-// Récupérer les taux de change
+// Récupérer les paramètres de devise
 export async function GET(request: NextRequest) {
   try {
     // Vérifier l'authentification et les autorisations
@@ -15,8 +15,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Récupérer tous les paramètres de devise
+    // Récupérer les paramètres de devise de base
     const currencySettings = await db.setting.findMany({
+      where: {
+        key: {
+          in: ['currency', 'currencySymbol']
+        }
+      }
+    })
+    
+    const currency = currencySettings.find(s => s.key === 'currency')?.value || 'MGA'
+    const currencySymbol = currencySettings.find(s => s.key === 'currencySymbol')?.value || 'Ar'
+
+    // Récupérer aussi les taux de change si nécessaire
+    const exchangeRateSettings = await db.setting.findMany({
       where: {
         key: {
           startsWith: 'exchangeRate_'
@@ -26,14 +38,18 @@ export async function GET(request: NextRequest) {
 
     // Transformer en objet clé-valeur
     const exchangeRates: Record<string, number> = {}
-    currencySettings.forEach((setting) => {
+    exchangeRateSettings.forEach((setting) => {
       const currencyCode = setting.key.replace('exchangeRate_', '')
       exchangeRates[currencyCode] = parseFloat(setting.value || '1')
     })
 
-    return NextResponse.json(exchangeRates)
+    return NextResponse.json({
+      currency,
+      currencySymbol,
+      exchangeRates
+    })
   } catch (error) {
-    console.error('Erreur lors de la récupération des taux de change:', error)
+    console.error('Erreur lors de la récupération des paramètres de devise:', error)
     return new NextResponse(
       JSON.stringify({ error: 'Erreur serveur' }),
       { status: 500 }
@@ -80,10 +96,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
- 
- 
- 
- 
- 
- 
+}

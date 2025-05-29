@@ -8,6 +8,7 @@ import { generateMetadata } from './metadata'
 import { Toaster } from '@/components/ui/toaster'
 import { SonnerToast } from '@/components/ui/toast'
 import { CurrencyProviderWrapper } from '@/components/providers/currency-provider'
+import '@/lib/currency-initializer' // Initialise la synchronisation automatique
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -35,4 +36,5 @@ export default async function RootLayout({
     </html>
   )
 } 
+ 
  

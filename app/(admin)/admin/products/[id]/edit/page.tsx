@@ -74,7 +74,7 @@ async function getProduct(id: string) {
 }
 
 async function getCategories() {
-  return await prisma.category.findMany({
+  return await prisma.productCategory.findMany({
     select: {
       id: true,
       name: true

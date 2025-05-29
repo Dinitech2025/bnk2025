@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import slugify from 'slugify'
+import { NextRequest } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     // Créer la catégorie
-    const category = await prisma.category.create({
+    const category = await prisma.serviceCategory.create({
       data
     })
 
@@ -44,18 +47,31 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const categories = await prisma.category.findMany({
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    const categories = await prisma.serviceCategory.findMany({
       include: {
         parent: {
           select: {
+            id: true,
+            name: true
+          }
+        },
+        children: {
+          select: {
+            id: true,
             name: true
           }
         },
         _count: {
           select: {
-            products: true
+            services: true
           }
         }
       },
@@ -66,9 +82,9 @@ export async function GET() {
 
     return NextResponse.json(categories)
   } catch (error) {
-    console.error('Error fetching categories:', error)
+    console.error('Erreur lors de la récupération des catégories:', error)
     return NextResponse.json(
-      { error: 'Une erreur est survenue lors de la récupération des catégories' },
+      { error: 'Erreur lors de la récupération des catégories' },
       { status: 500 }
     )
   }

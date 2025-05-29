@@ -53,7 +53,7 @@ export default function LoginPage() {
     switch (type) {
       case 'admin':
         credentials.email = 'admin@boutiknaka.com'
-        credentials.password = 'admin123'
+        credentials.password = 'password123'
         break
       case 'staff':
         credentials.email = 'staff@boutiknaka.com'

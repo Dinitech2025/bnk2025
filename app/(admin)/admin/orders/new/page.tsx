@@ -76,7 +76,7 @@ export default async function NewOrderPage() {
       ...user,
       firstName: user.firstName || "",
       lastName: user.lastName || "",
-      email: user.email
+      email: user.email || ""
     })),
     products: products.map(product => ({
       id: product.id,

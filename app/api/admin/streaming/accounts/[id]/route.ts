@@ -19,8 +19,8 @@ export async function GET(
             subscription: {
               include: {
                 user: true
-          }
-        }
+              }
+            }
           }
         }
       }
@@ -95,7 +95,6 @@ export async function PUT(
       data: updateData,
       include: {
         platform: true,
-        providerOffer: true,
         accountProfiles: {
           include: {
             subscription: {

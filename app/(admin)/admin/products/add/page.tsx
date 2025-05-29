@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { ProductForm } from '@/components/products/product-form'
 
 async function getCategories() {
-  return await prisma.category.findMany({
+  return await prisma.productCategory.findMany({
     select: {
       id: true,
       name: true

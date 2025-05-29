@@ -9,7 +9,7 @@ interface EditCategoryPageProps {
 }
 
 async function getCategory(id: string) {
-  const category = await prisma.category.findUnique({
+  const category = await prisma.productCategory.findUnique({
     where: { id },
     select: {
       id: true,
@@ -28,7 +28,7 @@ async function getCategory(id: string) {
 }
 
 async function getCategories() {
-  return await prisma.category.findMany({
+  return await prisma.productCategory.findMany({
     select: {
       id: true,
       name: true

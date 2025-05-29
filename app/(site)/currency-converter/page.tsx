@@ -22,9 +22,7 @@ const currencySymbols: Record<string, string> = {
   'EUR': '€',
   'USD': '$',
   'GBP': '£',
-  'MGA': 'Ar',
-  'CAD': 'CA$',
-  'CHF': 'CHF'
+  'MGA': 'Ar'
 }
 
 export default function CurrencyConverterPage() {

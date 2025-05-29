@@ -44,6 +44,10 @@ export async function GET(
         companyName: true,
         vatNumber: true,
         image: true,
+        communicationMethod: true,
+        facebookPage: true,
+        whatsappNumber: true,
+        telegramUsername: true,
         createdAt: true,
         updatedAt: true,
         addresses: true,
@@ -101,6 +105,10 @@ export async function PUT(
       companyName,
       vatNumber,
       image,
+      communicationMethod,
+      facebookPage,
+      whatsappNumber,
+      telegramUsername,
     } = data
 
     // Vérifier si le client existe
@@ -148,6 +156,10 @@ export async function PUT(
       companyName: companyName || undefined,
       vatNumber: vatNumber || undefined,
       image: image || undefined,
+      communicationMethod: communicationMethod || undefined,
+      facebookPage: facebookPage || undefined,
+      whatsappNumber: whatsappNumber || undefined,
+      telegramUsername: telegramUsername || undefined,
     }
 
     // Si un nouveau mot de passe est fourni, le hacher
@@ -175,6 +187,10 @@ export async function PUT(
         companyName: true,
         vatNumber: true,
         image: true,
+        communicationMethod: true,
+        facebookPage: true,
+        whatsappNumber: true,
+        telegramUsername: true,
         createdAt: true,
         updatedAt: true,
       } as any,

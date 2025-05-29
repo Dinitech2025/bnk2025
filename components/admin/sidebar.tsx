@@ -66,8 +66,9 @@ const adminNavItems: NavItem[] = [
     icon: ShoppingBag,
     submenu: true,
     submenuItems: [
-      { title: 'Produits simples', href: '/admin/products' },
+      { title: 'Simulation Produit Importé', href: '/admin/products/imported/simulation' },
       { title: 'Produits importés', href: '/admin/products/imported' },
+      { title: 'Produits simples', href: '/admin/products' },
       { title: 'Catégories', href: '/admin/products/categories' },
       { title: 'Inventaire', href: '/admin/products/inventory' },
     ]
@@ -107,6 +108,7 @@ const adminNavItems: NavItem[] = [
       { title: 'Paramètres généraux', href: '/admin/settings/general' },
       { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
       { title: 'Conversion de devises', href: '/admin/settings/currency' },
+      { title: 'Calcul d\'Importation', href: '/admin/settings/import-calculation' },
     ]
   },
 ]

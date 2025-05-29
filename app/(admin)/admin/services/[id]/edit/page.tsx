@@ -11,7 +11,7 @@ interface EditServicePageProps {
 }
 
 async function getCategories() {
-  return await prisma.category.findMany({
+  return await prisma.serviceCategory.findMany({
     select: {
       id: true,
       name: true,

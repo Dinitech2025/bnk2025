@@ -118,7 +118,14 @@ async function getFormData() {
     }))
   }))
 
-  return { users, offers: transformedOffers, platforms }
+  return { 
+    users: users.map(user => ({
+      ...user,
+      email: user.email || ""
+    })), 
+    offers: transformedOffers, 
+    platforms 
+  }
 }
 
 export default async function NewSubscriptionPage() {

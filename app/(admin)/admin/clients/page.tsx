@@ -1,205 +1,855 @@
-// @ts-nocheck
-import { db } from '@/lib/db'
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { PlusCircle, Search, Phone, MapPin, ShoppingBag, Calendar, User, Briefcase, Eye, Pencil, Trash } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { requireStaff } from '@/lib/auth'
+import { 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { 
+  Plus, 
+  Edit, 
+  Trash, 
+  Eye, 
+  User,
+  ChevronUp,
+  ChevronDown,
+  Filter,
+  Phone,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  Briefcase,
+  ShoppingBag,
+  Play
+} from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { toast } from '@/components/ui/use-toast'
+import { formatPrice } from '@/lib/utils'
+import { ResponsiveList } from '@/components/ui/responsive-list'
+import { PageHeader } from '@/components/ui/page-header'
 
-export default async function ClientsPage() {
-  // Vérifier que l'utilisateur est admin ou staff
-  await requireStaff()
+interface Client {
+  id: string
+  firstName?: string | null
+  lastName?: string | null
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+  image?: string | null
+  customerType?: string
+  companyName?: string | null
+  communicationMethod?: string | null
+  facebookPage?: string | null
+  whatsappNumber?: string | null
+  telegramUsername?: string | null
+  addresses: any[]
+  orders: any[]
+  subscriptions: any[]
+  totalSpent: number
+}
 
-  // Récupérer tous les clients (utilisateurs avec rôle CLIENT)
-  const clients = await db.user.findMany({
-    where: {
-      role: 'CLIENT'
-    },
-    include: {
-      addresses: true,
-      orders: {
-        select: {
-          id: true,
-          total: true,
-          status: true
-        }
-      }
-    },
-    orderBy: {
-      createdAt: 'desc'
+type SortField = "name" | "email" | "type" | "orders" | "subscriptions" | "totalSpent"
+type SortOrder = "asc" | "desc"
+
+function ClientCard({ client, onEdit, onDelete, onView }: {
+  client: Client
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onView: (id: string) => void
+}) {
+  const getDisplayName = (client: Client) => {
+    if (client.firstName && client.lastName) {
+      return `${client.firstName} ${client.lastName}`
     }
-  })
+    return client.name || client.email || client.phone || 'Sans nom'
+  }
 
-  // Calculer le montant total dépensé par client
-  const clientsWithTotalSpent = clients.map(client => {
-    const totalSpent = client.orders
-      .filter(order => order.status !== 'CANCELLED')
-      .reduce((sum, order) => sum + Number(order.total || 0), 0)
-    
-    return {
-      ...client,
-      totalSpent
+  const getInitials = (client: Client) => {
+    return client.firstName?.charAt(0) || 
+           client.email?.charAt(0)?.toUpperCase() || 
+           client.phone?.charAt(0) || 
+           'C'
+  }
+
+  const getCommunicationIcon = (method: string | null | undefined) => {
+    switch (method) {
+      case 'EMAIL': return <Mail className="h-3.5 w-3.5" />
+      case 'WHATSAPP': return <MessageCircle className="h-3.5 w-3.5" />
+      case 'SMS': return <MessageSquare className="h-3.5 w-3.5" />
+      case 'FACEBOOK': return <MessageSquare className="h-3.5 w-3.5" />
+      case 'TELEGRAM': return <Send className="h-3.5 w-3.5" />
+      default: return null
     }
-  })
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Clients</h1>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher un client..."
-              className="pl-10 pr-4 py-2 border rounded-md w-64 focus:outline-none focus:ring-2 focus:ring-primary"
+    <div className="rounded-lg border bg-white p-3 sm:p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start space-x-3">
+        {/* Avatar */}
+        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+          {client.image ? (
+            <img 
+              src={client.image} 
+              alt={getDisplayName(client)}
+              className="h-12 w-12 sm:h-14 sm:w-14 rounded-full object-cover"
             />
+          ) : (
+            <span className="text-lg sm:text-xl font-medium text-gray-600">
+              {getInitials(client)}
+            </span>
+          )}
+        </div>
+
+        {/* Contenu principal */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
+                {getDisplayName(client)}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={client.customerType === 'BUSINESS' ? 'default' : 'secondary'} className="text-xs">
+                  {client.customerType === 'BUSINESS' ? (
+                    <><Briefcase className="h-3 w-3 mr-1" />Entreprise</>
+                  ) : (
+                    <><User className="h-3 w-3 mr-1" />Particulier</>
+                  )}
+                </Badge>
+                {client.communicationMethod && (
+                  <div className="flex items-center text-xs text-gray-500">
+                    {getCommunicationIcon(client.communicationMethod)}
+                    <span className="ml-1">{client.communicationMethod}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                onClick={() => onView(client.id)}
+                title="Voir"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600"
+                onClick={() => onEdit(client.id)}
+                title="Modifier"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                onClick={() => onDelete(client.id)}
+                title="Supprimer"
+              >
+                <Trash className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
+
+          {/* Informations du client */}
+          <div className="mt-2 space-y-1">
+            {client.email && (
+              <div className="flex items-center text-xs text-gray-500">
+                <Mail className="h-3 w-3 mr-1" />
+                <span className="truncate">{client.email}</span>
+              </div>
+            )}
+            
+            {client.phone && (
+              <div className="flex items-center text-xs text-gray-500">
+                <Phone className="h-3 w-3 mr-1" />
+                <span>{client.phone}</span>
+              </div>
+            )}
+
+            {client.companyName && (
+              <div className="flex items-center text-xs text-gray-500">
+                <Briefcase className="h-3 w-3 mr-1" />
+                <span className="truncate">{client.companyName}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+              <div className="flex items-center">
+                <ShoppingBag className="h-3 w-3 mr-1" />
+                <span>{client.orders?.length || 0} commandes</span>
+              </div>
+              <div className="flex items-center">
+                <Play className="h-3 w-3 mr-1" />
+                <span>{client.subscriptions?.length || 0} abonnements</span>
+              </div>
+            </div>
+
+            <div className="text-xs font-medium text-gray-900 mt-1">
+              Total dépensé: {formatPrice(client.totalSpent || 0)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ClientsPage() {
+  const [clients, setClients] = useState<Client[]>([])
+  const [filteredClients, setFilteredClients] = useState<Client[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<SortField>("name")
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc")
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [communicationFilter, setCommunicationFilter] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  const fetchClients = useCallback(async () => {
+    try {
+      setIsRefreshing(true)
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/admin/clients?t=${timestamp}`, {
+        cache: 'no-store',
+        credentials: 'include'
+      })
+      
+      if (!response.ok) throw new Error('Erreur lors du chargement des clients')
+      
+      const data = await response.json()
+      
+      if (!Array.isArray(data)) {
+        console.error('Les données reçues ne sont pas un tableau:', data)
+        setError('Format de données incorrect')
+        setClients([])
+        return
+      }
+      
+      setClients(data)
+      setError(null)
+    } catch (error) {
+      console.error('Erreur:', error)
+      setError('Une erreur est survenue lors du chargement des clients')
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchClients()
+  }, [fetchClients])
+
+  useEffect(() => {
+    applyFiltersAndSort()
+  }, [searchTerm, sortField, sortOrder, typeFilter, communicationFilter, clients])
+
+  const applyFiltersAndSort = () => {
+    if (!clients || clients.length === 0) {
+      setFilteredClients([])
+      return
+    }
+
+    let filtered = [...clients]
+
+    // Filtrage par recherche
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(client => {
+        const name = `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.name || ''
+        const email = client.email || ''
+        const phone = client.phone || ''
+        const company = client.companyName || ''
+        
+        return name.toLowerCase().includes(term) ||
+               email.toLowerCase().includes(term) ||
+               phone.includes(term) ||
+               company.toLowerCase().includes(term)
+      })
+    }
+
+    // Filtrage par type
+    if (typeFilter !== "all") {
+      filtered = filtered.filter(client => client.customerType === typeFilter)
+    }
+
+    // Filtrage par moyen de communication
+    if (communicationFilter !== "all") {
+      filtered = filtered.filter(client => client.communicationMethod === communicationFilter)
+    }
+
+    // Tri
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any
+
+      switch (sortField) {
+        case "name":
+          aValue = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.name || a.email || ''
+          bValue = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.name || b.email || ''
+          break
+        case "email":
+          aValue = a.email || ''
+          bValue = b.email || ''
+          break
+        case "type":
+          aValue = a.customerType || ''
+          bValue = b.customerType || ''
+          break
+        case "orders":
+          aValue = a.orders?.length || 0
+          bValue = b.orders?.length || 0
+          break
+        case "subscriptions":
+          aValue = a.subscriptions?.length || 0
+          bValue = b.subscriptions?.length || 0
+          break
+        case "totalSpent":
+          aValue = a.totalSpent || 0
+          bValue = b.totalSpent || 0
+          break
+        default:
+          aValue = ''
+          bValue = ''
+      }
+
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase()
+        bValue = bValue.toLowerCase()
+      }
+
+      if (sortOrder === "asc") {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
+
+    setFilteredClients(filtered)
+    setCurrentPage(1)
+  }
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortOrder("asc")
+    }
+  }
+
+  const clearSearch = () => {
+    setSearchTerm('')
+  }
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+    }
+    return sortOrder === "asc" ? 
+      <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4" /> : 
+      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
+  }
+
+  const handleRefresh = async () => {
+    await fetchClients()
+  }
+
+  const handleEdit = (clientId: string) => {
+    window.location.href = `/admin/clients/${clientId}/edit`
+  }
+
+  const handleView = (clientId: string) => {
+    window.location.href = `/admin/clients/${clientId}`
+  }
+
+  const handleDelete = async (clientId: string) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) {
+      try {
+        const response = await fetch(`/api/admin/clients/${clientId}`, {
+          method: 'DELETE'
+        })
+        
+        if (response.ok) {
+          toast({
+            title: "Client supprimé",
+            description: "Le client a été supprimé avec succès"
+          })
+          fetchClients()
+        } else {
+          throw new Error('Erreur lors de la suppression')
+        }
+      } catch (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de supprimer le client",
+          variant: "destructive"
+        })
+      }
+    }
+  }
+
+  // Pagination
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage)
+
+  const getDisplayName = (client: Client) => {
+    if (client.firstName && client.lastName) {
+      return `${client.firstName} ${client.lastName}`
+    }
+    return client.name || client.email || client.phone || 'Sans nom'
+  }
+
+  const getInitials = (client: Client) => {
+    return client.firstName?.charAt(0) || 
+           client.email?.charAt(0)?.toUpperCase() || 
+           client.phone?.charAt(0) || 
+           'C'
+  }
+
+  const getCommunicationIcon = (method: string | null | undefined) => {
+    switch (method) {
+      case 'EMAIL': return <Mail className="h-3.5 w-3.5" />
+      case 'WHATSAPP': return <MessageCircle className="h-3.5 w-3.5" />
+      case 'SMS': return <MessageSquare className="h-3.5 w-3.5" />
+      case 'FACEBOOK': return <MessageSquare className="h-3.5 w-3.5" />
+      case 'TELEGRAM': return <Send className="h-3.5 w-3.5" />
+      default: return null
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">{error}</p>
+          <Button 
+            onClick={fetchClients}
+            variant="outline"
+            className="mt-4"
+          >
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="rounded-lg border">
+          <div className="p-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-16 w-full mb-4" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        title="Clients"
+        count={filteredClients.length}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onClearSearch={clearSearch}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        actions={
           <Link href="/admin/clients/new">
-            <Button>
-              <PlusCircle className="h-4 w-4 mr-2" />
+            <Button size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Nouveau client
             </Button>
           </Link>
-        </div>
-      </div>
+        }
+      >
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Select
+            value={typeFilter}
+            onValueChange={(value) => setTypeFilter(value)}
+          >
+            <SelectTrigger className="w-full sm:w-[140px] h-7 sm:h-8 text-xs sm:text-sm">
+              <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les types</SelectItem>
+              <SelectItem value="INDIVIDUAL">Particuliers</SelectItem>
+              <SelectItem value="BUSINESS">Entreprises</SelectItem>
+            </SelectContent>
+          </Select>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full whitespace-nowrap">
-            <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <th className="px-6 py-3">Client</th>
-                <th className="px-6 py-3">Contact</th>
-                <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3">Statistiques</th>
-                <th className="px-6 py-3">Date d'inscription</th>
-                <th className="px-6 py-3 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {clientsWithTotalSpent.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50">
-                  {/* Client info */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      {client.image ? (
-                        <img
-                          src={client.image}
-                          alt={(client.firstName && client.lastName) ? `${client.firstName} ${client.lastName}` : client.email}
-                          className="h-10 w-10 rounded-full mr-3 object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-full bg-gray-200 mr-3 flex items-center justify-center text-gray-500">
-                          {client.firstName?.charAt(0) || client.email.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {client.firstName && client.lastName 
-                            ? `${client.firstName} ${client.lastName}`
-                            : client.name || 'Sans nom'}
-                        </div>
-                        <div className="text-sm text-gray-500">{client.email}</div>
-                      </div>
+          <Select
+            value={communicationFilter}
+            onValueChange={(value) => setCommunicationFilter(value)}
+          >
+            <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
+              <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <SelectValue placeholder="Communication" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="EMAIL">Email</SelectItem>
+              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+              <SelectItem value="SMS">SMS</SelectItem>
+              <SelectItem value="FACEBOOK">Facebook</SelectItem>
+              <SelectItem value="TELEGRAM">Telegram</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </PageHeader>
+
+      <div className="rounded-lg border">
+        <ResponsiveList
+          gridChildren={
+            paginatedClients.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="text-sm">Chargement des clients...</div>
+                  </div>
+                ) : searchTerm || typeFilter !== "all" || communicationFilter !== "all" ? (
+                  <>
+                    Aucun client ne correspond à vos critères
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        clearSearch()
+                        setTypeFilter("all")
+                        setCommunicationFilter("all")
+                      }}
+                      className="ml-2"
+                    >
+                      Réinitialiser les filtres
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    Aucun client disponible
+                    <div className="text-xs mt-2">
+                      Créez un nouveau client pour commencer
                     </div>
-                  </td>
-                  
-                  {/* Contact info */}
-                  <td className="px-6 py-4">
-                    <div className="text-sm">
-                      {client.phone ? (
-                        <div className="flex items-center text-gray-600 mb-1">
-                          <Phone className="h-3.5 w-3.5 mr-1" />
-                          <span>{client.phone}</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              paginatedClients.map((client) => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onView={handleView}
+                />
+              ))
+            )
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead onClick={() => handleSort("name")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Client {renderSortIcon("name")}
+                  </div>
+                </TableHead>
+                <TableHead onClick={() => handleSort("type")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Type {renderSortIcon("type")}
+                  </div>
+                </TableHead>
+                <TableHead onClick={() => handleSort("email")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Contact {renderSortIcon("email")}
+                  </div>
+                </TableHead>
+                <TableHead onClick={() => handleSort("orders")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Commandes {renderSortIcon("orders")}
+                  </div>
+                </TableHead>
+                <TableHead onClick={() => handleSort("subscriptions")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Abonnements {renderSortIcon("subscriptions")}
+                  </div>
+                </TableHead>
+                <TableHead onClick={() => handleSort("totalSpent")} className="cursor-pointer">
+                  <div className="flex items-center">
+                    Total dépensé {renderSortIcon("totalSpent")}
+                  </div>
+                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedClients.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    {isLoading ? (
+                      <div className="flex flex-col items-center justify-center space-y-4">
+                        <Skeleton className="h-8 w-32" />
+                        <div className="text-sm">Chargement des clients...</div>
+                      </div>
+                    ) : searchTerm || typeFilter !== "all" || communicationFilter !== "all" ? (
+                      <>
+                        Aucun client ne correspond à vos critères
+                        <Button
+                          variant="link"
+                          onClick={() => {
+                            clearSearch()
+                            setTypeFilter("all")
+                            setCommunicationFilter("all")
+                          }}
+                          className="ml-2"
+                        >
+                          Réinitialiser les filtres
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        Aucun client disponible
+                        <div className="text-xs mt-2">
+                          Créez un nouveau client pour commencer
                         </div>
-                      ) : null}
-                      <div className="flex items-center text-gray-600">
-                        <MapPin className="h-3.5 w-3.5 mr-1" />
-                        <span>{client.addresses.length} {client.addresses.length > 1 ? 'adresses' : 'adresse'}</span>
-                      </div>
-                    </div>
-                  </td>
-                  
-                  {/* Client type */}
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      client.customerType === 'BUSINESS' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                    }`}>
-                      {client.customerType === 'BUSINESS' ? 'Entreprise' : 'Particulier'}
-                    </span>
-                    {client.customerType === 'BUSINESS' && client.companyName && (
-                      <div className="text-xs text-gray-500 mt-1 flex items-center">
-                        <Briefcase className="h-3 w-3 mr-1" />
-                        {client.companyName}
-                      </div>
+                      </>
                     )}
-                  </td>
-                  
-                  {/* Stats */}
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-4">
-                      <div className="flex flex-col">
-                        <div className="flex items-center text-gray-600 text-sm">
-                          <ShoppingBag className="h-3.5 w-3.5 mr-1" />
-                          <span>{client.orders.length}</span>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedClients.map((client) => (
+                  <TableRow key={client.id} className="hover:bg-gray-50 group">
+                    <TableCell>
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                          {client.image ? (
+                            <img 
+                              src={client.image} 
+                              alt={getDisplayName(client)}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-sm font-medium text-gray-600">
+                              {getInitials(client)}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-500">Commandes</div>
+                        <div className="ml-4">
+                          <div className="font-medium text-gray-900">
+                            {getDisplayName(client)}
+                          </div>
+                          {client.companyName && (
+                            <div className="text-sm text-gray-500">{client.companyName}</div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <div className="font-medium text-gray-800">{client.totalSpent.toFixed(2)} €</div>
-                        <div className="text-xs text-gray-500">Total dépensé</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={client.customerType === 'BUSINESS' ? 'default' : 'secondary'}>
+                        {client.customerType === 'BUSINESS' ? (
+                          <><Briefcase className="h-3 w-3 mr-1" />Entreprise</>
+                        ) : (
+                          <><User className="h-3 w-3 mr-1" />Particulier</>
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {client.email && (
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Mail className="h-3 w-3 mr-1" />
+                            {client.email}
+                          </div>
+                        )}
+                        {client.phone && (
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Phone className="h-3 w-3 mr-1" />
+                            {client.phone}
+                          </div>
+                        )}
+                        {client.communicationMethod && (
+                          <div className="flex items-center text-xs text-blue-600">
+                            {getCommunicationIcon(client.communicationMethod)}
+                            <span className="ml-1">{client.communicationMethod}</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  
-                  {/* Date */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-3.5 w-3.5 mr-1" />
-                      <span>{new Date(client.createdAt).toLocaleDateString('fr-FR')}</span>
-                    </div>
-                  </td>
-                  
-                  {/* Actions */}
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center space-x-3">
-                      <Link 
-                        href={`/admin/clients/${client.id}`}
-                        className="p-1.5 bg-gray-50 rounded-full hover:bg-gray-100 text-primary hover:text-primary-dark transition-colors"
-                        title="Voir les détails"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                      <Link 
-                        href={`/admin/clients/${client.id}/edit`}
-                        className="p-1.5 bg-gray-50 rounded-full hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors"
-                        title="Modifier"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Link>
-                      <Link 
-                        href={`/admin/clients/${client.id}/delete`}
-                        className="p-1.5 bg-gray-50 rounded-full hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {clients.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    Aucun client trouvé
-                  </td>
-                </tr>
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <ShoppingBag className="h-3 w-3 mr-1" />
+                        {client.orders?.length || 0}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <Play className="h-3 w-3 mr-1" />
+                        {client.subscriptions?.length || 0}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-gray-900">
+                        {formatPrice(client.totalSpent || 0)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                          onClick={() => handleView(client.id)}
+                          title="Voir"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600"
+                          onClick={() => handleEdit(client.id)}
+                          title="Modifier"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                          onClick={() => handleDelete(client.id)}
+                          title="Supprimer"
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </ResponsiveList>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-muted-foreground">
+            Affichage de {startIndex + 1} à {Math.min(startIndex + itemsPerPage, filteredClients.length)} sur {filteredClients.length} clients
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => {
+                setItemsPerPage(parseInt(value))
+                setCurrentPage(1)
+              }}
+            >
+              <SelectTrigger className="w-[70px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const page = i + 1
+                  if (totalPages <= 5) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  }
+                  
+                  // Logique de pagination avancée pour plus de 5 pages
+                  let pageNumber = page
+                  if (currentPage > 3) {
+                    pageNumber = currentPage - 2 + i
+                  }
+                  if (pageNumber > totalPages) return null
+                  
+                  return (
+                    <PaginationItem key={pageNumber}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(pageNumber)}
+                        isActive={currentPage === pageNumber}
+                        className="cursor-pointer"
+                      >
+                        {pageNumber}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                })}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

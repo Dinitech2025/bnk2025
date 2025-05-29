@@ -7,66 +7,68 @@ import { authOptions } from '@/lib/auth'
 // GET - Liste tous les clients
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const search = searchParams.get('search') || ''
+    const session = await getServerSession(authOptions)
 
-    const skip = (page - 1) * limit
-
-    let where: any = {
-      role: 'CLIENT',
+    // Vérifier l'authentification et les autorisations
+    if (!session || (session.user.role !== 'ADMIN' && session.user.role !== 'STAFF')) {
+      return NextResponse.json(
+        { message: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    if (search) {
-      where.OR = [
-        {
-          name: {
-            contains: search,
-            mode: 'insensitive',
+    // Récupérer tous les clients avec leurs relations
+    const clients = await db.user.findMany({
+      where: {
+        role: 'CLIENT'
+      },
+      include: {
+        addresses: true,
+        orders: {
+          select: {
+            id: true,
+            total: true,
+            status: true
+          }
+        },
+        subscriptions: {
+          where: {
+            status: 'ACTIVE',
+            endDate: {
+              gte: new Date()
+            }
           },
-        },
-        {
-          email: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        },
-        {
-          phone: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        },
-      ]
-    }
-
-    const [clients, total] = await Promise.all([
-      db.user.findMany({
-        where,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
-          createdAt: true,
-        },
-        skip,
-        take: limit,
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      db.user.count({ where }),
-    ])
-
-    return NextResponse.json({
-      data: clients,
-      total,
-      page,
-      limit,
+          include: {
+            offer: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
     })
+
+    // Calculer le montant total dépensé par client
+    const clientsWithTotalSpent = clients.map(client => {
+      const totalSpent = client.orders
+        .filter(order => order.status !== 'CANCELLED')
+        .reduce((sum, order) => {
+          // Convertir le Decimal en nombre (les montants sont déjà en Ariary)
+          const orderTotal = order.total ? parseFloat(order.total.toString()) : 0
+          return sum + orderTotal
+        }, 0)
+      
+      return {
+        ...client,
+        totalSpent
+      }
+    })
+
+    return NextResponse.json(clientsWithTotalSpent)
   } catch (error) {
     console.error('[CLIENTS_GET]', error)
     return new NextResponse('Internal error', { status: 500 })
@@ -103,36 +105,42 @@ export async function POST(request: NextRequest) {
       customerType,
       companyName,
       vatNumber,
-      image
+      image,
+      communicationMethod,
+      facebookPage,
+      whatsappNumber,
+      telegramUsername
     } = data
 
-    // Validation de base
-    if (!email || !password) {
+    // Validation de base - au moins un email ou un téléphone
+    if (!email && !phone) {
       return NextResponse.json(
-        { message: 'Email et mot de passe requis' },
+        { message: 'Email ou numéro de téléphone requis' },
         { status: 400 }
       )
     }
 
-    // Vérifier si l'email existe déjà
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    })
+    // Vérifier si l'email existe déjà (seulement si fourni)
+    if (email) {
+      const existingUser = await db.user.findUnique({
+        where: { email },
+      })
 
-    if (existingUser) {
-      return NextResponse.json(
-        { message: 'Cet email est déjà utilisé' },
-        { status: 400 }
-      )
+      if (existingUser) {
+        return NextResponse.json(
+          { message: 'Cet email est déjà utilisé' },
+          { status: 400 }
+        )
+      }
     }
 
-    // Hacher le mot de passe
-    const hashedPassword = await bcrypt.hash(password, 10)
+    // Hacher le mot de passe (seulement si fourni)
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null
 
     // Créer le client
     const newClient = await db.user.create({
       data: {
-        email,
+        email: email || null,
         password: hashedPassword,
         name: name || `${firstName || ''} ${lastName || ''}`.trim() || null,
         firstName,
@@ -147,6 +155,10 @@ export async function POST(request: NextRequest) {
         companyName,
         vatNumber,
         image,
+        communicationMethod,
+        facebookPage,
+        whatsappNumber,
+        telegramUsername,
         role: 'CLIENT',
       } as any,
     })

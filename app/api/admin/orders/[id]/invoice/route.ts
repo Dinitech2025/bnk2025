@@ -114,7 +114,7 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
       customer: {
         id: order.user.id,
         name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
-        email: order.user.email,
+        email: order.user.email || "",
       },
       items: order.items.map(item => ({
         id: item.id,

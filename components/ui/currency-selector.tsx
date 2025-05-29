@@ -15,16 +15,14 @@ import { defaultExchangeRates } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 
 // Liste des devises populaires (incluant MGA)
-const popularCurrencies = ['MGA', 'EUR', 'USD', 'GBP', 'CAD', 'CHF'];
+const popularCurrencies = ['MGA', 'EUR', 'USD', 'GBP'];
 
 // Noms des devises pour l'affichage
 const currencyNames: Record<string, string> = {
   'MGA': 'Ariary Malgache',
   'EUR': 'Euro',
   'USD': 'Dollar US',
-  'GBP': 'Livre Sterling',
-  'CAD': 'Dollar Canadien',
-  'CHF': 'Franc Suisse'
+  'GBP': 'Livre Sterling'
 };
 
 // Liste des symboles de devise
@@ -32,9 +30,7 @@ const currencySymbols: Record<string, string> = {
   'MGA': 'Ar',
   'EUR': '€',
   'USD': '$',
-  'GBP': '£',
-  'CAD': 'CA$',
-  'CHF': 'CHF'
+  'GBP': '£'
 };
 
 interface CurrencySelectorProps {

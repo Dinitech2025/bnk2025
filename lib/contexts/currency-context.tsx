@@ -24,9 +24,6 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [targetCurrency, setTargetCurrency] = useState<string | null>(null)
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(defaultExchangeRates)
   
-  // Récupérer les paramètres de devise principale
-  const currencySymbolFromSettings = settings?.currencySymbol || '€'
-  
   // Récupérer les taux de change depuis l'API et la devise sélectionnée depuis localStorage
   useEffect(() => {
     // Charger la devise sélectionnée depuis localStorage
@@ -38,11 +35,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     // Vérifier le cache des taux de change
     const cachedRates = localStorage.getItem('exchangeRates')
     const cachedTimestamp = localStorage.getItem('exchangeRatesTimestamp')
-    const ONE_HOUR = 60 * 60 * 1000 // 1 heure en millisecondes
+    const ONE_MINUTE = 60 * 1000 // 1 minute en millisecondes (au lieu d'1 heure)
     
     if (cachedRates && cachedTimestamp) {
       const timestamp = parseInt(cachedTimestamp)
-      if (Date.now() - timestamp < ONE_HOUR) {
+      if (Date.now() - timestamp < ONE_MINUTE) {
         setExchangeRates(JSON.parse(cachedRates))
         return
       }
@@ -51,13 +48,22 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     // Charger les taux de change depuis l'API si pas de cache valide
     const fetchExchangeRates = async () => {
       try {
-        const response = await fetch('/api/admin/settings/currency')
+        const response = await fetch('/api/public/exchange-rates')
         if (response.ok) {
           const data = await response.json()
-          if (Object.keys(data).length > 0) {
-            setExchangeRates(data)
+
+          // Mettre à jour la devise principale et le symbole avec les valeurs de l'API
+          if (data.currency) {
+            setCurrency(data.currency)
+          }
+          if (data.currencySymbol) {
+            setCurrencySymbol(data.currencySymbol)
+          }
+          
+          if (data.exchangeRates && Object.keys(data.exchangeRates).length > 0) {
+            setExchangeRates(data.exchangeRates)
             // Mettre à jour le cache
-            localStorage.setItem('exchangeRates', JSON.stringify(data))
+            localStorage.setItem('exchangeRates', JSON.stringify(data.exchangeRates))
             localStorage.setItem('exchangeRatesTimestamp', Date.now().toString())
           }
         }
@@ -89,13 +95,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   
   // Fonction pour convertir un prix vers une autre devise
   const convertToTargetCurrency = useCallback((price: number, targetCurrency: string) => {
-    const convertedPrice = convertCurrency(
-      price, 
-      currency, 
-      targetCurrency, 
-      exchangeRates
-    )
-    return convertedPrice
+    // Si les devises sont identiques, retourner le montant tel quel
+    if (currency === targetCurrency) return price;
+    
+    // Utiliser la fonction convertCurrency des utils qui fonctionne correctement
+    try {
+      return convertCurrency(price, currency, targetCurrency, exchangeRates)
+    } catch (error) {
+      console.error('Erreur de conversion:', error)
+      return price // Retourner le prix original en cas d'erreur
+    }
   }, [currency, exchangeRates])
   
   // Fonction pour formater un prix dans une devise cible spécifique

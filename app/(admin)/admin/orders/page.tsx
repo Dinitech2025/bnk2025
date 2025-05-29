@@ -7,8 +7,14 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
 // Type pour les données après conversion des Decimal en number
-type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items'> & {
+type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'user'> & {
   total: number;
+  user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  };
   items: Array<Omit<OrderWithRelations['items'][0], 'unitPrice' | 'totalPrice'> & {
     unitPrice: number;
     totalPrice: number;
@@ -95,6 +101,10 @@ async function getOrders(): Promise<OrderWithConvertedPrices[]> {
     return orders.map(order => ({
       ...order,
       total: Number(order.total),
+      user: {
+        ...order.user,
+        email: order.user.email || ""
+      },
       items: order.items.map(item => ({
         ...item,
         unitPrice: Number(item.unitPrice),

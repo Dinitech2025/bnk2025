@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 
 const API_URL = 'https://api.fxratesapi.com/latest?api_key=fxr_live_870cf7ae2bcc27582b3379495e4e31fda2f1'
-const CACHE_DURATION = 4.8 * 60 * 60 * 1000 // ~4.8 heures (pour 5 appels max par jour)
+const CACHE_DURATION = 5 * 60 * 60 * 1000 // 5 heures
 
 interface FxRatesResponse {
   success: boolean
@@ -71,25 +71,38 @@ export async function syncExchangeRates(forceUpdate = false): Promise<boolean> {
       return false
     }
     
-    // Récupérer la devise principale
-    const currencySetting = await db.setting.findUnique({
-      where: { key: 'currency' }
-    })
+    // L'API FXRatesAPI donne les taux avec USD comme base par défaut
+    // Nous devons convertir vers MGA comme devise de base
     
-    const baseCurrency = currencySetting?.value || 'EUR'
-    const baseRate = rates[baseCurrency]
+    // Taux de change réels approximatifs (à ajuster selon les taux actuels)
+    // 1 USD ≈ 4680 MGA (taux approximatif actuel)
+    const USD_TO_MGA_RATE = 4680 // Taux approximatif actuel
     
-    if (!baseRate) {
-      console.error(`Devise principale ${baseCurrency} non trouvée dans les taux de change`)
-      return false
+    // Normaliser les taux pour MGA comme devise de base
+    const normalizedRates: Record<string, number> = {
+      'MGA': 1.0 // MGA est notre devise de base
     }
     
-    // Normaliser les taux pour la devise principale
-    const normalizedRates: Record<string, number> = {}
+    // L'API donne les taux en USD comme base (1 USD = X autres devises)
+    // Nous voulons MGA comme base (1 MGA = X autres devises)
     
-    // L'API utilise USD comme base, nous devons convertir pour notre devise principale
-    Object.entries(rates).forEach(([currency, rate]) => {
-      normalizedRates[currency] = rate / baseRate
+    // Pour USD : 1 MGA = 1/USD_TO_MGA_RATE USD
+    normalizedRates['USD'] = 1 / USD_TO_MGA_RATE
+    
+    // Pour les autres devises
+    Object.entries(rates).forEach(([currency, usdRate]) => {
+      // Ignorer MGA et USD (déjà traités)
+      if (currency === 'MGA' || currency === 'USD') {
+        return
+      }
+      
+      // L'API donne : 1 USD = usdRate de cette devise
+      // Nous voulons : 1 MGA = ? de cette devise
+      // 
+      // Si 1 USD = usdRate de cette devise
+      // Et 1 USD = USD_TO_MGA_RATE MGA
+      // Alors 1 MGA = usdRate / USD_TO_MGA_RATE de cette devise
+      normalizedRates[currency] = usdRate / USD_TO_MGA_RATE
     })
     
     // Mettre à jour la base de données avec les nouveaux taux
@@ -118,6 +131,9 @@ export async function syncExchangeRates(forceUpdate = false): Promise<boolean> {
         type: 'DATE'
       }
     })
+    
+    console.log(`✅ Taux de change mis à jour avec ${Object.keys(normalizedRates).length} devises`)
+    console.log(`📊 Exemples: 1 MGA = ${normalizedRates.USD?.toFixed(6)} USD, ${normalizedRates.EUR?.toFixed(6)} EUR`)
     
     return true
   } catch (error) {

@@ -135,7 +135,13 @@ async function getSubscriptionData(id: string) {
   const remainingProfilesForPlatform = maxProfilesPerPlatform - assignedProfiles;
 
   return {
-    subscription,
+    subscription: {
+      ...subscription,
+      user: {
+        ...subscription.user,
+        email: subscription.user.email || ""
+      }
+    },
     platform,
     availableAccounts: accountsWithProfiles,
     assignedProfilesCount: assignedProfiles,

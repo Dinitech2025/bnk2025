@@ -8,32 +8,36 @@ datasource db {
 }
 
 model User {
-  id                  String             @id @default(cuid())
-  name                String?
-  firstName           String?
-  lastName            String?
-  email               String             @unique
-  emailVerified       DateTime?
-  password            String
-  image               String?
-  phone               String?
-  birthDate           DateTime?
-  gender              String?
-  preferredLanguage   String?            @default("fr")
-  newsletter          Boolean            @default(false)
-  notes               String?
-  customerType        String?            @default("INDIVIDUAL")
-  companyName         String?
-  vatNumber           String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  role                String             @default("CLIENT")
-  addresses           Address[]
-  orders              Order[]
-  sessions            Session[]
-  subscriptions       Subscription[]
-  userProfiles        UserProfile[]
-  activeSubscriptions UserSubscription[]
+  id                     String             @id @default(cuid())
+  name                   String?
+  firstName              String?
+  lastName               String?
+  email                  String?            @unique
+  emailVerified          DateTime?
+  password               String?
+  image                  String?
+  phone                  String?
+  birthDate              DateTime?
+  gender                 String?
+  preferredLanguage      String?            @default("fr")
+  newsletter             Boolean            @default(false)
+  notes                  String?
+  customerType           String?            @default("INDIVIDUAL")
+  companyName            String?
+  vatNumber              String?
+  communicationMethod    String?            @default("EMAIL")
+  facebookPage           String?
+  whatsappNumber         String?
+  telegramUsername       String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  role                   String             @default("CLIENT")
+  addresses              Address[]
+  orders                 Order[]
+  sessions               Session[]
+  subscriptions          Subscription[]
+  userProfiles           UserProfile[]
+  activeSubscriptions    UserSubscription[]
 
   @@index([role])
   @@index([email])
@@ -63,17 +67,36 @@ model Address {
   orders      Order[] @relation("shippingAddress")
 }
 
-model Category {
-  id          String     @id @default(cuid())
+model ProductCategory {
+  id          String    @id @default(cuid())
   name        String
-  slug        String     @unique
+  slug        String    @unique
   description String?
   parentId    String?
   image       String?
-  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryHierarchy")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  parent      ProductCategory? @relation("ProductCategoryHierarchy", fields: [parentId], references: [id])
+  children    ProductCategory[] @relation("ProductCategoryHierarchy")
   products    Product[]
+
+  @@map("ProductCategory")
+}
+
+model ServiceCategory {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  parentId    String?
+  image       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  parent      ServiceCategory? @relation("ServiceCategoryHierarchy", fields: [parentId], references: [id])
+  children    ServiceCategory[] @relation("ServiceCategoryHierarchy")
   services    Service[]
+
+  @@map("ServiceCategory")
 }
 
 model Product {
@@ -95,7 +118,7 @@ model Product {
   updatedAt        DateTime           @updatedAt
   inventoryHistory InventoryHistory[]
   orderItems       OrderItem[]
-  category         Category?          @relation(fields: [categoryId], references: [id])
+  category         ProductCategory?   @relation(fields: [categoryId], references: [id])
   attributes       ProductAttribute[]
   variations       ProductVariation[]
   images           Media[]            @relation("MediaToProduct")
@@ -141,7 +164,7 @@ model Service {
   categoryId  String?
   published   Boolean     @default(true)
   orderItems  OrderItem[]
-  category    Category?   @relation(fields: [categoryId], references: [id])
+  category    ServiceCategory?   @relation(fields: [categoryId], references: [id])
   images      Media[]     @relation("MediaToService")
 }
 
@@ -493,4 +516,16 @@ enum AccountStatus {
 enum Availability {
   AVAILABLE
   UNAVAILABLE
+}
+
+model ImportCalculationSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  category    String   // 'transport', 'commission', 'fees'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("import_calculation_settings")
 }

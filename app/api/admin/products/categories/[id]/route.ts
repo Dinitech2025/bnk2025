@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/cloudinary'
 import slugify from 'slugify'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 interface RouteParams {
   params: {
@@ -9,13 +11,31 @@ interface RouteParams {
   }
 }
 
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const category = await prisma.category.findUnique({
-      where: { id: params.id },
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    const { id } = params
+
+    const category = await prisma.productCategory.findUnique({
+      where: { id },
       include: {
         parent: {
           select: {
+            id: true,
+            name: true
+          }
+        },
+        children: {
+          select: {
+            id: true,
             name: true
           }
         },
@@ -28,17 +48,14 @@ export async function GET(request: Request, { params }: RouteParams) {
     })
 
     if (!category) {
-      return NextResponse.json(
-        { error: 'Catégorie non trouvée' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Catégorie de produit non trouvée' }, { status: 404 })
     }
 
     return NextResponse.json(category)
   } catch (error) {
-    console.error('Error fetching category:', error)
+    console.error('Erreur lors de la récupération de la catégorie de produit:', error)
     return NextResponse.json(
-      { error: 'Une erreur est survenue lors de la récupération de la catégorie' },
+      { error: 'Erreur lors de la récupération de la catégorie de produit' },
       { status: 500 }
     )
   }
@@ -47,7 +64,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     // Récupérer la catégorie existante pour l'image
-    const existingCategory = await prisma.category.findUnique({
+    const existingCategory = await prisma.productCategory.findUnique({
       where: { id: params.id },
       select: { image: true }
     })
@@ -94,69 +111,64 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     // Mettre à jour la catégorie
-    const category = await prisma.category.update({
+    const category = await prisma.productCategory.update({
       where: { id: params.id },
       data
     })
 
     return NextResponse.json(category)
   } catch (error) {
-    console.error('Error updating category:', error)
+    console.error('Error updating product category:', error)
     return NextResponse.json(
-      { error: 'Une erreur est survenue lors de la mise à jour de la catégorie' },
+      { error: 'Une erreur est survenue lors de la mise à jour de la catégorie de produit' },
       { status: 500 }
     )
   }
 }
 
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Vérifier si la catégorie a des produits associés
-    const category = await prisma.category.findUnique({
-      where: { id: params.id },
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    const { id } = params
+
+    // Vérifier si la catégorie existe
+    const category = await prisma.productCategory.findUnique({
+      where: { id },
       include: {
-        _count: {
-          select: {
-            products: true,
-            children: true
-          }
-        }
+        children: true,
+        products: true
       }
     })
 
     if (!category) {
-      return NextResponse.json(
-        { error: 'Catégorie non trouvée' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Catégorie de produit non trouvée' }, { status: 404 })
     }
 
-    // Empêcher la suppression si la catégorie a des produits ou des sous-catégories
-    if (category._count.products > 0 || category._count.children > 0) {
-      return NextResponse.json(
-        { error: 'Impossible de supprimer une catégorie qui contient des produits ou des sous-catégories' },
-        { status: 400 }
-      )
+    // Vérifier s'il y a des sous-catégories
+    if (category.children.length > 0) {
+      return NextResponse.json({ 
+        error: 'Impossible de supprimer une catégorie qui contient des sous-catégories' 
+      }, { status: 400 })
     }
 
-    // Supprimer l'image de Cloudinary si elle existe
-    if (category.image) {
-      const publicId = category.image.split('/').pop()?.split('.')[0]
-      if (publicId) {
-        await deleteFromCloudinary(publicId)
-      }
-    }
-
-    // Supprimer la catégorie
-    await prisma.category.delete({
-      where: { id: params.id }
+    // Supprimer la catégorie (les produits perdront leur catégorie)
+    await prisma.productCategory.delete({
+      where: { id }
     })
 
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json({ message: 'Catégorie de produit supprimée avec succès' })
   } catch (error) {
-    console.error('Error deleting category:', error)
+    console.error('Erreur lors de la suppression de la catégorie de produit:', error)
     return NextResponse.json(
-      { error: 'Une erreur est survenue lors de la suppression de la catégorie' },
+      { error: 'Erreur lors de la suppression de la catégorie de produit' },
       { status: 500 }
     )
   }

@@ -566,7 +566,7 @@ export default function SubscriptionsPage() {
           value={statusFilter}
           onValueChange={(value) => setStatusFilter(value)}
         >
-          <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
+          <SelectTrigger className="w-full sm:w-[180px] h-7 sm:h-8 text-xs sm:text-sm">
             <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             <SelectValue placeholder="Statut" />
           </SelectTrigger>

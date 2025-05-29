@@ -3,14 +3,12 @@ import { twMerge } from 'tailwind-merge'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
-// Taux de change par défaut (base MGA)
+// Taux de change par défaut (base MGA - Ariary)
 export const defaultExchangeRates: Record<string, number> = {
-  'MGA': 1,
-  'EUR': 0.000204,  // 1 MGA = 0.000204 EUR
-  'USD': 0.000222,  // 1 MGA = 0.000222 USD
-  'GBP': 0.000175,  // 1 MGA = 0.000175 GBP
-  'CAD': 0.000302,  // 1 MGA = 0.000302 CAD
-  'CHF': 0.000196   // 1 MGA = 0.000196 CHF
+  'MGA': 1.0,       // MGA (Ariary) est la devise de base
+  'EUR': 0.000196,  // 1 MGA = 0.000196 EUR (1 EUR ≈ 5100 MGA)
+  'USD': 0.000214,  // 1 MGA = 0.000214 USD (1 USD ≈ 4680 MGA)
+  'GBP': 0.000168   // 1 MGA = 0.000168 GBP (1 GBP ≈ 5950 MGA)
 }
 
 export function cn(...inputs: ClassValue[]) {
@@ -118,6 +116,7 @@ export function formatDuration(duration: number, unit: string): string {
 
 /**
  * Convertit un montant d'une devise à une autre en utilisant les taux de change fournis
+ * Base: MGA = 1.0 (Ariary Malgache)
  */
 export function convertCurrency(
   amount: number,
@@ -133,9 +132,9 @@ export function convertCurrency(
     throw new Error(`Taux de change non disponible pour ${fromCurrency} ou ${toCurrency}`);
   }
   
-  // Convertir d'abord en EUR (devise de base), puis dans la devise cible
-  const amountInEUR = amount / exchangeRates[fromCurrency];
-  const convertedAmount = amountInEUR * exchangeRates[toCurrency];
+  // Convertir d'abord en MGA (devise de base), puis dans la devise cible
+  const amountInMGA = amount / exchangeRates[fromCurrency];
+  const convertedAmount = amountInMGA * exchangeRates[toCurrency];
   
   // Arrondir à 2 décimales
   return Math.round(convertedAmount * 100) / 100;

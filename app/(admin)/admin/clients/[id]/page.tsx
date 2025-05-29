@@ -5,6 +5,7 @@ import { ArrowLeft, Pencil, Trash, MapPin, ShoppingBag, Mail, Phone, Calendar, U
 import { Button } from '@/components/ui/button'
 import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
+import { formatPrice } from '@/lib/utils'
 
 interface ClientPageProps {
   params: {
@@ -15,6 +16,18 @@ interface ClientPageProps {
 export default async function ClientPage({ params }: ClientPageProps) {
   // Vérifier que l'utilisateur est admin ou staff
   await requireStaff()
+
+  // Récupérer les paramètres de devise
+  const currencySettings = await db.setting.findMany({
+    where: {
+      key: {
+        in: ['currency', 'currencySymbol']
+      }
+    }
+  })
+  
+  const currency = currencySettings.find(s => s.key === 'currency')?.value || 'MGA'
+  const currencySymbol = currencySettings.find(s => s.key === 'currencySymbol')?.value || 'Ar'
 
   // Récupérer le client par ID
   const client = await db.user.findUnique({
@@ -32,13 +45,9 @@ export default async function ClientPage({ params }: ClientPageProps) {
           createdAt: 'desc'
         }
       },
-      activeSubscriptions: {
-        include: {
-          subscription: {
+      subscriptions: {
             include: {
               offer: true
-            }
-          }
         }
       }
     }
@@ -51,7 +60,11 @@ export default async function ClientPage({ params }: ClientPageProps) {
   // Calculer le montant total des commandes
   const totalSpent = client.orders
     .filter(order => order.status !== 'CANCELLED')
-    .reduce((sum, order) => sum + Number(order.total), 0)
+    .reduce((sum, order) => {
+      // Convertir le Decimal en nombre (les montants sont déjà en Ariary)
+      const orderTotal = order.total ? parseFloat(order.total.toString()) : 0
+      return sum + orderTotal
+    }, 0)
 
   // Formater les dates
   const formatDate = (date: Date | null | undefined) => {
@@ -114,12 +127,12 @@ export default async function ClientPage({ params }: ClientPageProps) {
               />
             ) : (
               <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl">
-                {client.name?.charAt(0) || client.email.charAt(0).toUpperCase()}
+                {client.name?.charAt(0) || client.email?.charAt(0)?.toUpperCase() || client.phone?.charAt(0) || 'C'}
               </div>
             )}
             <div>
               <h3 className="text-xl font-medium">{client.name || 'Sans nom'}</h3>
-              <p className="text-gray-600">{client.email}</p>
+              <p className="text-gray-600">{client.email || client.phone || 'Pas d\'email'}</p>
               <div className="mt-1 flex items-center text-sm text-gray-500">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   client.customerType === 'BUSINESS' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
@@ -138,7 +151,7 @@ export default async function ClientPage({ params }: ClientPageProps) {
             </div>
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-500">Total dépensé</p>
-              <p className="text-xl font-semibold">{totalSpent.toFixed(2)} €</p>
+              <p className="text-xl font-semibold">{formatPrice(totalSpent, currency, currencySymbol)}</p>
             </div>
           </div>
           
@@ -165,14 +178,28 @@ export default async function ClientPage({ params }: ClientPageProps) {
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Contact</h3>
               <div className="space-y-2">
+                {client.email && (
                 <div className="flex items-center">
                   <Mail className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm">{client.email}</span>
                 </div>
+                )}
                 <div className="flex items-center">
                   <Phone className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm">{client.phone || 'Non renseigné'}</span>
                 </div>
+                  {(client as any).communicationMethod && (
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-gray-500 mr-2">Moyen préféré:</span>
+                      <span className="text-sm">
+                        {(client as any).communicationMethod === 'EMAIL' && '📧 Email'}
+                        {(client as any).communicationMethod === 'WHATSAPP' && `💬 WhatsApp${(client as any).whatsappNumber ? ` (${(client as any).whatsappNumber})` : ''}`}
+                        {(client as any).communicationMethod === 'SMS' && '📱 SMS'}
+                        {(client as any).communicationMethod === 'FACEBOOK' && `📘 Facebook${(client as any).facebookPage ? ` (${(client as any).facebookPage.replace(/_/g, ' ')})` : ''}`}
+                        {(client as any).communicationMethod === 'TELEGRAM' && `📨 Telegram${(client as any).telegramUsername ? ` (${(client as any).telegramUsername})` : ''}`}
+                      </span>
+                    </div>
+                  )}
               </div>
             </div>
             
@@ -315,7 +342,7 @@ export default async function ClientPage({ params }: ClientPageProps) {
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">{order.total.toString()} €</td>
+                      <td className="px-4 py-3 text-sm">{formatPrice(parseFloat(order.total.toString()), currency, currencySymbol)}</td>
                       <td className="px-4 py-3 text-sm">{order.items.length}</td>
                       <td className="px-4 py-3 text-sm">
                         <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline">
@@ -335,12 +362,12 @@ export default async function ClientPage({ params }: ClientPageProps) {
         {/* Abonnements */}
         <div className="bg-white shadow rounded-lg p-6 md:col-span-12">
           <h2 className="text-lg font-semibold mb-4">Abonnements</h2>
-          {client.activeSubscriptions.length > 0 ? (
+          {client.subscriptions.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <th className="px-4 py-3">Service</th>
+                    <th className="px-4 py-3">Offre</th>
                     <th className="px-4 py-3">Début</th>
                     <th className="px-4 py-3">Fin</th>
                     <th className="px-4 py-3">Statut</th>
@@ -349,37 +376,37 @@ export default async function ClientPage({ params }: ClientPageProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {client.activeSubscriptions.map((userSub) => (
-                    <tr key={userSub.id} className="hover:bg-gray-50">
+                  {client.subscriptions.map((subscription) => (
+                    <tr key={subscription.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm">
-                        {userSub.subscription.offer.name}
+                        {subscription.offer.name}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {new Date(userSub.subscription.startDate).toLocaleDateString('fr-FR')}
+                        {new Date(subscription.startDate).toLocaleDateString('fr-FR')}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {new Date(userSub.subscription.endDate).toLocaleDateString('fr-FR')}
+                        {new Date(subscription.endDate).toLocaleDateString('fr-FR')}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            userSub.subscription.status === 'ACTIVE'
+                            subscription.status === 'ACTIVE'
                               ? 'bg-green-100 text-green-800'
-                              : userSub.subscription.status === 'PENDING'
+                              : subscription.status === 'PENDING'
                               ? 'bg-yellow-100 text-yellow-800'
-                              : userSub.subscription.status === 'CANCELLED'
+                              : subscription.status === 'CANCELLED'
                               ? 'bg-red-100 text-red-800'
                               : 'bg-blue-100 text-blue-800'
                           }`}
                         >
-                          {userSub.subscription.status}
+                          {subscription.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {userSub.subscription.autoRenew ? 'Oui' : 'Non'}
+                        {subscription.autoRenew ? 'Oui' : 'Non'}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <Link href={`/admin/streaming/subscriptions/${userSub.subscription.id}`} className="text-primary hover:underline">
+                        <Link href={`/admin/streaming/subscriptions/${subscription.id}`} className="text-primary hover:underline">
                           Voir
                         </Link>
                       </td>

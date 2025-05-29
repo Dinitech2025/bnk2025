@@ -2,11 +2,11 @@ import { prisma } from '@/lib/prisma'
 import { ServiceForm } from '@/components/services/service-form'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { Category, Service } from '@prisma/client'
+import { Service } from '@prisma/client'
 import slugify from 'slugify'
 
 async function getCategories() {
-  return await prisma.category.findMany({
+  return await prisma.serviceCategory.findMany({
     select: {
       id: true,
       name: true,
