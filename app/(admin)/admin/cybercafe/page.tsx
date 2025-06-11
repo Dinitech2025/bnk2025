@@ -242,7 +242,7 @@ export default function CyberCafePage() {
       setTickets(processedTickets);
       
       // Calculer le revenu journalier
-      const revenue = processedTickets.reduce((sum: number, ticket) => 
+      const revenue = processedTickets.reduce((sum: number, ticket: TicketType & { usedToday?: number }) => 
         sum + ((ticket.usedToday || 0) * ticket.price), 0);
       setDailyRevenue(revenue);
       
