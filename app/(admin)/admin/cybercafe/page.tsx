@@ -1932,9 +1932,9 @@ export default function CyberCafePage() {
                         {dailyRevenue.toLocaleString()} Ar
                       </div>
                       <div className="text-sm text-green-700">
-                        {tickets.reduce((sum, t) => sum + t.usedToday, 0)} tickets vendus
-                        {tickets.reduce((sum, t) => sum + (t.brokenToday || 0), 0) > 0 && 
-                          ` • ${tickets.reduce((sum, t) => sum + (t.brokenToday || 0), 0)} problèmes`
+                        {tickets.reduce((sum: number, t: TicketType & { usedToday?: number }) => sum + (t.usedToday || 0), 0)} tickets vendus
+                        {tickets.reduce((sum: number, t: TicketType & { brokenToday?: number }) => sum + (t.brokenToday || 0), 0) > 0 && 
+                          ` • ${tickets.reduce((sum: number, t: TicketType & { brokenToday?: number }) => sum + (t.brokenToday || 0), 0)} problèmes`
                         }
                       </div>
                     </div>
