@@ -51,10 +51,46 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const { date, ticketUsages, totalRevenue } = await req.json();
+    const reportDate = new Date(date);
+    
+    // Vérifier si un rapport existe déjà pour cette date
+    const existingReport = await prisma.dailyReport.findFirst({
+      where: {
+        date: {
+          gte: new Date(reportDate.setHours(0, 0, 0, 0)),
+          lte: new Date(reportDate.setHours(23, 59, 59, 999))
+        }
+      }
+    });
 
+    if (existingReport) {
+      // Mettre à jour le rapport existant
+      const updatedReport = await prisma.dailyReport.update({
+        where: {
+          id: existingReport.id
+        },
+        data: {
+          totalRevenue,
+          ticketUsages: {
+            deleteMany: {}, // Supprimer les anciens usages
+            create: ticketUsages.map((usage: any) => ({
+              ticketId: usage.ticketId,
+              quantity: usage.quantity
+            }))
+          }
+        },
+        include: {
+          ticketUsages: true
+        }
+      });
+
+      return NextResponse.json(updatedReport);
+    }
+
+    // Créer un nouveau rapport si aucun n'existe
     const report = await prisma.dailyReport.create({
       data: {
-        date: new Date(date),
+        date: reportDate,
         totalRevenue,
         ticketUsages: {
           create: ticketUsages.map((usage: any) => ({
@@ -70,6 +106,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(report);
   } catch (error) {
+    console.error('Erreur lors de la sauvegarde du rapport:', error);
     return NextResponse.json({ error: "Erreur lors de la création du rapport" }, { status: 500 });
   }
 } 

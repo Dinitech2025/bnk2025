@@ -1,12 +1,13 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import type { Metadata } from 'next'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+// import { getServerSession } from 'next-auth/next'
+// import { authOptions } from '@/lib/auth'
 import { AuthProvider } from '@/lib/auth-provider'
 import { generateMetadata } from './metadata'
 import { Toaster } from '@/components/ui/toaster'
 import { SonnerToast } from '@/components/ui/toast'
+import { StagewiseInit } from '@/components/stagewise-init'
 import { CurrencyProviderWrapper } from '@/components/providers/currency-provider'
 import '@/lib/currency-initializer' // Initialise la synchronisation automatique
 
@@ -20,11 +21,18 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSession(authOptions)
+  // Temporairement désactivé à cause du conflit de versions next-auth
+  // let session = null
+  // try {
+  //   session = await getServerSession(authOptions)
+  // } catch (error) {
+  //   console.warn('Erreur lors de la récupération de la session:', error)
+  // }
 
   return (
     <html lang="fr">
       <body className={inter.className}>
+        <StagewiseInit />
         <AuthProvider>
           <CurrencyProviderWrapper>
             {children}

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  output: 'standalone',
   images: {
     remotePatterns: [
       {
@@ -19,6 +19,7 @@ const nextConfig = {
         pathname: '/**',
       }
     ],
+    domains: ['res.cloudinary.com'],
   },
   // Définir /admin comme une route indépendante avec son propre layout racine
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],

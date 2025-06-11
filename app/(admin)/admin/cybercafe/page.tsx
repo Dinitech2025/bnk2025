@@ -182,10 +182,31 @@ export default function CyberCafePage() {
   const loadTickets = async () => {
     try {
       setIsLoading(true);
-      const [ticketsData, historyData] = await Promise.all([
-        fetch('/api/cybercafe/tickets').then(res => res.json()),
-        fetch('/api/cybercafe/daily-history?date=' + date).then(res => res.json())
+      console.log('📥 Chargement des tickets...');
+      
+      const [ticketsResponse, historyResponse] = await Promise.all([
+        fetch('/api/cybercafe/tickets'),
+        fetch('/api/cybercafe/daily-history?date=' + date)
       ]);
+
+      if (!ticketsResponse.ok) {
+        const errorData = await ticketsResponse.json();
+        console.error('❌ Erreur API tickets:', errorData);
+        throw new Error(errorData.error || 'Erreur lors du chargement des tickets');
+      }
+
+      if (!historyResponse.ok) {
+        const errorData = await historyResponse.json();
+        console.error('❌ Erreur API historique:', errorData);
+        throw new Error(errorData.error || 'Erreur lors du chargement de l\'historique');
+      }
+
+      const [ticketsData, historyData] = await Promise.all([
+        ticketsResponse.json(),
+        historyResponse.json()
+      ]);
+
+      console.log('📊 Données reçues:', { tickets: ticketsData, history: historyData });
 
       // Calculer les usages du jour depuis l'historique
       const todayUsage: {[key: string]: {used: number, broken: number, brokenDetails: any[]}} = {};

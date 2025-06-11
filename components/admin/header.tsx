@@ -71,11 +71,8 @@ export default function AdminHeader({ user }: AdminHeaderProps) {
         
         {/* Logo/Titre centré */}
         <div className="flex items-center justify-center">
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-            BoutikNaka
-            <span className="ml-1 sm:ml-2 text-xs bg-blue-600 text-white px-1.5 sm:px-2 py-0.5 rounded-md">
-              Admin
-            </span>
+          <h1 className="text-lg sm:text-xl font-bold text-blue-600">
+            DINITECH
           </h1>
         </div>
         

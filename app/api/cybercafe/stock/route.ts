@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// GET /api/cybercafe/stock - Récupérer l'historique des mises à jour
+export async function GET() {
+  try {
+    const stockUpdates = await prisma.stockUpdate.findMany({
+      include: {
+        ticket: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 50 // Limiter aux 50 dernières mises à jour
+    });
+
+    return NextResponse.json(stockUpdates);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'historique:', error);
+    return NextResponse.json(
+      { error: 'Erreur lors de la récupération de l\'historique' },
+      { status: 500 }
+    );
+  }
+}
+
 // POST /api/cybercafe/stock
 export async function POST(request: Request) {
   try {

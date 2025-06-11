@@ -49,9 +49,9 @@ export function ImageUpload(props: ImageUploadProps) {
       if (props.onUpload) {
         const url = await props.onUpload(file)
         if (props.multiple) {
-          props.onChange([...(props.value || []), url])
+          ;(props as MultipleImageUploadProps).onChange([...(props.value || []), url])
         } else {
-          props.onChange(url)
+          ;(props as SingleImageUploadProps).onChange(url)
         }
       }
     } catch (error) {
@@ -61,9 +61,9 @@ export function ImageUpload(props: ImageUploadProps) {
 
   const handleRemove = (urlToRemove: string) => {
     if (props.multiple) {
-      props.onChange((props.value || []).filter(url => url !== urlToRemove))
+      ;(props as MultipleImageUploadProps).onChange((props.value || []).filter(url => url !== urlToRemove))
     } else {
-      props.onChange('')
+      ;(props as SingleImageUploadProps).onChange('')
     }
   }
 
@@ -97,14 +97,14 @@ export function ImageUpload(props: ImageUploadProps) {
             {props.value && (
               <div className={`relative overflow-hidden ${containerStyles}`}>
                 <Image
-                  src={props.value}
+                  src={(props.multiple ? (props.value as string[])[0] : props.value as string)}
                   alt="Image"
                   fill
                   className={effectiveVariant === 'avatar' ? 'object-cover' : 'object-contain'}
                 />
                 <Button
                   type="button"
-                  onClick={() => handleRemove(props.value!)}
+                  onClick={() => handleRemove((props.multiple ? (props.value as string[])[0] : props.value as string))}
                   variant="destructive"
                   size="icon"
                   className="absolute top-2 right-2"

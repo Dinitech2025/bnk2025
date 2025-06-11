@@ -169,9 +169,8 @@ function AdminSidebar() {
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0" // Contrôle de l'affichage mobile
       )}>
         <div className="p-4 border-b border-slate-800">
-          <Link href="/admin" className="flex items-center" onClick={closeMobileSidebar}>
-            <span className="text-xl font-bold">BoutikNaka</span>
-            <span className="ml-2 text-xs bg-blue-600 px-2 py-0.5 rounded-md">Admin</span>
+          <Link href="/admin" className="flex items-center justify-center" onClick={closeMobileSidebar}>
+            <span className="text-xl font-bold">Administration</span>
           </Link>
         </div>
         <nav className="flex-1 p-4">
