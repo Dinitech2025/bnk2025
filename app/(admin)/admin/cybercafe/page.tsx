@@ -1389,7 +1389,7 @@ export default function CyberCafePage() {
             <Card className="border-2 border-blue-200 bg-blue-50">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {tickets.reduce((sum, t) => sum + t.usedToday, 0)}
+                  {tickets.reduce((sum: number, t: TicketType & { usedToday?: number }) => sum + (t.usedToday || 0), 0)}
                 </div>
                 <div className="text-sm text-blue-700">Tickets utilisés</div>
               </CardContent>
