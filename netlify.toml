@@ -3,8 +3,8 @@
   publish = ".next"
 
 [build.environment]
+  NODE_VERSION = "20.16.0"
   NEXT_TELEMETRY_DISABLED = "1"
-  NODE_VERSION = "18"
   PRISMA_FORCE_GENERATION = "true"
   # Désactiver le scan de secrets pour les fichiers de build
   SECRETS_SCAN_OMIT_PATHS = ".next/*,node_modules/*"
