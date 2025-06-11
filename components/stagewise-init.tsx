@@ -40,6 +40,8 @@ export function StagewiseInit() {
             ],
           }
 
+          // TODO: Supprimer @ts-ignore une fois que nous aurons une solution du support Stagewise
+          // @ts-ignore - Le type de l'icône SVG n'est pas compatible avec ce qui est attendu par Stagewise
           initToolbar(stagewiseConfig)
           console.log('✅ Stagewise toolbar initialisée avec succès')
         } catch (error) {
