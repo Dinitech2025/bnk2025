@@ -8,36 +8,36 @@ datasource db {
 }
 
 model User {
-  id                     String             @id @default(cuid())
-  name                   String?
-  firstName              String?
-  lastName               String?
-  email                  String?            @unique
-  emailVerified          DateTime?
-  password               String?
-  image                  String?
-  phone                  String?
-  birthDate              DateTime?
-  gender                 String?
-  preferredLanguage      String?            @default("fr")
-  newsletter             Boolean            @default(false)
-  notes                  String?
-  customerType           String?            @default("INDIVIDUAL")
-  companyName            String?
-  vatNumber              String?
-  communicationMethod    String?            @default("EMAIL")
-  facebookPage           String?
-  whatsappNumber         String?
-  telegramUsername       String?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  role                   String             @default("CLIENT")
-  addresses              Address[]
-  orders                 Order[]
-  sessions               Session[]
-  subscriptions          Subscription[]
-  userProfiles           UserProfile[]
-  activeSubscriptions    UserSubscription[]
+  id                  String             @id @default(cuid())
+  name                String?
+  firstName           String?
+  lastName            String?
+  email               String?            @unique
+  emailVerified       DateTime?
+  password            String?
+  image               String?
+  phone               String?
+  birthDate           DateTime?
+  gender              String?
+  preferredLanguage   String?            @default("fr")
+  newsletter          Boolean            @default(false)
+  notes               String?
+  customerType        String?            @default("INDIVIDUAL")
+  companyName         String?
+  vatNumber           String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  role                String             @default("CLIENT")
+  communicationMethod String?            @default("EMAIL")
+  facebookPage        String?
+  telegramUsername    String?
+  whatsappNumber      String?
+  addresses           Address[]
+  orders              Order[]
+  sessions            Session[]
+  subscriptions       Subscription[]
+  userProfiles        UserProfile[]
+  activeSubscriptions UserSubscription[]
 
   @@index([role])
   @@index([email])
@@ -68,15 +68,15 @@ model Address {
 }
 
 model ProductCategory {
-  id          String    @id @default(cuid())
+  id          String            @id @default(cuid())
   name        String
-  slug        String    @unique
+  slug        String            @unique
   description String?
   parentId    String?
   image       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  parent      ProductCategory? @relation("ProductCategoryHierarchy", fields: [parentId], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  parent      ProductCategory?  @relation("ProductCategoryHierarchy", fields: [parentId], references: [id])
   children    ProductCategory[] @relation("ProductCategoryHierarchy")
   products    Product[]
 
@@ -84,15 +84,15 @@ model ProductCategory {
 }
 
 model ServiceCategory {
-  id          String    @id @default(cuid())
+  id          String            @id @default(cuid())
   name        String
-  slug        String    @unique
+  slug        String            @unique
   description String?
   parentId    String?
   image       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  parent      ServiceCategory? @relation("ServiceCategoryHierarchy", fields: [parentId], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  parent      ServiceCategory?  @relation("ServiceCategoryHierarchy", fields: [parentId], references: [id])
   children    ServiceCategory[] @relation("ServiceCategoryHierarchy")
   services    Service[]
 
@@ -116,9 +116,9 @@ model Product {
   published        Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  category         ProductCategory?   @relation(fields: [categoryId], references: [id])
   inventoryHistory InventoryHistory[]
   orderItems       OrderItem[]
-  category         ProductCategory?   @relation(fields: [categoryId], references: [id])
   attributes       ProductAttribute[]
   variations       ProductVariation[]
   images           Media[]            @relation("MediaToProduct")
@@ -155,17 +155,19 @@ model ProductVariation {
 }
 
 model Service {
-  id          String      @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
-  slug        String      @unique
+  slug        String          @unique
   description String?
   price       Decimal
   duration    Int
   categoryId  String?
-  published   Boolean     @default(true)
+  published   Boolean         @default(true)
+  category    ServiceCategory? @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
-  category    ServiceCategory?   @relation(fields: [categoryId], references: [id])
-  images      Media[]     @relation("MediaToService")
+  images      Media[]         @relation("MediaToService")
+
+  @@index([categoryId])
 }
 
 model Platform {
@@ -429,14 +431,47 @@ model InventoryHistory {
 }
 
 model Ticket {
-  id           String        @id @default(cuid())
-  duration     String
-  price        Int
-  stock        Int           @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  stockUpdates StockUpdate[]
-  usages       TicketUsage[]
+  id                String               @id @default(cuid())
+  duration          String               @unique
+  price             Int
+  stock             Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  codes             TicketCode[]
+  stockUpdates      StockUpdate[]
+  usages            TicketUsage[]
+  dailyHistories    DailyTicketHistory[]
+}
+
+model TicketCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  ticketId  String
+  isUsed    Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  ticket    Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([isUsed])
+  @@index([code])
+}
+
+model DailyTicketHistory {
+  id        String   @id @default(cuid())
+  ticketId  String
+  date      DateTime @default(now())
+  type      String   // "USED" ou "BROKEN"
+  quantity  Int
+  reason    String?  // Raison pour les tickets défaillants
+  code      String?  // Code du ticket utilisé
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@index([date])
+  @@index([type])
 }
 
 model StockUpdate {
@@ -507,6 +542,18 @@ model PlatformProviderOffer {
   @@index([isActive])
 }
 
+model ImportCalculationSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("import_calculation_settings")
+}
+
 enum AccountStatus {
   ACTIVE
   INACTIVE
@@ -516,16 +563,4 @@ enum AccountStatus {
 enum Availability {
   AVAILABLE
   UNAVAILABLE
-}
-
-model ImportCalculationSettings {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  value       String
-  description String?
-  category    String   // 'transport', 'commission', 'fees'
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("import_calculation_settings")
 }
