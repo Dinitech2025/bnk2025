@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Vérifier le nombre total de profils
-    const totalCount = await prisma.accountProfile.count(accountId ? { where: whereCondition } : {});
+    const totalCount = await prisma.accountProfile.count({ where: whereCondition });
     console.log(`Total des AccountProfiles ${accountId ? `pour le compte ${accountId}` : 'dans la base'} : ${totalCount}`);
 
     // Récupérer les accountProfiles avec les informations nécessaires

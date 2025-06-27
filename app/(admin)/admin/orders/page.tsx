@@ -15,9 +15,10 @@ type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'us
     lastName: string | null;
     email: string;
   };
-  items: Array<Omit<OrderWithRelations['items'][0], 'unitPrice' | 'totalPrice'> & {
+  items: Array<Omit<OrderWithRelations['items'][0], 'unitPrice' | 'totalPrice' | 'metadata'> & {
     unitPrice: number;
     totalPrice: number;
+    metadata: string | null;
   }>;
 };
 
@@ -108,7 +109,8 @@ async function getOrders(): Promise<OrderWithConvertedPrices[]> {
       items: order.items.map(item => ({
         ...item,
         unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice)
+        totalPrice: Number(item.totalPrice),
+        metadata: item.metadata ? JSON.stringify(item.metadata) : null
       }))
     }));
 
