@@ -1,27 +1,17 @@
 [build]
-  command = "npm install && npx prisma generate && npm run build"
-  publish = ".next"
+  command = "npm run build"
 
 [build.environment]
   NODE_VERSION = "20.18.1"
   NEXT_TELEMETRY_DISABLED = "1"
-  PRISMA_FORCE_GENERATION = "true"
   # Dummy DATABASE_URL for build process (Prisma needs it to generate client)
   DATABASE_URL = "postgresql://dummy:dummy@dummy:5432/dummy"
   # Common environment variables for build
-  NEXTAUTH_URL = "https://example.com"
-  NEXTAUTH_SECRET = "dummy-secret-for-build"
-  # Skip database operations during build
+  NEXTAUTH_URL = "https://dummy.netlify.app"
+  NEXTAUTH_SECRET = "dummy-secret-for-build-only"
+  # Skip validations during build
   SKIP_ENV_VALIDATION = "true"
+  NODE_ENV = "production"
 
 [[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-# Cache configuration
-[[plugins]]
-  package = "netlify-plugin-cache"
-  [plugins.inputs]
-    paths = [
-      "node_modules/.cache",
-      ".next/cache"
-    ] 
+  package = "@netlify/plugin-nextjs" 
