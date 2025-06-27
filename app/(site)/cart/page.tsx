@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Trash2, Plus, Minus, ShoppingBag, User, Users, Clock, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
 
 interface CartItem {
   id: string
@@ -251,7 +252,7 @@ export default function CartPage() {
                       )}
 
                       <p className="text-sm text-gray-600">
-                        {item.price.toLocaleString()} {item.currency}
+                        <PriceWithConversion price={item.price} />
                         {item.type === 'subscription' && item.duration && ` / ${item.duration}`}
                       </p>
                     </div>
@@ -279,7 +280,7 @@ export default function CartPage() {
 
                     <div className="text-right">
                       <p className="font-medium">
-                        {(item.price * item.quantity).toLocaleString()} {item.currency}
+                        <PriceWithConversion price={item.price * item.quantity} />
                       </p>
                       {item.type === 'subscription' && (
                         <p className="text-xs text-gray-500">Quantité: 1</p>
@@ -310,7 +311,7 @@ export default function CartPage() {
             <CardContent className="space-y-4">
               <div className="flex justify-between">
                 <span>Sous-total</span>
-                <span>{getTotalPrice().toLocaleString()} Ar</span>
+                <span><PriceWithConversion price={getTotalPrice()} /></span>
               </div>
               <div className="flex justify-between">
                 <span>Livraison</span>
@@ -319,7 +320,7 @@ export default function CartPage() {
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>{getTotalPrice().toLocaleString()} Ar</span>
+                <span><PriceWithConversion price={getTotalPrice()} /></span>
               </div>
               
               {/* Note pour les abonnements */}

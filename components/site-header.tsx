@@ -4,26 +4,27 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSettings } from '@/lib/contexts/settings-context'
 import { getSetting } from '@/lib/hooks/use-site-settings'
-import dynamic from 'next/dynamic'
 import { CurrencySelector } from '@/components/ui/currency-selector'
 import { RefreshCw, ShoppingCart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
-
-// Import dynamique du UserMenu avec ssr: false pour éviter les erreurs d'hydratation
-const UserMenu = dynamic(() => import('@/components/user-menu'), { 
-  ssr: false,
-  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200"></div>
-})
+import { UserMenu } from '@/components/user-menu'
+import { DropdownMenuNav } from '@/components/ui/dropdown-menu-nav'
 
 export function SiteHeader() {
   const { settings, isLoading, reloadSettings } = useSettings()
   const [cartItemsCount, setCartItemsCount] = useState(0)
+  const [isMounted, setIsMounted] = useState(false)
   
   const siteName = getSetting(settings, 'siteName', 'BoutikNaka')
   const logoUrl = getSetting(settings, 'logoUrl', '')
   const useSiteLogo = getSetting(settings, 'useSiteLogo', 'false') === 'true'
+
+  // Marquer le composant comme monté
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Reduced logging during build to avoid spam
   if (process.env.NODE_ENV === 'development') {
@@ -32,9 +33,16 @@ export function SiteHeader() {
 
   // Simuler le nombre d'articles dans le panier (à remplacer par votre logique réelle)
   useEffect(() => {
+    if (!isMounted) return
+
     const updateCartCount = () => {
-      const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-      setCartItemsCount(cart.length)
+      try {
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+        setCartItemsCount(cart.length)
+      } catch (error) {
+        console.error('Erreur lors de la lecture du panier:', error)
+        setCartItemsCount(0)
+      }
     }
 
     // Mettre à jour au chargement
@@ -48,11 +56,12 @@ export function SiteHeader() {
       window.removeEventListener('cartUpdated', updateCartCount)
       window.removeEventListener('storage', updateCartCount)
     }
-  }, [])
+  }, [isMounted])
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
-      <div className="container flex h-20 items-center">
+      <div className="container flex h-20 items-center justify-between">
+        {/* Logo à gauche */}
         <Link href="/" className="flex items-center space-x-2">
           {useSiteLogo && logoUrl ? (
             <div className="relative h-24 w-72 -ml-8">
@@ -68,44 +77,34 @@ export function SiteHeader() {
             <span className="text-xl font-bold">{siteName}</span>
           )}
         </Link>
-        <nav className="ml-auto flex items-center space-x-4">
+
+        {/* Menu centré */}
+        <nav className="flex items-center space-x-6">
           <Link
             href="/devis"
             className="text-sm font-medium transition-colors hover:text-primary"
           >
             Faire un devis
           </Link>
-          <Link
+          <DropdownMenuNav
+            title="Produits"
             href="/products"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Produits
-          </Link>
-          <Link
+            type="products"
+          />
+          <DropdownMenuNav
+            title="Services"
             href="/services"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Services
-          </Link>
-          <Link
+            type="services"
+          />
+          <DropdownMenuNav
+            title="Abonnements"
             href="/subscriptions"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Abonnements
-          </Link>
-          <Link 
-            href="/contact" 
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Contact
-          </Link>
-          <Link 
-            href="/currency-converter" 
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            Convertisseur
-          </Link>
-          
+            type="platforms"
+          />
+        </nav>
+
+        {/* Actions à droite */}
+        <div className="flex items-center space-x-4">
           {/* Panier */}
           <Link href="/cart" className="relative">
             <Button variant="ghost" size="sm" className="relative">
@@ -136,7 +135,7 @@ export function SiteHeader() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           <UserMenu />
-        </nav>
+        </div>
       </div>
     </header>
   )

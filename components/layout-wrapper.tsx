@@ -2,16 +2,9 @@
 
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { ReactNode } from 'react'
 import { SiteHeader } from './site-header'
 import { SiteFooter } from './site-footer'
-
-// Import dynamique du UserMenu avec ssr: false pour éviter les erreurs d'hydratation
-const UserMenu = dynamic(() => import('@/components/user-menu'), { 
-  ssr: false,
-  loading: () => <div className="h-10 w-10 rounded-full bg-gray-200"></div>
-})
 
 export function LayoutWrapper({ children }: { children: ReactNode }) {
   const { data: session } = useSession()

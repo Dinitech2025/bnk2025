@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { useCurrency } from '@/lib/hooks/use-currency'
 import {
@@ -45,6 +45,12 @@ export function CurrencySelector({ className }: CurrencySelectorProps) {
   } = useCurrency()
   
   const [searchTerm, setSearchTerm] = useState('')
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // Marquer le composant comme monté
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
   
   // Liste des devises disponibles (uniquement les populaires)
   const currencies = popularCurrencies.filter(code => defaultExchangeRates[code] !== undefined)
@@ -58,8 +64,14 @@ export function CurrencySelector({ className }: CurrencySelectorProps) {
   // Sauvegarder la devise sélectionnée dans le localStorage
   const handleValueChange = useCallback((value: string) => {
     setTargetCurrency(value)
-    localStorage.setItem('selectedCurrency', value)
-  }, [setTargetCurrency])
+    if (isMounted) {
+      try {
+        localStorage.setItem('selectedCurrency', value)
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde de la devise:', error)
+      }
+    }
+  }, [setTargetCurrency, isMounted])
   
   return (
     <div className={className}>

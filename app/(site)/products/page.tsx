@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Plus } from 'lucide-react'
 import Image from 'next/image'
 import { toast } from '@/components/ui/use-toast'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
 
 interface ProductImage {
   url: string;
@@ -103,7 +104,9 @@ export default function ProductsPage() {
                 <p className="text-gray-600 text-sm h-20 overflow-hidden">{product.description}</p>
               </CardContent>
               <CardFooter className="p-4 flex justify-between items-center">
-                <p className="font-bold text-lg">{Number(product.price).toLocaleString()} Ar</p>
+                <p className="font-bold text-lg">
+                  <PriceWithConversion price={Number(product.price)} />
+                </p>
                 <Button onClick={() => addToCart(product)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Ajouter

@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  
+  // Configuration des images
   images: {
     remotePatterns: [
       {
@@ -29,13 +31,17 @@ const nextConfig = {
         pathname: '/**',
       }
     ],
+    // Garder domains pour la compatibilité
     domains: ['res.cloudinary.com', 'loremflickr.com', 'upload.wikimedia.org'],
   },
-  // Définir /admin comme une route indépendante avec son propre layout racine
+  
+  // Extensions de pages
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  // Activer l'optimisation CSS avec critters
-  experimental: {
-    optimizeCss: true,
+  
+  // Configuration du compilateur
+  compiler: {
+    // Supprimer les console.log en production
+    removeConsole: process.env.NODE_ENV === 'production',
   },
 }
 

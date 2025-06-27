@@ -23,26 +23,42 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currencySymbol, setCurrencySymbol] = useState('Ar')
   const [targetCurrency, setTargetCurrency] = useState<string | null>(null)
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(defaultExchangeRates)
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // Marquer le composant comme monté
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
   
   // Récupérer les taux de change depuis l'API et la devise sélectionnée depuis localStorage
   useEffect(() => {
+    if (!isMounted) return
+    
     // Charger la devise sélectionnée depuis localStorage
-    const savedCurrency = localStorage.getItem('selectedCurrency')
-    if (savedCurrency) {
-      setTargetCurrency(savedCurrency)
+    try {
+      const savedCurrency = localStorage.getItem('selectedCurrency')
+      if (savedCurrency) {
+        setTargetCurrency(savedCurrency)
+      }
+    } catch (error) {
+      console.error('Erreur lors de la lecture de selectedCurrency:', error)
     }
     
     // Vérifier le cache des taux de change
-    const cachedRates = localStorage.getItem('exchangeRates')
-    const cachedTimestamp = localStorage.getItem('exchangeRatesTimestamp')
-    const ONE_MINUTE = 60 * 1000 // 1 minute en millisecondes (au lieu d'1 heure)
+    try {
+      const cachedRates = localStorage.getItem('exchangeRates')
+      const cachedTimestamp = localStorage.getItem('exchangeRatesTimestamp')
+      const ONE_MINUTE = 60 * 1000 // 1 minute en millisecondes (au lieu d'1 heure)
     
-    if (cachedRates && cachedTimestamp) {
-      const timestamp = parseInt(cachedTimestamp)
-      if (Date.now() - timestamp < ONE_MINUTE) {
-        setExchangeRates(JSON.parse(cachedRates))
-        return
+      if (cachedRates && cachedTimestamp) {
+        const timestamp = parseInt(cachedTimestamp)
+        if (Date.now() - timestamp < ONE_MINUTE) {
+          setExchangeRates(JSON.parse(cachedRates))
+          return
+        }
       }
+    } catch (error) {
+      console.error('Erreur lors de la lecture du cache:', error)
     }
     
     // Charger les taux de change depuis l'API si pas de cache valide
@@ -63,8 +79,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
           if (data.exchangeRates && Object.keys(data.exchangeRates).length > 0) {
             setExchangeRates(data.exchangeRates)
             // Mettre à jour le cache
-            localStorage.setItem('exchangeRates', JSON.stringify(data.exchangeRates))
-            localStorage.setItem('exchangeRatesTimestamp', Date.now().toString())
+            try {
+              localStorage.setItem('exchangeRates', JSON.stringify(data.exchangeRates))
+              localStorage.setItem('exchangeRatesTimestamp', Date.now().toString())
+            } catch (error) {
+              console.error('Erreur lors de la sauvegarde du cache:', error)
+            }
           }
         }
       } catch (error) {
@@ -73,7 +93,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
     
     fetchExchangeRates()
-  }, [])
+  }, [isMounted])
   
   // Fonction pour formater un prix avec les paramètres de devise principale
   const formatCurrency = useCallback((price: number) => {

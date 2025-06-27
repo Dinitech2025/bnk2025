@@ -49,7 +49,7 @@ interface OfferFormProps {
 
 // Import dynamique avec fallback pour le composant MultiImageUpload
 const DynamicMultiImageUpload = dynamic(
-  () => import('@/components/ui/multi-image-upload').then(mod => mod.MultiImageUpload),
+  () => import('@/components/ui/multi-image-upload').then(mod => ({ default: mod.MultiImageUpload })),
   { 
     ssr: false,
     loading: () => (
@@ -59,8 +59,7 @@ const DynamicMultiImageUpload = dynamic(
           <p className="text-sm text-gray-500">Chargement de l'uploader d'images...</p>
         </div>
       </div>
-    ),
-    suspense: true
+    )
   }
 );
 
