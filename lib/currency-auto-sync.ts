@@ -11,7 +11,11 @@ export function startAutoSync() {
     clearInterval(syncInterval)
   }
   
-  console.log('🔄 Démarrage de la synchronisation automatique des taux de change (toutes les 5 heures)')
+  // Réduire les logs pendant le build pour éviter le spam
+  const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
+  if (!isBuildTime) {
+    console.log('🔄 Démarrage de la synchronisation automatique des taux de change (toutes les 5 heures)')
+  }
   
   // Synchronisation immédiate si nécessaire
   syncIfNeeded()
@@ -39,18 +43,22 @@ export function stopAutoSync() {
 async function syncIfNeeded() {
   try {
     const needsUpdate = await shouldUpdateRates()
+    const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
     
     if (needsUpdate) {
-      console.log('🔄 Synchronisation des taux de change en cours...')
+      if (!isBuildTime) console.log('🔄 Synchronisation des taux de change en cours...')
       const success = await syncExchangeRates(false)
       
       if (success) {
-        console.log('✅ Taux de change synchronisés avec succès')
+        if (!isBuildTime) console.log('✅ Taux de change synchronisés avec succès')
       } else {
-        console.log('❌ Échec de la synchronisation des taux de change')
+        if (!isBuildTime) console.log('❌ Échec de la synchronisation des taux de change')
       }
     } else {
-      console.log('ℹ️ Taux de change à jour, synchronisation ignorée')
+      // Ne log qu'une fois pendant le build pour éviter le spam
+      if (!isBuildTime) {
+        console.log('ℹ️ Taux de change à jour, synchronisation ignorée')
+      }
     }
   } catch (error) {
     console.error('❌ Erreur lors de la synchronisation automatique:', error)

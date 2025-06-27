@@ -6,7 +6,7 @@
     "dev": "node scripts/start-dev.js",
     "dev:old": "node scripts/init-server.js & next dev",
     "kill-port": "node scripts/kill-port-3000.js",
-    "build": "prisma generate && next build",
+    "build": "prisma generate --no-engine && next build",
     "start": "node scripts/init-server.js & next start -p 3001",
     "lint": "next lint",
     "prisma:studio": "prisma studio",

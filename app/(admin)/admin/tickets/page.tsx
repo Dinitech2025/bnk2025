@@ -7,28 +7,45 @@ import TicketGenerator from '@/components/admin/tickets/ticket-generator';
 import DailyReport from '@/components/admin/tickets/daily-report';
 import type { Ticket, TicketBatch, DailyReport as DailyReportType } from '@/app/api/admin/tickets/types';
 
+// Force dynamic rendering to avoid URL parsing errors during static generation
+export const dynamic = 'force-dynamic'
+
 async function getTickets() {
-  const response = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/admin/tickets', {
-    cache: 'no-store'
-  });
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const response = await fetch(baseUrl + '/api/admin/tickets', {
+      cache: 'no-store'
+    });
 
-  if (!response.ok) {
-    throw new Error('Erreur lors de la récupération des tickets');
+    if (!response.ok) {
+      console.error('Failed to fetch tickets:', response.status)
+      return []
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching tickets:', error)
+    return []
   }
-
-  return response.json();
 }
 
 async function getDailyReport() {
-  const response = await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/admin/tickets/daily-report', {
-    cache: 'no-store'
-  });
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const response = await fetch(baseUrl + '/api/admin/tickets/daily-report', {
+      cache: 'no-store'
+    });
 
-  if (!response.ok) {
-    throw new Error('Erreur lors de la récupération du rapport journalier');
+    if (!response.ok) {
+      console.error('Failed to fetch daily report:', response.status)
+      return { totalRevenue: 0, ticketsSold: [], remainingTickets: [], invalidTickets: [] }
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching daily report:', error)
+    return { totalRevenue: 0, ticketsSold: [], remainingTickets: [], invalidTickets: [] }
   }
-
-  return response.json();
 }
 
 export default async function TicketsPage() {

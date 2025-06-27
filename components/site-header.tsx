@@ -25,7 +25,10 @@ export function SiteHeader() {
   const logoUrl = getSetting(settings, 'logoUrl', '')
   const useSiteLogo = getSetting(settings, 'useSiteLogo', 'false') === 'true'
 
-  console.log('SiteHeader - Settings:', { siteName, logoUrl, useSiteLogo, settings })
+  // Reduced logging during build to avoid spam
+  if (process.env.NODE_ENV === 'development') {
+    console.log('SiteHeader - Settings:', { siteName, logoUrl, useSiteLogo, settings })
+  }
 
   // Simuler le nombre d'articles dans le panier (à remplacer par votre logique réelle)
   useEffect(() => {

@@ -13,7 +13,10 @@ export function initializeCurrencySync() {
   
   // Démarrer la synchronisation automatique uniquement en production ou si explicitement activé
   if (process.env.NODE_ENV === 'production' || process.env.ENABLE_CURRENCY_SYNC === 'true') {
-    console.log('🚀 Initialisation de la synchronisation automatique des taux de change')
+    // Réduire les logs pendant le build pour éviter le spam
+    if (!process.env.NEXT_PHASE || process.env.NEXT_PHASE !== 'phase-production-build') {
+      console.log('🚀 Initialisation de la synchronisation automatique des taux de change')
+    }
     startAutoSync()
     isInitialized = true
   } else {

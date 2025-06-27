@@ -2,15 +2,20 @@ import React from 'react';
 import Link from 'next/link';
 import { Order } from '@/types/order';
 
+// Force dynamic rendering to avoid URL parsing errors during static generation
+export const dynamic = 'force-dynamic'
+
 async function getOrders(): Promise<Order[]> {
   try {
     // Utiliser notre API de débogage pour récupérer les commandes
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/debug/direct-orders`, {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const res = await fetch(`${baseUrl}/api/debug/direct-orders`, {
       cache: 'no-store',
     });
     
     if (!res.ok) {
-      throw new Error(`Erreur API débogage: ${res.status}`);
+      console.error(`Erreur API débogage: ${res.status}`);
+      return [];
     }
     
     return res.json();
