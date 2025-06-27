@@ -45,6 +45,7 @@ export default function DebugSettingsPage() {
 
   // Fonction pour forcer le rechargement du favicon
   const reloadFavicon = () => {
+    if (typeof window === 'undefined') return
     const links = document.querySelectorAll("link[rel*='icon']")
     links.forEach(link => {
       const href = link.getAttribute('href')
@@ -92,7 +93,7 @@ export default function DebugSettingsPage() {
                   <li>📝 <strong>faviconUrl (API):</strong> {apiData?.faviconUrl || '❌ Aucun'}</li>
                   <li>🔧 <strong>Favicon actuel du navigateur:</strong> 
                     <span className="ml-2">
-                      {document?.querySelector("link[rel*='icon']")?.getAttribute('href') || '❌ Aucun'}
+                      {typeof window !== 'undefined' && document?.querySelector("link[rel*='icon']")?.getAttribute('href') || '❌ Aucun'}
                     </span>
                   </li>
                 </ul>
@@ -117,6 +118,7 @@ export default function DebugSettingsPage() {
                       size="sm" 
                       variant="outline"
                       onClick={() => {
+                        if (typeof window === 'undefined') return
                         const currentFavicon = document.querySelector("link[rel*='icon']")?.getAttribute('href')
                         alert(`Favicon actuel: ${currentFavicon || 'Aucun'}`)
                       }}
