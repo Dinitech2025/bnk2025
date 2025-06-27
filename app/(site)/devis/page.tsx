@@ -157,7 +157,7 @@ export default function DevisPage() {
       }, 300)
       return () => clearTimeout(timeoutId)
     }
-  }, [formData.supplierPrice, formData.weight, formData.warehouse, formData.mode, formData.volume])
+  }, [formData.supplierPrice, formData.supplierCurrency, formData.weight, formData.warehouse, formData.mode, formData.volume])
 
   const shouldAutoCalculate = (data: FormData): boolean => {
     const hasMinimalData = data.supplierPrice && 
