@@ -153,7 +153,17 @@ export async function POST(request: NextRequest) {
     // Déterminer le délai de livraison
     let transitTime = '5-10 jours ouvrés'
     if (mode === 'sea') {
-      transitTime = warehouseConfig.transitTime || '25-35 jours'
+      // Transport maritime
+      switch (warehouseConfig.origin) {
+        case 'france':
+          transitTime = '25-35 jours'
+          break
+        case 'china':
+          transitTime = '30-40 jours'
+          break
+        default:
+          transitTime = '25-35 jours'
+      }
     } else {
       // Transport aérien
       switch (warehouseConfig.origin) {

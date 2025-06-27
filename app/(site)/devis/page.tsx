@@ -266,32 +266,67 @@ export default function DevisPage() {
     setIsAddingToCart(true)
 
     try {
+      // Étape 1: Créer le produit dans la base de données
+      toast.info('Création du produit en cours...')
+      
+      const createProductResponse = await fetch('/api/public/create-product-from-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productInfo: {
+            name: formData.productName,
+            url: formData.productUrl || undefined,
+            weight: calculation.productInfo.weight,
+            volume: calculation.productInfo.volume,
+            mode: calculation.productInfo.mode,
+            warehouse: calculation.productInfo.warehouse
+          },
+          costs: calculation.costs,
+          calculationMethod: calculation.calculationMethod,
+          transitTime: calculation.transitTime
+        })
+      })
+
+      if (!createProductResponse.ok) {
+        const errorData = await createProductResponse.json()
+        throw new Error(errorData.error || 'Erreur lors de la création du produit')
+      }
+
+      const { product } = await createProductResponse.json()
+
+      // Étape 2: Ajouter le produit créé au panier
       const cartProduct = {
-        id: `import-${Date.now()}`,
-        name: formData.productName,
-        price: calculation.costs.total,
-        currency: 'MGA',
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        sku: product.sku,
+        price: parseFloat(product.price),
+        currency: 'Ar', // Utiliser Ar pour cohérence avec l'interface utilisateur
         image: null,
-        description: `Produit importé par ${calculation.productInfo.mode === 'air' ? 'avion' : 'bateau'} depuis ${calculation.productInfo.warehouse}`,
-        category: 'Produits Importés',
-        specifications: {
-          weight: calculation.productInfo.weight,
-          volume: calculation.productInfo.volume,
-          mode: calculation.productInfo.mode,
-          warehouse: calculation.productInfo.warehouse,
-          supplierPrice: calculation.costs.supplierPrice.amount,
-          supplierCurrency: calculation.costs.supplierPrice.currency,
-          productUrl: formData.productUrl || undefined
-        },
+        description: product.description,
+        category: product.category,
+        weight: product.weight ? parseFloat(product.weight) : undefined,
+        attributes: product.attributes,
         quantity: 1
       }
 
       const existingCart = JSON.parse(localStorage.getItem('cart') || '[]')
-      existingCart.push(cartProduct)
+      
+      // Vérifier si le produit n'est pas déjà dans le panier
+      const existingProductIndex = existingCart.findIndex((item: any) => item.id === product.id)
+      
+      if (existingProductIndex >= 0) {
+        // Si le produit existe déjà, augmenter la quantité
+        existingCart[existingProductIndex].quantity += 1
+        toast.success(`Quantité de "${product.name}" mise à jour dans le panier`)
+      } else {
+        // Sinon, ajouter le nouveau produit
+        existingCart.push(cartProduct)
+        toast.success(`"${product.name}" a été créé et ajouté au panier`)
+      }
+
       localStorage.setItem('cart', JSON.stringify(existingCart))
       window.dispatchEvent(new Event('cartUpdated'))
-
-      toast.success(`"${formData.productName}" a été ajouté au panier`)
 
       // Réinitialiser le formulaire
       setFormData({
@@ -307,7 +342,8 @@ export default function DevisPage() {
       setCalculation(null)
 
     } catch (error) {
-      toast.error('Erreur lors de l\'ajout au panier')
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'ajout au panier')
     } finally {
       setIsAddingToCart(false)
     }
