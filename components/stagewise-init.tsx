@@ -1,12 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
+import { h } from 'preact'
 
-const SimpleIcon = () => (
-  <svg>
-    <circle cx={12} cy={12} r={10} />
-  </svg>
-)
+const SimpleIcon = () => h('svg', null, h('circle', { cx: 12, cy: 12, r: 10 }))
 
 export function StagewiseInit() {
   useEffect(() => {

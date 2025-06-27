@@ -1,17 +1,40 @@
 [build]
   command = "npm run build"
+  publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "22.17.0"
+  NODE_VERSION = "20.16.0"
   NEXT_TELEMETRY_DISABLED = "1"
-  # Dummy DATABASE_URL for build process (Prisma needs it to generate client)
-  DATABASE_URL = "postgresql://dummy:dummy@dummy:5432/dummy"
-  # Common environment variables for build
-  NEXTAUTH_URL = "https://dummy.netlify.app"
-  NEXTAUTH_SECRET = "dummy-secret-for-build-only"
-  # Skip validations during build
-  SKIP_ENV_VALIDATION = "true"
-  NODE_ENV = "production"
+  PRISMA_FORCE_GENERATION = "true"
+  # Désactiver le scan de secrets pour les fichiers de build
+  SECRETS_SCAN_OMIT_PATHS = ".next/*,node_modules/*"
 
 [[plugins]]
-  package = "@netlify/plugin-nextjs" 
+  package = "@netlify/plugin-nextjs"
+
+# Configuration pour Prisma Studio
+[[redirects]]
+  from = "/studio/*"
+  to = "http://localhost:5555/:splat"
+  status = 200
+  force = true
+  conditions = {Role = ["admin"]}
+
+# Cache configuration
+[[plugins]]
+  package = "netlify-plugin-cache"
+  [plugins.inputs]
+    paths = [
+      "node_modules/.cache",
+      ".next/cache",
+      "prisma/migrations"
+    ]
+
+# Commandes de build et d'initialisation
+[build.lifecycle]
+  onBuild = """
+    npx prisma generate && \
+    npx prisma migrate deploy && \
+    npm run netlify:init
+  """
+  onSuccess = "npx prisma studio" 
