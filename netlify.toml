@@ -2,6 +2,7 @@
   command = "npm run build"
 
 [build.environment]
+  NODE_VERSION = "22.17.0"
   NEXT_TELEMETRY_DISABLED = "1"
   # Dummy DATABASE_URL for build process (Prisma needs it to generate client)
   DATABASE_URL = "postgresql://dummy:dummy@dummy:5432/dummy"
