@@ -55,7 +55,7 @@ export function SiteHeader() {
       <div className="container flex h-20 items-center">
         <Link href="/" className="flex items-center space-x-2">
           {useSiteLogo && logoUrl ? (
-            <div className="relative h-24 w-72">
+            <div className="relative h-24 w-72 -ml-8">
               <Image
                 src={logoUrl}
                 alt={siteName}
@@ -69,6 +69,12 @@ export function SiteHeader() {
           )}
         </Link>
         <nav className="ml-auto flex items-center space-x-4">
+          <Link
+            href="/devis"
+            className="text-sm font-medium transition-colors hover:text-primary"
+          >
+            Faire un devis
+          </Link>
           <Link
             href="/products"
             className="text-sm font-medium transition-colors hover:text-primary"
