@@ -32,10 +32,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier le type de fichier
-    if (!file.type.startsWith('image/')) {
-      console.log('Type de fichier invalide:', file.type)
+    const isValidImageType = file.type.startsWith('image/') || 
+                            file.type === 'image/x-icon' || 
+                            file.type === 'image/vnd.microsoft.icon' ||
+                            file.name.toLowerCase().endsWith('.ico')
+    
+    if (!isValidImageType) {
+      console.log('Type de fichier invalide:', file.type, 'Nom:', file.name)
       return new NextResponse(
-        JSON.stringify({ error: 'Le fichier doit être une image' }),
+        JSON.stringify({ error: 'Le fichier doit être une image (PNG, JPG, GIF, SVG, ICO)' }),
         { status: 400 }
       )
     }
@@ -73,6 +78,28 @@ export async function POST(request: NextRequest) {
         uploadOptions.transformation = [
           { width: 1200, height: 630, crop: 'fill' }
         ]
+        break
+      case 'logo':
+        uploadOptions.folder = 'bnk/logos'
+        // Vérifier si c'est un fichier .ico (favicon)
+        if (file.name.toLowerCase().endsWith('.ico') || file.type === 'image/x-icon') {
+          // Pour les fichiers .ico, pas de transformation
+          uploadOptions.resource_type = 'raw'
+          uploadOptions.format = 'ico'
+        } else {
+          // Pour les autres logos (PNG, JPG, etc.)
+          uploadOptions.transformation = [
+            { width: 500, height: 500, crop: 'fit', background: 'transparent' }
+          ]
+        }
+        break
+      case 'favicon':
+        uploadOptions.folder = 'bnk/favicons'
+        // Pour les favicons, pas de transformation pour préserver la compatibilité
+        uploadOptions.resource_type = 'raw'
+        if (file.name.toLowerCase().endsWith('.ico')) {
+          uploadOptions.format = 'ico'
+        }
         break
       default:
         uploadOptions.folder = 'bnk/general'

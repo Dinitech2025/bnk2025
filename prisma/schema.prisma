@@ -53,18 +53,19 @@ model Session {
 }
 
 model Address {
-  id          String  @id @default(cuid())
-  userId      String
-  type        String
-  street      String
-  city        String
-  state       String?
-  zipCode     String
-  country     String
-  isDefault   Boolean @default(false)
-  phoneNumber String?
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders      Order[] @relation("shippingAddress")
+  id            String  @id @default(cuid())
+  userId        String
+  type          String
+  street        String
+  city          String
+  state         String?
+  zipCode       String
+  country       String
+  isDefault     Boolean @default(false)
+  phoneNumber   String?
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[] @relation("shippingAddress")
+  billingOrders Order[] @relation("billingAddress")
 }
 
 model ProductCategory {
@@ -308,18 +309,20 @@ model UserProfile {
 }
 
 model Order {
-  id              String         @id @default(cuid())
-  userId          String
-  status          String         @default("QUOTE")
-  total           Decimal
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  addressId       String?
-  orderNumber     String?        @unique
-  shippingAddress Address?       @relation("shippingAddress", fields: [addressId], references: [id])
-  user            User           @relation(fields: [userId], references: [id])
-  items           OrderItem[]
-  subscriptions   Subscription[]
+  id                String         @id @default(cuid())
+  userId            String
+  status            String         @default("QUOTE")
+  total             Decimal
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  addressId         String?        // Adresse de livraison
+  billingAddressId  String?        // Adresse de facturation
+  orderNumber       String?        @unique
+  shippingAddress   Address?       @relation("shippingAddress", fields: [addressId], references: [id])
+  billingAddress    Address?       @relation("billingAddress", fields: [billingAddressId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  subscriptions     Subscription[]
 
   @@index([userId])
   @@index([status])

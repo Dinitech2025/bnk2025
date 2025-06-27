@@ -7,14 +7,19 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { AlertCircle, User, Lock, UserCircle2, Users, UserCheck } from 'lucide-react'
+import { AlertCircle, User, Lock, UserCircle2, Users, UserCheck, Phone } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('') // Email ou téléphone
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Fonction pour détecter si c'est un email ou un téléphone
+  const isEmail = (value: string) => {
+    return value.includes('@')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,20 +27,35 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const result = await signIn('credentials', {
-        email,
+      // Debug: Afficher ce qui va être envoyé
+      const credentials = {
+        email: isEmail(identifier) ? identifier : undefined,
+        phone: !isEmail(identifier) ? identifier : undefined,
         password,
         redirect: false,
+      }
+      
+      console.log('🔐 Tentative de connexion avec:', {
+        email: credentials.email || 'non fourni',
+        phone: credentials.phone || 'non fourni',
+        hasPassword: !!credentials.password
       })
 
+      const result = await signIn('credentials', credentials)
+      
+      console.log('🔐 Résultat de connexion:', result)
+
       if (result?.error) {
-        setError('Email ou mot de passe incorrect')
+        console.log('❌ Erreur de connexion NextAuth:', result.error)
+        setError('Identifiants incorrects')
         setIsLoading(false)
       } else {
+        console.log('✅ Connexion réussie !')
         router.push('/')
         router.refresh()
       }
     } catch (error) {
+      console.error('❌ Exception lors de la connexion:', error)
       setError('Une erreur est survenue')
       setIsLoading(false)
     }
@@ -112,21 +132,28 @@ export default function LoginPage() {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700 font-medium">
-                Email
+              <Label htmlFor="identifier" className="text-gray-700 font-medium">
+                Email ou Téléphone
               </Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                {isEmail(identifier) ? (
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                ) : (
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                )}
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="votre@email.com"
+                  id="identifier"
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="votre@email.com ou +261 34 12 345 67"
                   required
                   className="pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Vous pouvez utiliser votre email ou votre numéro de téléphone
+              </p>
             </div>
 
             <div className="space-y-2">

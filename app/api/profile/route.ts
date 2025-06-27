@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         orders: {
           select: {
             id: true,
+            orderNumber: true,
             status: true,
             total: true,
             createdAt: true,

@@ -1,14 +1,24 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Vérifier le nombre total de profils
-    const totalCount = await prisma.accountProfile.count();
-    console.log(`Total des AccountProfiles dans la base : ${totalCount}`);
+    const { searchParams } = new URL(request.url)
+    const accountId = searchParams.get('accountId')
 
-    // Récupérer tous les accountProfiles avec les informations nécessaires
+    // Construire les conditions de filtrage
+    const whereCondition: any = {}
+    if (accountId) {
+      whereCondition.accountId = accountId
+    }
+
+    // Vérifier le nombre total de profils
+    const totalCount = await prisma.accountProfile.count(accountId ? { where: whereCondition } : {});
+    console.log(`Total des AccountProfiles ${accountId ? `pour le compte ${accountId}` : 'dans la base'} : ${totalCount}`);
+
+    // Récupérer les accountProfiles avec les informations nécessaires
     const profiles = await prisma.accountProfile.findMany({
+      where: whereCondition,
       include: {
         account: {
           include: {
@@ -23,6 +33,9 @@ export async function GET() {
             endDate: true
           }
         }
+      },
+      orderBy: {
+        profileSlot: 'asc'
       }
     });
 
@@ -49,11 +62,13 @@ export async function GET() {
           name: profile.name,
           profileSlot: profile.profileSlot,
           pin: profile.pin,
+          isUsed: profile.isAssigned, // Utiliser isAssigned comme indicateur d'utilisation
           isAssigned: profile.isAssigned,
           subscriptionId: profile.subscriptionId,
           account: {
             id: profile.account.id,
             username: profile.account.username,
+            email: profile.account.email,
             platform: {
               id: profile.account.platform.id,
               name: profile.account.platform.name,

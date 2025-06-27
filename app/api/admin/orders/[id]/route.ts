@@ -62,9 +62,42 @@ export async function GET(
                   select: {
                     id: true,
                     name: true,
+                    logo: true,
                   },
                 },
               },
+            },
+            subscriptionAccounts: {
+              include: {
+                account: {
+                  include: {
+                    platform: {
+                      select: {
+                        id: true,
+                        name: true,
+                        logo: true,
+                      }
+                    }
+                  }
+                },
+              },
+            },
+            accountProfiles: {
+              select: {
+                id: true,
+                name: true,
+                profileSlot: true,
+                pin: true,
+                isAssigned: true,
+                accountId: true,
+                account: {
+                  select: {
+                    username: true,
+                    email: true,
+                    id: true,
+                  }
+                }
+              }
             },
           },
         },

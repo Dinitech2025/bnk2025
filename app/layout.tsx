@@ -9,6 +9,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { SonnerToast } from '@/components/ui/toast'
 import { StagewiseInit } from '@/components/stagewise-init'
 import { CurrencyProviderWrapper } from '@/components/providers/currency-provider'
+import { SettingsProvider } from '@/lib/contexts/settings-context'
+import { DynamicFavicon } from '@/components/dynamic-favicon'
 import '@/lib/currency-initializer' // Initialise la synchronisation automatique
 
 const inter = Inter({ subsets: ['latin'] })
@@ -34,11 +36,14 @@ export default async function RootLayout({
       <body className={inter.className}>
         <StagewiseInit />
         <AuthProvider>
-          <CurrencyProviderWrapper>
-            {children}
-            <Toaster />
-            <SonnerToast />
-          </CurrencyProviderWrapper>
+          <SettingsProvider>
+            <DynamicFavicon />
+            <CurrencyProviderWrapper>
+              {children}
+              <Toaster />
+              <SonnerToast />
+            </CurrencyProviderWrapper>
+          </SettingsProvider>
         </AuthProvider>
       </body>
     </html>

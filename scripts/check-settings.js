@@ -4,46 +4,48 @@ const prisma = new PrismaClient()
 
 async function checkSettings() {
   try {
-    // Vérifier les paramètres de devise
-    const currencySettings = await prisma.setting.findMany({
-      where: {
-        key: {
-          in: ['currency', 'currencySymbol', 'exchangeRates', 'baseCurrency'],
-        },
-      },
-    });
-
-    console.log('Paramètres de devise trouvés:', currencySettings.length);
-    currencySettings.forEach(setting => {
-      console.log(`- ${setting.key}: ${setting.value}`);
-    });
-
-    // Vérifier le nombre total de paramètres
-    const totalSettings = await prisma.setting.count();
-    console.log(`Nombre total de paramètres dans la base: ${totalSettings}`);
-
-    // Vérifier les utilisateurs
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        role: true
-      }
-    });
+    console.log('Vérification des paramètres dans la base de données...\n')
     
-    console.log('Utilisateurs trouvés:', users.length);
-    users.forEach(user => {
-      console.log(`- ${user.email} (${user.role})`);
-    });
+    const settings = await prisma.setting.findMany({
+      orderBy: {
+        key: 'asc'
+      }
+    })
+
+    if (settings.length === 0) {
+      console.log('❌ Aucun paramètre trouvé dans la base de données')
+      return
+    }
+
+    console.log(`✅ ${settings.length} paramètres trouvés:\n`)
+    
+    // Afficher tous les paramètres
+    settings.forEach(setting => {
+      console.log(`📝 ${setting.key}: "${setting.value || 'NULL'}"`)
+    })
+
+    // Vérifier spécifiquement les paramètres de logo
+    console.log('\n🔍 Paramètres de logo spécifiques:')
+    const logoSettings = settings.filter(s => 
+      s.key.includes('logo') || s.key.includes('Logo') || s.key === 'useSiteLogo'
+    )
+    
+    if (logoSettings.length === 0) {
+      console.log('❌ Aucun paramètre de logo trouvé')
+    } else {
+      logoSettings.forEach(setting => {
+        console.log(`🖼️  ${setting.key}: "${setting.value || 'NULL'}"`)
+      })
+    }
 
   } catch (error) {
-    console.error('Erreur lors de la vérification:', error);
+    console.error('❌ Erreur lors de la vérification des paramètres:', error)
   } finally {
-    await prisma.$disconnect();
+    await prisma.$disconnect()
   }
 }
 
-checkSettings(); 
+checkSettings() 
  
  
  

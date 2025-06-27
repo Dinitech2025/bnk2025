@@ -1,42 +1,118 @@
-import { PriceDisplay } from '@/components/ui/price-display'
+'use client'
 
-// Exemple de produits avec prix (normalement ces données viendraient de la base de données)
-const mockProducts = [
-  { id: 1, name: 'Smartphone Premium', description: 'Dernier modèle avec appareil photo haute résolution', price: 899.99, compareAtPrice: 999.99 },
-  { id: 2, name: 'Casque Bluetooth', description: 'Son immersif et autonomie de 30 heures', price: 149.99, compareAtPrice: null },
-  { id: 3, name: 'Ordinateur Portable', description: 'Léger et puissant pour tous vos besoins', price: 1299.99, compareAtPrice: 1499.99 },
-  { id: 4, name: 'Montre Connectée', description: 'Suivez votre activité et vos notifications', price: 249.99, compareAtPrice: 299.99 },
-  { id: 5, name: 'Tablette Tactile', description: 'Écran haute résolution et processeur rapide', price: 399.99, compareAtPrice: null },
-  { id: 6, name: 'Enceinte Portable', description: 'Son puissant et résistante à l\'eau', price: 79.99, compareAtPrice: 99.99 },
-  { id: 7, name: 'Appareil Photo', description: 'Capturez vos moments en haute qualité', price: 599.99, compareAtPrice: 699.99 },
-  { id: 8, name: 'Chargeur sans fil', description: 'Rechargez tous vos appareils rapidement', price: 29.99, compareAtPrice: 34.99 },
-]
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Plus } from 'lucide-react'
+import Image from 'next/image'
+import { toast } from '@/components/ui/use-toast'
+
+interface ProductImage {
+  url: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  images: ProductImage[];
+}
+
+async function getProducts(): Promise<Product[]> {
+  const res = await fetch('/api/public/products', { cache: 'no-store' })
+  if (!res.ok) {
+    throw new Error('Failed to fetch products')
+  }
+  return res.json()
+}
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getProducts()
+        setProducts(data)
+      } catch (error) {
+        console.error(error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les produits.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchProducts()
+  }, [])
+
+  const addToCart = (product: Product) => {
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+    
+    const existingItem = cart.find((item: any) => item.id === product.id)
+    
+    if (existingItem) {
+      existingItem.quantity += 1
+    } else {
+      cart.push({ 
+        id: product.id, 
+        name: product.name, 
+        price: product.price, 
+        quantity: 1, 
+        image: product.images?.[0]?.url,
+        currency: 'Ar', // Devise par défaut
+        type: 'product'
+      })
+    }
+    
+    localStorage.setItem('cart', JSON.stringify(cart))
+    window.dispatchEvent(new Event('cartUpdated'))
+    
+    toast({
+      title: "Produit ajouté!",
+      description: `${product.name} a été ajouté à votre panier.`,
+    })
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Nos Produits</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {mockProducts.map((product) => (
-          <div key={product.id} className="bg-white rounded-lg overflow-hidden shadow-sm border">
-            <div className="h-48 bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500">Image</span>
-            </div>
-            <div className="p-4">
-              <h3 className="font-medium mb-2">{product.name}</h3>
-              <p className="text-gray-600 text-sm mb-2">{product.description}</p>
-              <div className="flex justify-between items-center">
-                <PriceDisplay 
-                  price={product.price} 
-                  comparePrice={product.compareAtPrice}
-                  size="medium"
-                />
-                <button className="px-3 py-1 bg-primary text-white rounded text-sm">Voir</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <h1 className="text-3xl font-bold mb-8">Nos Produits</h1>
+      
+      {isLoading ? (
+        <p>Chargement des produits...</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {products.map((product) => (
+            <Card key={product.id} className="overflow-hidden flex flex-col">
+              <CardHeader className="p-0">
+                <div className="relative w-full h-48">
+                  <Image
+                    src={product.images?.[0]?.url || '/placeholder-image.svg'}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 flex-grow">
+                <CardTitle className="text-lg mb-2 h-14 overflow-hidden">{product.name}</CardTitle>
+                <p className="text-gray-600 text-sm h-20 overflow-hidden">{product.description}</p>
+              </CardContent>
+              <CardFooter className="p-4 flex justify-between items-center">
+                <p className="font-bold text-lg">{Number(product.price).toLocaleString()} Ar</p>
+                <Button onClick={() => addToCart(product)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 } 

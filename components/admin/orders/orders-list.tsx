@@ -79,6 +79,7 @@ type OrderWithRelations = {
     productId: string | null;
     serviceId: string | null;
     offerId: string | null;
+    metadata: string | null;
     offer: { id: string; name: string; } | null;
     product: { id: string; name: string; } | null;
     service: { id: string; name: string; } | null;
@@ -100,6 +101,29 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Fonction pour extraire le mode de paiement des métadonnées
+  const getPaymentMethod = (order: OrderWithRelations): string => {
+    // Chercher dans les métadonnées du premier item
+    if (order.items && order.items.length > 0 && order.items[0].metadata) {
+      try {
+        const metadata = JSON.parse(order.items[0].metadata);
+        if (metadata.paymentMethod) {
+          const paymentMethods: { [key: string]: string } = {
+            'mobile_money': 'Mobile Money',
+            'bank_transfer': 'Virement bancaire',
+            'cash_on_delivery': 'Paiement à la livraison',
+            'credit_card': 'Carte bancaire',
+            'card': 'Carte bancaire'
+          };
+          return paymentMethods[metadata.paymentMethod] || metadata.paymentMethod;
+        }
+      } catch (error) {
+        console.error('Erreur lors du parsing des métadonnées:', error);
+      }
+    }
+    return 'Non spécifié';
+  };
 
   // Fonction pour changer le statut d'une commande
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -452,59 +476,64 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                       <PriceDisplay price={Number(order.total)} size="small" />
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="p-0 hover:bg-transparent">
-                            <OrderStatusBadge status={order.status} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
-                          <DropdownMenuLabel>Changer le statut</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'QUOTE')}
-                            disabled={loading === order.id}
-                          >
-                            Devis en attente de paiement
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'PAID')}
-                            disabled={loading === order.id}
-                          >
-                          Payée
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
-                            disabled={loading === order.id}
-                          >
-                            En traitement
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'SHIPPING')}
-                            disabled={loading === order.id}
-                          >
-                          En livraison
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'DELIVERED')}
-                            disabled={loading === order.id}
-                          >
-                          Livrée
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
-                            disabled={loading === order.id}
-                          >
-                          Annulée
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'FINISHED')}
-                            disabled={loading === order.id}
-                          >
-                          Terminée
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="space-y-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="p-0 hover:bg-transparent">
+                              <OrderStatusBadge status={order.status} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56">
+                            <DropdownMenuLabel>Changer le statut</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'QUOTE')}
+                              disabled={loading === order.id}
+                            >
+                              Devis en attente de paiement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'PAID')}
+                              disabled={loading === order.id}
+                            >
+                            Payée
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
+                              disabled={loading === order.id}
+                            >
+                              En traitement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'SHIPPING')}
+                              disabled={loading === order.id}
+                            >
+                            En livraison
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'DELIVERED')}
+                              disabled={loading === order.id}
+                            >
+                            Livrée
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'CANCELLED')}
+                              disabled={loading === order.id}
+                            >
+                            Annulée
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'FINISHED')}
+                              disabled={loading === order.id}
+                            >
+                            Terminée
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <div className="text-xs text-muted-foreground">
+                          {getPaymentMethod(order)}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface SiteSettings {
   siteName: string
@@ -17,12 +17,24 @@ interface SiteSettings {
   metaTitle: string
   metaDescription: string
   metaKeywords: string
+  useSiteLogo: string
+  bannerUrl: string
+  footerText: string
+  facebookUrl: string
+  instagramUrl: string
+  twitterUrl: string
+  youtubeUrl: string
   [key: string]: string
 }
 
 // Fonction pour récupérer les paramètres
 async function fetchSiteSettings(): Promise<SiteSettings> {
-  const response = await fetch('/api/settings')
+  const response = await fetch('/api/settings', {
+    cache: 'no-store', // Éviter le cache
+    headers: {
+      'Cache-Control': 'no-cache',
+    }
+  })
   if (!response.ok) {
     throw new Error('Erreur lors du chargement des paramètres')
   }
@@ -34,29 +46,29 @@ export function useSiteSettings() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let isMounted = true
-
-    fetchSiteSettings()
-      .then(data => {
-        if (isMounted) {
-          setSettings(data)
-          setIsLoading(false)
-        }
-      })
-      .catch(err => {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Une erreur est survenue')
-          setIsLoading(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
+  const loadSettings = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await fetchSiteSettings()
+      setSettings(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
-  return { settings, isLoading, error }
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
+
+  // Fonction pour recharger manuellement les paramètres
+  const reloadSettings = useCallback(() => {
+    loadSettings()
+  }, [loadSettings])
+
+  return { settings, isLoading, error, reloadSettings }
 }
 
 // Fonction utilitaire pour obtenir un paramètre avec une valeur par défaut

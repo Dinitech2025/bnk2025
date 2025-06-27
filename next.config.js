@@ -17,9 +17,19 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'loremflickr.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'upload.wikimedia.org',
+        pathname: '/**',
       }
     ],
-    domains: ['res.cloudinary.com'],
+    domains: ['res.cloudinary.com', 'loremflickr.com', 'upload.wikimedia.org'],
   },
   // Définir /admin comme une route indépendante avec son propre layout racine
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],

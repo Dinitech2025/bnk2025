@@ -28,159 +28,49 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const platformId = searchParams.get('platformId')
-    
-    if (platformId) {
-      // Vérifier si la plateforme existe
-      const platform = await prisma.platform.findUnique({
-        where: { id: platformId }
-      })
 
-      if (!platform) {
-        return NextResponse.json(
-          { error: 'Plateforme non trouvée' },
-          { status: 404 }
-        )
-      }
+    if (!platformId) {
+      return NextResponse.json({ error: 'Platform ID is required' }, { status: 400 })
     }
 
-    // Récupérer les comptes avec leurs offres fournisseur en utilisant SQL brut
-    const accounts = await prisma.$queryRaw<any[]>`
-      SELECT 
-        a.id,
-        a."platformId",
-        a.username,
-        a.email,
-        a.password,
-        a.status,
-        a."expiresAt",
-        a.availability,
-        a."createdAt",
-        a."updatedAt",
-        a."providerOfferId",
-        p.id as "platform_id",
-        p.name as "platform_name",
-        p.logo as "platform_logo",
-        p.type as "platform_type",
-        p."hasProfiles" as "platform_hasProfiles",
-        p."hasGiftCards" as "platform_hasGiftCards",
-        po.id as "providerOffer_id",
-        po.name as "providerOffer_name",
-        po.price as "providerOffer_price",
-        po.currency as "providerOffer_currency"
-      FROM "Account" a
-      LEFT JOIN "Platform" p ON a."platformId" = p.id
-      LEFT JOIN "PlatformProviderOffer" po ON a."providerOfferId" = po.id
-      ${platformId ? Prisma.sql`WHERE a."platformId" = ${platformId}` : Prisma.empty}
-      ORDER BY a."createdAt" DESC
-    `
-
-    // Récupérer les profils pour chaque compte
-    const accountIds = accounts.map((account: any) => account.id)
-    const profiles = await prisma.accountProfile.findMany({
-        where: {
-        accountId: { in: accountIds }
-      }
-    })
-
-    // Formatter les données
-    const formattedAccounts = accounts.map((account: any) => {
-      const accountProfiles = profiles.filter((profile: any) => profile.accountId === account.id)
-      
-      return {
-        id: account.id,
-        username: account.username,
-        email: account.email,
-        status: account.status,
-        availability: account.availability,
-        createdAt: account.createdAt,
-        expiresAt: account.expiresAt,
+    const accounts = await prisma.account.findMany({
+      where: {
+        platformId: platformId,
+        status: 'ACTIVE'
+      },
+      include: {
         platform: {
-          id: account.platform_id,
-          name: account.platform_name,
-          logo: account.platform_logo,
-          type: account.platform_type,
-          hasProfiles: account.platform_hasProfiles,
-          hasGiftCards: account.platform_hasGiftCards
-        },
-        providerOffer: account.providerOffer_id ? {
-          id: account.providerOffer_id,
-          name: account.providerOffer_name,
-          price: account.providerOffer_price,
-          currency: account.providerOffer_currency
-        } : null,
-        accountProfiles: accountProfiles.map((profile: any) => ({
-          id: profile.id,
-          isAssigned: profile.isAssigned
-        }))
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            logo: true
           }
+        },
+        accountProfiles: true
+      },
+      orderBy: {
+        email: 'asc'
+      }
     })
 
-    // Mettre à jour la disponibilité de tous les comptes
-    const updatedAccounts = await Promise.all(formattedAccounts.map(async (account: any) => {
-      const isActive = account.status === 'ACTIVE'
-      let isAvailable = false
-      let activeSubscription = null
+    // Calculer le nombre de profils utilisés pour chaque compte
+    const accountsWithProfileCount = accounts.map((account) => {
+      const usedProfiles = account.accountProfiles.filter(profile => profile.isAssigned).length
+      const totalProfiles = account.accountProfiles.length
 
-      if (isActive) {
-        if (account.platform.hasProfiles) {
-          // Pour les plateformes avec profils, vérifier s'il y a des profils non assignés
-          const hasUnassignedProfiles = account.accountProfiles.some((profile: any) => !profile.isAssigned)
-          isAvailable = hasUnassignedProfiles
-        } else {
-          // Pour les plateformes sans profils, vérifier s'il y a un abonnement actif
-          activeSubscription = await prisma.subscription.findFirst({
-            where: {
-              subscriptionAccounts: {
-                some: {
-                  accountId: account.id
-                }
-              },
-              status: 'ACTIVE',
-              endDate: {
-                gte: new Date() // Date de fin dans le futur
-              }
-            },
-            include: {
-              user: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  email: true
-                }
-              }
-            }
-          })
-
-          // Le compte est disponible seulement s'il n'y a pas d'abonnement actif
-          isAvailable = !activeSubscription
-        }
-      }
-
-      // Mettre à jour la disponibilité si nécessaire
-      if (account.availability !== isAvailable) {
-        await prisma.$executeRaw`
-          UPDATE "Account" 
-          SET availability = ${isAvailable}
-          WHERE id = ${account.id}
-        `
-      }
-
-      // Retourner le compte avec la disponibilité mise à jour et l'abonnement actif
       return {
         ...account,
-        availability: isAvailable,
-        activeSubscription: activeSubscription
+        currentProfiles: usedProfiles,
+        maxProfiles: totalProfiles,
+        availableProfiles: totalProfiles - usedProfiles
       }
-    }))
+    })
 
-    return NextResponse.json(updatedAccounts)
-
+    return NextResponse.json(accountsWithProfileCount)
   } catch (error) {
-    console.error('Erreur lors de la récupération des comptes:', error)
-    return NextResponse.json(
-      { message: 'Erreur lors de la récupération des comptes' },
-      { status: 500 }
-    )
+    console.error('[ACCOUNTS_GET]', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
 

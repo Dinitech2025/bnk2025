@@ -87,7 +87,7 @@ export function UserMenu() {
           <Link href="/profile">Mon profil</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/orders">Mes commandes</Link>
+          <Link href="/profile?tab=orders">Mes commandes</Link>
         </DropdownMenuItem>
         {(session.user.role === 'ADMIN' || session.user.role === 'STAFF') && (
           <DropdownMenuItem asChild>

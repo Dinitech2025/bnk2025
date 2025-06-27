@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { toast } from '@/lib/hooks/use-toast'
+import { toast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,9 +69,10 @@ export default function GeneralSettingsPage() {
         }
       } catch (error) {
         console.error('Erreur lors du chargement des paramètres:', error)
-        toast.error({
+        toast({
           title: "Erreur",
-          description: "Impossible de charger les paramètres"
+          description: "Impossible de charger les paramètres",
+          variant: "destructive"
         })
       } finally {
         setIsLoading(false)
@@ -94,7 +95,7 @@ export default function GeneralSettingsPage() {
       })
 
       if (response.ok) {
-        toast.success({
+        toast({
           title: "Succès",
           description: "Les paramètres ont été enregistrés avec succès"
         })
@@ -103,9 +104,10 @@ export default function GeneralSettingsPage() {
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des paramètres:', error)
-      toast.error({
+      toast({
         title: "Erreur",
-        description: "Impossible d'enregistrer les paramètres"
+        description: "Impossible d'enregistrer les paramètres",
+        variant: "destructive"
       })
     } finally {
       setIsSaving(false)
@@ -252,6 +254,7 @@ export default function GeneralSettingsPage() {
                     onChange={(url) => setValue('logoUrl', url)}
                     disabled={isLoading || isSaving}
                     multiple={false}
+                    variant="logo"
                   />
                 </div>
                 
@@ -262,6 +265,7 @@ export default function GeneralSettingsPage() {
                     onChange={(url) => setValue('faviconUrl', url)}
                     disabled={isLoading || isSaving}
                     multiple={false}
+                    variant="logo"
                   />
                 </div>
                 
@@ -281,6 +285,7 @@ export default function GeneralSettingsPage() {
                     value={adminLogoUrl}
                     onChange={(url) => setValue('adminLogoUrl', url)}
                     disabled={isLoading || isSaving}
+                    variant="logo"
                   />
                 </div>
                 

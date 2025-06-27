@@ -14,7 +14,7 @@ interface SingleImageUploadProps {
   onUpload?: (file: File) => Promise<string>
   disabled?: boolean
   className?: string
-  variant?: 'avatar' | 'logo'
+  variant?: 'avatar' | 'logo' | 'favicon'
   isAvatar?: boolean
   multiple?: false
 }
@@ -25,7 +25,7 @@ interface MultipleImageUploadProps {
   onUpload?: (file: File) => Promise<string>
   disabled?: boolean
   className?: string
-  variant?: 'avatar' | 'logo'
+  variant?: 'avatar' | 'logo' | 'favicon'
   isAvatar?: boolean
   multiple: true
 }
@@ -44,18 +44,48 @@ export function ImageUpload(props: ImageUploadProps) {
     ? 'h-32 w-32 rounded-full'
     : 'w-full max-w-[300px] h-[150px] rounded-lg'
 
+  const defaultUpload = async (file: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // Déterminer le type d'upload selon le variant
+    let uploadType = 'general'
+    if (props.variant === 'logo') uploadType = 'logo'
+    else if (props.variant === 'favicon') uploadType = 'favicon'
+    
+    formData.append('type', uploadType)
+
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      throw new Error('Erreur lors de l\'upload')
+    }
+
+    const data = await response.json()
+    return data.url
+  }
+
   const handleUpload = async (file: File) => {
     try {
-      if (props.onUpload) {
-        const url = await props.onUpload(file)
-        if (props.multiple) {
-          ;(props as MultipleImageUploadProps).onChange([...(props.value || []), url])
-        } else {
-          ;(props as SingleImageUploadProps).onChange(url)
-        }
+      setIsUploading(true)
+      setError(null)
+      
+      const uploadFunction = props.onUpload || defaultUpload
+      const url = await uploadFunction(file)
+      
+      if (props.multiple) {
+        ;(props as MultipleImageUploadProps).onChange([...(props.value || []), url])
+      } else {
+        ;(props as SingleImageUploadProps).onChange(url)
       }
     } catch (error) {
       console.error('Erreur lors du téléchargement:', error)
+      setError('Erreur lors du téléchargement de l\'image')
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -118,24 +148,36 @@ export function ImageUpload(props: ImageUploadProps) {
         <Button
           type="button"
           variant="outline"
-          disabled={props.disabled}
-          onClick={() => document.getElementById('image-upload')?.click()}
+          disabled={props.disabled || isUploading}
+          onClick={() => fileInputRef.current?.click()}
           className={`border-dashed ${containerStyles}`}
         >
-          <ImagePlus className="h-6 w-6 mr-2" />
-          {effectiveVariant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
+          {isUploading ? (
+            <>
+              <ImageIcon className="h-6 w-6 mr-2 animate-spin" />
+              Upload...
+            </>
+          ) : (
+            <>
+              <ImagePlus className="h-6 w-6 mr-2" />
+              {effectiveVariant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
+            </>
+          )}
         </Button>
       </div>
       <input
-        id="image-upload"
+        ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={props.variant === 'favicon' ? 'image/*,.ico' : 'image/*'}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) handleUpload(file)
         }}
       />
+      {error && (
+        <p className="text-sm text-red-500">{error}</p>
+      )}
     </div>
   )
 } 

@@ -148,33 +148,33 @@ function ClientCard({ client, onEdit, onDelete, onView }: {
             </div>
             
             {/* Actions */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
                 onClick={() => onView(client.id)}
                 title="Voir"
               >
-                <Eye className="h-3.5 w-3.5" />
+                <Eye className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600"
+                className="h-8 w-8 p-0 hover:bg-green-100 hover:text-green-600"
                 onClick={() => onEdit(client.id)}
                 title="Modifier"
               >
-                <Edit className="h-3.5 w-3.5" />
+                <Edit className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
                 onClick={() => onDelete(client.id)}
                 title="Supprimer"
               >
-                <Trash className="h-3.5 w-3.5" />
+                <Trash className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -616,7 +616,7 @@ export default function ClientsPage() {
                     Total dépensé {renderSortIcon("totalSpent")}
                   </div>
                 </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -729,34 +729,34 @@ export default function ClientsPage() {
                         {formatPrice(client.totalSpent || 0)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center gap-1">
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-4">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 hover:bg-blue-100 hover:text-blue-600"
+                          className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
                           onClick={() => handleView(client.id)}
                           title="Voir"
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 hover:bg-green-100 hover:text-green-600"
+                          className="h-8 w-8 p-0 hover:bg-green-100 hover:text-green-600"
                           onClick={() => handleEdit(client.id)}
                           title="Modifier"
                         >
-                          <Edit className="h-3.5 w-3.5" />
+                          <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+                          className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
                           onClick={() => handleDelete(client.id)}
                           title="Supprimer"
                         >
-                          <Trash className="h-3.5 w-3.5" />
+                          <Trash className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

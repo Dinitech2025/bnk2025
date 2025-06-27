@@ -56,6 +56,16 @@ export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('info')
+
+  useEffect(() => {
+    // Gérer le paramètre tab dans l'URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const tabParam = urlParams.get('tab')
+    if (tabParam && ['info', 'addresses', 'orders'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [])
 
   useEffect(() => {
     // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
@@ -204,7 +214,12 @@ export default function ProfilePage() {
 
         {/* Contenu principal avec onglets */}
         <div className="lg:col-span-3">
-          <Tabs defaultValue="info">
+          <Tabs defaultValue="info" value={activeTab} onValueChange={(value) => {
+            setActiveTab(value)
+            // Mettre à jour l'URL sans recharger la page
+            const newUrl = value === 'info' ? '/profile' : `/profile?tab=${value}`
+            window.history.replaceState({}, '', newUrl)
+          }}>
             <TabsList className="mb-6">
               <TabsTrigger value="info">Informations personnelles</TabsTrigger>
               <TabsTrigger value="addresses">Mes adresses</TabsTrigger>
@@ -396,7 +411,7 @@ export default function ProfilePage() {
                                   {order.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm">{order.total.toFixed(2)} €</td>
+                              <td className="px-4 py-3 text-sm">{Number(order.total).toFixed(0)} Ar</td>
                               <td className="px-4 py-3 text-sm">
                                 <Link href={`/profile/orders/${order.id}`} className="text-primary hover:underline">
                                   Détails

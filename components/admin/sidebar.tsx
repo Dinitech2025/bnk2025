@@ -105,7 +105,10 @@ const adminNavItems: NavItem[] = [
     icon: Settings,
     submenu: true,
     submenuItems: [
-      { title: 'Paramètres généraux', href: '/admin/settings/general' },
+      { title: 'Informations du site', href: '/admin/settings/site' },
+      { title: 'Apparence', href: '/admin/settings/appearance' },
+      { title: 'Contact', href: '/admin/settings/contact' },
+      { title: 'SEO & Réseaux sociaux', href: '/admin/settings/seo' },
       { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
       { title: 'Conversion de devises', href: '/admin/settings/currency' },
       { title: 'Calcul d\'Importation', href: '/admin/settings/import-calculation' },
