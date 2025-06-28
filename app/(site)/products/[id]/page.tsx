@@ -11,6 +11,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { SimilarProductsGrid } from '@/components/cards/similar-products-grid'
 
 interface ProductMedia {
   url: string;
@@ -329,6 +330,18 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Section des produits similaires */}
+      {product.category && (
+        <div className="mt-16 border-t pt-12">
+          <SimilarProductsGrid 
+            categoryId={product.category.id}
+            currentProductId={product.id}
+            title="Produits similaires"
+            maxItems={4}
+          />
+        </div>
+      )}
     </div>
   )
 } 

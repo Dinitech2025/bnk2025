@@ -11,6 +11,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { SimilarServicesGrid } from '@/components/cards/similar-services-grid'
 
 interface ServiceMedia {
   url: string;
@@ -193,12 +194,24 @@ export default function ServiceDetailPage() {
               <div className="h-4 bg-gray-200 rounded w-1/2"></div>
               <div className="h-20 bg-gray-200 rounded"></div>
               <div className="h-12 bg-gray-200 rounded w-1/3"></div>
-            </div>
-          </div>
+                      </div>
         </div>
       </div>
-    )
-  }
+
+      {/* Section des services similaires */}
+      {service.category && (
+        <div className="mt-16 border-t pt-12">
+          <SimilarServicesGrid 
+            categoryId={service.category.id}
+            currentServiceId={service.id}
+            title="Services similaires"
+            maxItems={4}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
   if (!service) {
     return (
