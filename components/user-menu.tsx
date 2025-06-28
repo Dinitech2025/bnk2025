@@ -40,7 +40,7 @@ export function UserMenu() {
           </Button>
         </Link>
         <Link href="/auth/register">
-          <Button variant="default" size="sm">
+          <Button variant="danger" size="sm">
             S'inscrire
           </Button>
         </Link>

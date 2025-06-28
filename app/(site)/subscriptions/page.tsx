@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { Plus, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 import { toast } from '@/components/ui/use-toast'
@@ -117,7 +118,17 @@ export default function OffersPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Nos Abonnements Streaming</h1>
+      <Breadcrumb 
+        items={[
+          { label: 'Abonnements', current: true }
+        ]} 
+        className="mb-8"
+      />
+
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold mb-2">Nos Abonnements Streaming</h1>
+        <p className="text-gray-600">Choisissez parmi nos offres d'abonnement aux meilleures plateformes de streaming</p>
+      </div>
       
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
@@ -199,11 +210,10 @@ export default function OffersPage() {
         </div>
       )}
 
-      {/* Popup de sélection */}
       <SubscriptionPopup
-        offer={selectedOffer}
         isOpen={isPopupOpen}
         onClose={handleClosePopup}
+        offer={selectedOffer}
         onAddToCart={handleAddToCart}
       />
     </div>

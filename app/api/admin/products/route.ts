@@ -13,7 +13,24 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Trouver l'ID de la catégorie "Produits importés"
+    const importedCategory = await prisma.productCategory.findFirst({
+      where: { 
+        OR: [
+          { name: 'Produits importés' },
+          { slug: 'produits-importes' }
+        ]
+      },
+      select: { id: true }
+    })
+
     const products = await prisma.product.findMany({
+      where: {
+        // Exclure les produits de la catégorie "Produits importés"
+        categoryId: {
+          not: importedCategory?.id
+        }
+      },
       include: {
         category: {
           select: {

@@ -5,7 +5,7 @@ import { ArrowLeft, Pencil, Trash, MapPin, ShoppingBag, Mail, Phone, Calendar, U
 import { Button } from '@/components/ui/button'
 import { db } from '@/lib/db'
 import { requireStaff } from '@/lib/auth'
-import { formatPrice } from '@/lib/utils'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
 
 interface ClientPageProps {
   params: {
@@ -151,7 +151,7 @@ export default async function ClientPage({ params }: ClientPageProps) {
             </div>
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-500">Total dépensé</p>
-              <p className="text-xl font-semibold">{formatPrice(totalSpent, currency, currencySymbol)}</p>
+                              <p className="text-xl font-semibold"><PriceWithConversion price={totalSpent} /></p>
             </div>
           </div>
           
@@ -342,7 +342,7 @@ export default async function ClientPage({ params }: ClientPageProps) {
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">{formatPrice(parseFloat(order.total.toString()), currency, currencySymbol)}</td>
+                      <td className="px-4 py-3 text-sm"><PriceWithConversion price={parseFloat(order.total.toString())} /></td>
                       <td className="px-4 py-3 text-sm">{order.items.length}</td>
                       <td className="px-4 py-3 text-sm">
                         <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline">

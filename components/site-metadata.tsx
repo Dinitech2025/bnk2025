@@ -13,7 +13,7 @@ export function SiteMetadata({ title, description }: SiteMetadataProps) {
   const { settings, isLoading } = useSiteSettings()
 
   // Valeurs par défaut ou personnalisées
-  const siteName = getSetting(settings, 'siteName', 'BoutikNaka')
+  const siteName = getSetting(settings, 'siteName', 'Boutik\'nakà')
   const siteDescription = getSetting(settings, 'siteDescription', 'Boutique en ligne')
   
   const pageTitle = title 

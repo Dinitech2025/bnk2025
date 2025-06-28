@@ -75,6 +75,7 @@ model ProductCategory {
   description String?
   parentId    String?
   image       String?
+  isVisible   Boolean           @default(true)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   parent      ProductCategory?  @relation("ProductCategoryHierarchy", fields: [parentId], references: [id])
@@ -354,6 +355,9 @@ model Media {
   path         String
   size         Int
   alt          String?
+  type         String             @default("image") // "image" ou "video"
+  thumbnail    String?            // URL du thumbnail pour les vidéos
+  duration     Int?               // Durée en secondes pour les vidéos
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   platforms    Platform[]         @relation("MediaToPlatform")
@@ -362,6 +366,8 @@ model Media {
   products     Product[]          @relation("MediaToProduct")
   services     Service[]          @relation("MediaToService")
   variations   ProductVariation[] @relation("MediaToVariation")
+
+  @@index([type])
 }
 
 model Setting {

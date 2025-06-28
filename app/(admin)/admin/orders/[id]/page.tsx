@@ -1,13 +1,14 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Receipt, Truck, User, MapPin, CreditCard, Clock, Package, Users, Monitor, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Receipt, Truck, User, MapPin, CreditCard, Clock, Package, Users, Monitor, AlertCircle, ShoppingCart, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge';
-import { PriceDisplay } from '@/components/ui/price-display';
+import { PriceWithConversion } from '@/components/ui/currency-selector';
+import { prisma } from "@/lib/prisma";
 
 interface Address {
   id: string;
@@ -234,10 +235,10 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-lg">
-                            <PriceDisplay price={item.totalPrice} />
+                            <PriceWithConversion price={item.totalPrice} />
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {item.quantity} × <PriceDisplay price={item.unitPrice} />
+                            {item.quantity} × <PriceWithConversion price={item.unitPrice} />
                           </p>
                         </div>
                       </div>
@@ -430,7 +431,7 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
             <CardContent className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Sous-total</span>
-                <PriceDisplay price={order.total} />
+                <PriceWithConversion price={order.total} />
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Frais de livraison</span>
@@ -439,7 +440,7 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
               <Separator />
               <div className="flex justify-between items-center font-semibold text-lg">
                 <span>Total</span>
-                <PriceDisplay price={order.total} />
+                <PriceWithConversion price={order.total} />
               </div>
             </CardContent>
           </Card>

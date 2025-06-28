@@ -9,8 +9,8 @@ const WAREHOUSES = {
     uk: { name: 'Royaume-Uni', currency: 'GBP', origin: 'uk' }
   },
   sea: {
-    france: { name: 'France', currency: 'EUR', origin: 'france', transitTime: '25-35 jours' },
-    china: { name: 'Chine', currency: 'USD', origin: 'china', transitTime: '30-40 jours' }
+    france: { name: 'France', currency: 'EUR', origin: 'france', transitTime: '1-3 mois' },
+    china: { name: 'Chine', currency: 'USD', origin: 'china', transitTime: '1-3 mois' }
   }
 }
 
@@ -151,33 +151,33 @@ export async function POST(request: NextRequest) {
     const totalInMGA = convertToMGA(totalInWarehouseCurrency, warehouseConfig.currency)
 
     // Déterminer le délai de livraison
-    let transitTime = '5-10 jours ouvrés'
+    let transitTime = '2-4 semaines'
     if (mode === 'sea') {
       // Transport maritime
       switch (warehouseConfig.origin) {
         case 'france':
-          transitTime = '25-35 jours'
+          transitTime = '1-3 mois'
           break
         case 'china':
-          transitTime = '30-40 jours'
+          transitTime = '1-3 mois'
           break
         default:
-          transitTime = '25-35 jours'
+          transitTime = '1-3 mois'
       }
     } else {
       // Transport aérien
       switch (warehouseConfig.origin) {
         case 'usa':
-          transitTime = '7-12 jours ouvrés'
+          transitTime = '2-4 semaines'
           break
         case 'france':
-          transitTime = '5-8 jours ouvrés'
+          transitTime = '2-4 semaines'
           break
         case 'uk':
-          transitTime = '6-10 jours ouvrés'
+          transitTime = '2-4 semaines'
           break
         default:
-          transitTime = '5-10 jours ouvrés'
+          transitTime = '2-4 semaines'
       }
     }
 

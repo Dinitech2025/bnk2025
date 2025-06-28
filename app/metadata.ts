@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings()
   
   return {
-    title: settings.metaTitle || settings.siteName || 'BoutikNaka',
+    title: settings.metaTitle || settings.siteName || 'Boutik\'nakà',
     description: settings.metaDescription || settings.siteDescription || 'Plateforme e-commerce et services',
     keywords: settings.metaKeywords || 'ecommerce, boutique, streaming, produits, services',
     icons: {

@@ -47,7 +47,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { toast } from '@/components/ui/use-toast'
-import { formatPrice } from '@/lib/utils'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { ResponsiveList } from '@/components/ui/responsive-list'
 import { PageHeader } from '@/components/ui/page-header'
 
@@ -214,7 +214,7 @@ function ClientCard({ client, onEdit, onDelete, onView }: {
             </div>
 
             <div className="text-xs font-medium text-gray-900 mt-1">
-              Total dépensé: {formatPrice(client.totalSpent || 0)}
+                              Total dépensé: <PriceWithConversion price={client.totalSpent || 0} />
             </div>
           </div>
         </div>
@@ -726,7 +726,7 @@ export default function ClientsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-gray-900">
-                        {formatPrice(client.totalSpent || 0)}
+                        <PriceWithConversion price={client.totalSpent || 0} />
                       </div>
                     </TableCell>
                     <TableCell className="text-center">

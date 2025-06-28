@@ -34,9 +34,12 @@ import {
   AlertCircle,
   CheckCircle,
   Plus,
+  Minus,
   ShoppingCart,
   RotateCcw,
-  Eye
+  Eye,
+  User,
+  Trash2
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -149,6 +152,67 @@ export default function DevisPage() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cartItems, setCartItems] = useState<any[]>([])
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Marquer le composant comme monté
+  useEffect(() => {
+    setIsMounted(true)
+    console.log('🚀 Composant devis monté, récupération du panier...')
+    // Forcer une mise à jour après un court délai pour s'assurer que localStorage est accessible
+    setTimeout(() => {
+      updateCartItems()
+    }, 100)
+  }, [])
+
+  // Fonction pour mettre à jour les articles du panier
+  const updateCartItems = () => {
+    if (!isMounted) return
+    try {
+      // Vérifier si localStorage est disponible
+      if (typeof window === 'undefined' || !window.localStorage) {
+        console.warn('localStorage non disponible')
+        return
+      }
+      
+      const cartData = localStorage.getItem('cart')
+      console.log('🔍 Données brutes du localStorage:', cartData)
+      
+      const cart = JSON.parse(cartData || '[]')
+      console.log('🛒 Panier récupéré dans devis:', cart)
+      console.log('📊 Nombre d\'articles:', cart.length)
+      
+      setCartItems(cart)
+    } catch (error) {
+      console.error('Erreur lors de la lecture du panier:', error)
+      setCartItems([])
+    }
+  }
+
+  // Écouter les changements du panier
+  useEffect(() => {
+    if (!isMounted) return
+    
+    const handleCartUpdate = () => {
+      updateCartItems()
+    }
+
+    // Vérification périodique du panier (toutes les 2 secondes)
+    const intervalId = setInterval(() => {
+      updateCartItems()
+    }, 2000)
+
+    window.addEventListener('cartUpdated', handleCartUpdate)
+    window.addEventListener('storage', handleCartUpdate)
+    window.addEventListener('focus', handleCartUpdate) // Quand la fenêtre reprend le focus
+
+    return () => {
+      clearInterval(intervalId)
+      window.removeEventListener('cartUpdated', handleCartUpdate)
+      window.removeEventListener('storage', handleCartUpdate)
+      window.removeEventListener('focus', handleCartUpdate)
+    }
+  }, [isMounted])
 
   // Calculer automatiquement dès que les champs requis sont remplis
   useEffect(() => {
@@ -232,6 +296,11 @@ export default function DevisPage() {
   const validateForm = (requireProductName: boolean = false): boolean => {
     if (requireProductName && !formData.productName.trim()) {
       setError('Le nom du produit est requis')
+      return false
+    }
+    
+    if (requireProductName && !formData.productUrl.trim()) {
+      setError('L\'URL du produit est requise')
       return false
     }
     
@@ -328,6 +397,9 @@ export default function DevisPage() {
 
       localStorage.setItem('cart', JSON.stringify(existingCart))
       window.dispatchEvent(new Event('cartUpdated'))
+      
+      // Mettre à jour le mini panier local
+      updateCartItems()
 
       // Réinitialiser le formulaire
       setFormData({
@@ -365,10 +437,50 @@ export default function DevisPage() {
     setError(null)
   }
 
+  // Fonctions pour gérer le panier
+  const updateCartQuantity = (itemId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeFromCart(itemId)
+      return
+    }
+    
+    try {
+      const updatedCart = cartItems.map(item =>
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      )
+      
+      localStorage.setItem('cart', JSON.stringify(updatedCart))
+      setCartItems(updatedCart)
+      
+      // Déclencher l'événement de mise à jour
+      window.dispatchEvent(new Event('cartUpdated'))
+      
+      console.log('✅ Quantité mise à jour:', itemId, newQuantity)
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la quantité:', error)
+    }
+  }
+
+  const removeFromCart = (itemId: string) => {
+    try {
+      const updatedCart = cartItems.filter(item => item.id !== itemId)
+      
+      localStorage.setItem('cart', JSON.stringify(updatedCart))
+      setCartItems(updatedCart)
+      
+      // Déclencher l'événement de mise à jour
+      window.dispatchEvent(new Event('cartUpdated'))
+      
+      console.log('🗑️ Article supprimé du panier:', itemId)
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+    }
+  }
+
   const availableWarehouses = formData.mode === 'air' ? AIR_WAREHOUSES : SEA_WAREHOUSES
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4">
         <div className="max-w-7xl mx-auto">
           <div className="pt-6 pb-4">
@@ -381,16 +493,13 @@ export default function DevisPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[calc(100vh-200px)]">
             {/* Formulaire */}
             <Card className="h-fit">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5" />
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-1 text-base">
+                  <Calculator className="h-4 w-4" />
                   Simulation d'importation
                 </CardTitle>
-                <CardDescription>
-                  Remplissez les informations du produit à importer pour obtenir un devis instantané
-                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent className="space-y-3">
                 {error && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -398,55 +507,73 @@ export default function DevisPage() {
                   </Alert>
                 )}
 
-                {/* Mode de transport */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Mode de transport</Label>
+                {/* Section 1: Transport */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Mode de transport</Label>
                   <Tabs value={formData.mode} onValueChange={(value) => handleModeChange(value as 'air' | 'sea')}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="air" className="flex items-center gap-2">
-                        <Plane className="h-4 w-4" />
+                    <TabsList className="grid w-full grid-cols-2 h-9">
+                      <TabsTrigger value="air" className="flex items-center gap-1 text-sm">
+                        <Plane className="h-3 w-3" />
                         Aérien
                       </TabsTrigger>
-                      <TabsTrigger value="sea" className="flex items-center gap-2">
-                        <Ship className="h-4 w-4" />
+                      <TabsTrigger value="sea" className="flex items-center gap-1 text-sm">
+                        <Ship className="h-3 w-3" />
                         Maritime
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
 
-                {/* Informations produit */}
-                <div className="space-y-4">
-                  <Label className="text-base font-semibold">Informations du produit</Label>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="productName">Nom du produit *</Label>
-                    <Input
-                      id="productName"
-                      value={formData.productName}
-                      onChange={(e) => handleInputChange('productName', e.target.value)}
-                      placeholder="Ex: iPhone 15 Pro Max"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="productUrl">URL du produit (optionnel)</Label>
-                    <Input
-                      id="productUrl"
-                      value={formData.productUrl}
-                      onChange={(e) => handleInputChange('productUrl', e.target.value)}
-                      placeholder="https://..."
-                    />
-                  </div>
+                {/* Section 2: Entrepôt */}
+                <div className="space-y-2">
+                  <Label htmlFor="warehouse" className="text-sm font-semibold flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    Entrepôt de départ
+                  </Label>
+                  <Select 
+                    value={formData.warehouse} 
+                    onValueChange={(value) => handleInputChange('warehouse', value)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableWarehouses.map((warehouse) => (
+                        <SelectItem key={warehouse.value} value={warehouse.value}>
+                          {warehouse.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {/* Prix et devise */}
-                <div className="space-y-4">
-                  <Label className="text-base font-semibold">Prix fournisseur</Label>
+                {/* Section 3: Informations produit */}
+                <div className="space-y-2">
+                  <Label htmlFor="productName" className="text-sm font-semibold">Nom du produit *</Label>
+                  <Input
+                    id="productName"
+                    value={formData.productName}
+                    onChange={(e) => handleInputChange('productName', e.target.value)}
+                    placeholder="Ex: iPhone 15 Pro Max"
+                    className="h-9"
+                  />
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="supplierPrice">Prix</Label>
+                  <Label htmlFor="productUrl" className="text-sm font-semibold">URL du produit *</Label>
+                  <Input
+                    id="productUrl"
+                    value={formData.productUrl}
+                    onChange={(e) => handleInputChange('productUrl', e.target.value)}
+                    placeholder="https://..."
+                    className="h-9"
+                  />
+                </div>
+
+                {/* Section 4: Prix et devise */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Prix fournisseur</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="supplierPrice" className="text-sm">Prix</Label>
                       <Input
                         id="supplierPrice"
                         type="number"
@@ -455,16 +582,17 @@ export default function DevisPage() {
                         value={formData.supplierPrice}
                         onChange={(e) => handleInputChange('supplierPrice', e.target.value)}
                         placeholder="0.00"
+                        className="h-9"
                       />
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="supplierCurrency">Devise</Label>
+                    <div>
+                      <Label htmlFor="supplierCurrency" className="text-sm">Devise</Label>
                       <Select 
                         value={formData.supplierCurrency} 
                         onValueChange={(value) => handleInputChange('supplierCurrency', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -479,37 +607,13 @@ export default function DevisPage() {
                   </div>
                 </div>
 
-                {/* Entrepôt */}
+                {/* Section 5: Dimensions */}
                 <div className="space-y-2">
-                  <Label htmlFor="warehouse" className="text-base font-semibold flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Entrepôt de départ
-                  </Label>
-                  <Select 
-                    value={formData.warehouse} 
-                    onValueChange={(value) => handleInputChange('warehouse', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableWarehouses.map((warehouse) => (
-                        <SelectItem key={warehouse.value} value={warehouse.value}>
-                          {warehouse.label} ({warehouse.currency})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Dimensions */}
-                <div className="space-y-4">
-                  <Label className="text-base font-semibold">Dimensions et poids</Label>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="weight" className="flex items-center gap-2">
-                        <Weight className="h-4 w-4" />
+                  <Label className="text-sm font-semibold">Dimensions et poids</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="weight" className="text-sm flex items-center gap-1">
+                        <Weight className="h-3 w-3" />
                         Poids (kg)
                       </Label>
                       <Input
@@ -520,13 +624,14 @@ export default function DevisPage() {
                         value={formData.weight}
                         onChange={(e) => handleInputChange('weight', e.target.value)}
                         placeholder="0.0"
+                        className="h-9"
                       />
                     </div>
-                    
+
                     {formData.mode === 'sea' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="volume" className="flex items-center gap-2">
-                          <Ruler className="h-4 w-4" />
+                      <div>
+                        <Label htmlFor="volume" className="text-sm flex items-center gap-1">
+                          <Ruler className="h-3 w-3" />
                           Volume (m³) *
                         </Label>
                         <Input
@@ -537,19 +642,70 @@ export default function DevisPage() {
                           value={formData.volume}
                           onChange={(e) => handleInputChange('volume', e.target.value)}
                           placeholder="0.000"
+                          className="h-9"
                         />
                       </div>
                     )}
                   </div>
                 </div>
 
+                {/* Résultat et actions intégrés */}
+                {isCalculating && (
+                  <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                    <div className="flex items-center justify-center py-1">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+                      <span className="text-blue-700 text-xs font-medium">Calcul en cours...</span>
+                    </div>
+                  </div>
+                )}
+
+                {calculation && (
+                  <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200 shadow-sm">
+                    {/* En-tête avec icône */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-base font-bold text-green-800">Résultat du calcul</span>
+                    </div>
+                    
+                    {/* Prix final en grand */}
+                    <div className="bg-white rounded-lg p-3 mb-3 border border-green-300">
+                      <div className="text-center">
+                        <div className="text-sm text-gray-600 mb-1">Prix de vente final</div>
+                        <div className="text-2xl font-bold text-primary">
+                          <PriceWithConversion price={Math.round(calculation.costs.total / 100) * 100} />
+                        </div>
+                      </div>
+                    </div>
+                    
+
+                    
+                    {/* Informations de transport */}
+                    <div className="flex items-center justify-between text-sm text-green-700 pt-2 border-t border-green-200">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span className="font-medium">{calculation.transitTime}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {calculation.productInfo.mode === 'air' ? 
+                          <Plane className="h-4 w-4" /> : 
+                          <Ship className="h-4 w-4" />
+                        }
+                        <span className="font-medium">
+                          {calculation.productInfo.mode === 'air' ? 'Transport aérien' : 'Transport maritime'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Actions */}
-                <div className="flex gap-2 pt-4">
+                <div className="flex gap-2 pt-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={resetForm}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1"
+                    size="sm"
                   >
                     <RotateCcw className="h-4 w-4" />
                     Réinitialiser
@@ -558,13 +714,15 @@ export default function DevisPage() {
                   {calculation && (
                     <Button
                       onClick={handleAddToCart}
-                      disabled={isAddingToCart || !formData.productName.trim()}
-                      className="flex items-center gap-2 ml-auto"
+                      disabled={isAddingToCart || !formData.productName.trim() || !formData.productUrl.trim()}
+                      className="flex items-center gap-1 ml-auto"
+                      size="sm"
+                      variant="danger"
                     >
                       {isAddingToCart ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Ajout...
+                          Ajout en cours...
                         </>
                       ) : (
                         <>
@@ -578,146 +736,209 @@ export default function DevisPage() {
               </CardContent>
             </Card>
 
-            {/* Résultats */}
-            <Card className="h-fit">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Résultat du calcul
-                </CardTitle>
-                <CardDescription>
-                  Détail des coûts d'importation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isCalculating ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    <span className="ml-2">Calcul en cours...</span>
-                  </div>
-                ) : calculation ? (
-                  <div className="space-y-6">
-                    {/* Informations produit */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="font-semibold mb-2 flex items-center gap-2">
-                        <Package className="h-4 w-4" />
-                        {calculation.productInfo.name}
-                      </h3>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        {calculation.productInfo.url && (
-                          <div className="flex items-center gap-2">
-                            <Eye className="h-3 w-3" />
-                            <a 
-                              href={calculation.productInfo.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
-                            >
-                              Voir le produit
-                            </a>
+            {/* Colonne de droite */}
+            <div className="space-y-6">
+              {/* Mini Panier */}
+              <Card className="h-fit">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" />
+                    Panier en cours
+                    {cartItems.length > 0 && (
+                      <Badge variant="secondary" className="ml-auto">
+                        {cartItems.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Debug: {cartItems.length} articles - isMounted: {isMounted.toString()}
+                    </div>
+                  )}
+                  <CardDescription>
+                    Articles ajoutés à votre panier
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {cartItems.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Articles du panier - Version compacte */}
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {cartItems.map((item, index) => (
+                          <div key={index} className={`p-2 rounded border ${item.type === 'subscription' ? 'border-blue-200 bg-blue-50/30' : 'bg-gray-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {/* Image/Logo compacte */}
+                              {item.type === 'subscription' && item.platform?.logo ? (
+                                <div className="relative h-8 w-8 flex-shrink-0">
+                                  <img
+                                    src={item.platform.logo}
+                                    alt={item.platform.name}
+                                    className="object-contain rounded w-full h-full"
+                                  />
+                                </div>
+                              ) : item.image ? (
+                                <div className="relative h-8 w-8 flex-shrink-0">
+                                  <img
+                                    src={item.image}
+                                    alt={item.name}
+                                    className="object-cover rounded w-full h-full"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="h-8 w-8 bg-gray-200 rounded flex-shrink-0"></div>
+                              )}
+
+                              <div className="flex-1 min-w-0">
+                                {/* Ligne 1: Nom + Badge */}
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-xs font-medium text-gray-900 truncate">
+                                      {item.name}
+                                    </p>
+                                    {item.type === 'subscription' && (
+                                      <Badge variant="secondary" className="text-xs px-1 py-0">
+                                        Abo
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => removeFromCart(item.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+
+                                {/* Ligne 2: Prix unitaire + Total */}
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-primary">
+                                    <PriceWithConversion price={item.price} />
+                                    {item.type === 'subscription' && item.duration && ` /${item.duration}`}
+                                  </span>
+                                  <span className="text-xs font-medium">
+                                    <PriceWithConversion price={item.price * item.quantity} />
+                                  </span>
+                                </div>
+
+                                {/* Ligne 3: Contrôles de quantité */}
+                                <div className="flex items-center justify-between">
+                                  {item.type !== 'subscription' ? (
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-5 w-5 p-0"
+                                        onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                                      >
+                                        <Minus className="h-2 w-2" />
+                                      </Button>
+                                      <span className="text-xs font-medium min-w-[15px] text-center">
+                                        {item.quantity}
+                                      </span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-5 w-5 p-0"
+                                        onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                                      >
+                                        <Plus className="h-2 w-2" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-500">
+                                      Qté: {item.quantity}
+                                    </span>
+                                  )}
+                                  
+                                  {/* Détails abonnements compacts */}
+                                  {item.type === 'subscription' && (
+                                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                                      <span className="flex items-center">
+                                        <Clock className="h-2 w-2 mr-1" />
+                                        {item.duration}
+                                      </span>
+                                      <span className="flex items-center">
+                                        <User className="h-2 w-2 mr-1" />
+                                        {item.maxProfiles}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Separator />
+
+                      {/* Total du panier - Version compacte */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="font-medium">Sous-total</span>
+                          <span className="font-medium">
+                            <PriceWithConversion 
+                              price={cartItems.reduce((total, item) => total + (item.price * item.quantity), 0)} 
+                            />
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-gray-500">
+                          <span>Livraison</span>
+                          <span>Gratuite</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between items-center font-bold">
+                          <span>Total</span>
+                          <span className="text-primary">
+                            <PriceWithConversion 
+                              price={cartItems.reduce((total, item) => total + (item.price * item.quantity), 0)} 
+                            />
+                          </span>
+                        </div>
+
+                        {/* Note pour les abonnements - compacte */}
+                        {cartItems.some(item => item.type === 'subscription') && (
+                          <div className="bg-blue-50 p-2 rounded text-xs text-blue-700">
+                            <p className="font-medium">ℹ️ Profils réservés temporairement</p>
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          {calculation.productInfo.mode === 'air' ? 
-                            <Plane className="h-3 w-3" /> : 
-                            <Ship className="h-3 w-3" />
-                          }
-                          Transport par {calculation.productInfo.mode === 'air' ? 'avion' : 'bateau'}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3 w-3" />
-                          Depuis {calculation.productInfo.warehouse}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Weight className="h-3 w-3" />
-                          {calculation.productInfo.weight} kg
-                          {calculation.productInfo.volume && ` • ${calculation.productInfo.volume} m³`}
+
+                        {/* Actions - compactes */}
+                        <div className="grid grid-cols-2 gap-2 pt-2">
+                          <Button 
+                            onClick={() => router.push('/checkout')} 
+                            className="w-full text-xs" 
+                            size="sm"
+                          >
+                            Commander
+                          </Button>
+                          <Button 
+                            onClick={() => router.push('/cart')} 
+                            variant="outline" 
+                            className="w-full text-xs" 
+                            size="sm"
+                          >
+                            Voir tout
+                          </Button>
                         </div>
                       </div>
                     </div>
-
-                    {/* Détail des coûts */}
-                    <div className="space-y-4">
-                      <h3 className="font-semibold">Détail des coûts</h3>
-                      
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">Prix fournisseur</span>
-                          <span className="font-medium">
-                            <PriceWithConversion price={Math.round(calculation.costs.supplierPrice.amountInMGA / 100) * 100} />
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">Transport</span>
-                          <span className="font-medium">
-                            <PriceWithConversion price={Math.round(calculation.costs.transport.amountInMGA / 100) * 100} />
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">
-                            Commission ({calculation.costs.commission.rate}%)
-                          </span>
-                          <span className="font-medium">
-                            <PriceWithConversion price={Math.round(calculation.costs.commission.amountInMGA / 100) * 100} />
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">Frais de traitement</span>
-                          <span className="font-medium">
-                            <PriceWithConversion price={Math.round(calculation.costs.fees.processing.amountInMGA / 100) * 100} />
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">
-                            Taxes ({calculation.costs.fees.tax.rate}%)
-                          </span>
-                          <span className="font-medium">
-                            <PriceWithConversion price={Math.round(calculation.costs.fees.tax.amountInMGA / 100) * 100} />
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="flex justify-between items-center text-lg font-bold">
-                        <span>Prix total</span>
-                        <span className="text-primary">
-                          <PriceWithConversion price={Math.round(calculation.costs.total / 100) * 100} />
-                        </span>
-                      </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <ShoppingCart className="h-8 w-8 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm">Votre panier est vide</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Ajoutez des produits calculés
+                      </p>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                    {/* Informations supplémentaires */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Clock className="h-4 w-4 text-blue-600" />
-                        <span className="font-medium text-blue-800">Délai de livraison</span>
-                      </div>
-                      <p className="text-sm text-blue-700">{calculation.transitTime}</p>
-                    </div>
 
-                    {/* Action pour ajouter au panier */}
-                    {formData.productName.trim() && (
-                      <Alert>
-                        <CheckCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Produit prêt à être ajouté au panier !
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Remplissez le formulaire pour voir le calcul</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            </div>
           </div>
         </div>
       </div>

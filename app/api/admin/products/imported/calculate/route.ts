@@ -11,8 +11,8 @@ const WAREHOUSES = {
     uk: { name: 'Royaume-Uni', currency: 'GBP', origin: 'uk' }
   },
   sea: {
-    france: { name: 'France', currency: 'EUR', origin: 'france', transitTime: '25-35 jours' },
-    china: { name: 'Chine', currency: 'USD', origin: 'china', transitTime: '30-40 jours' }
+    france: { name: 'France', currency: 'EUR', origin: 'france', transitTime: '1-3 mois' },
+    china: { name: 'Chine', currency: 'USD', origin: 'china', transitTime: '1-3 mois' }
   }
 }
 
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         total: totalInMGA
       },
       calculationMethod: 'hybrid',
-      transitTime: mode === 'sea' ? (warehouseConfig as any).transitTime : '5-10 jours'
+      transitTime: mode === 'sea' ? (warehouseConfig as any).transitTime : '2-4 semaines'
     }
 
     return NextResponse.json(calculation)

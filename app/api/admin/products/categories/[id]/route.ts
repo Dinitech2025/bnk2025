@@ -74,6 +74,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const parentId = formData.get('parentId') as string || null
+    const isVisible = formData.get('isVisible') === 'true'
     const imageFile = formData.get('image') as File | null
     const removeImage = formData.get('removeImage') === 'true'
 
@@ -85,7 +86,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
       name,
       description,
       parentId,
-      slug
+      slug,
+      isVisible
     }
 
     // Gérer l'upload d'image si présente

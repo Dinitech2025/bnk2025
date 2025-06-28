@@ -13,8 +13,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Récupérer tous les produits avec leurs attributs pour identifier les produits importés
+    // Trouver la catégorie "Produits importés"
+    const importedCategory = await prisma.productCategory.findFirst({
+      where: { 
+        OR: [
+          { name: 'Produits importés' },
+          { slug: 'produits-importes' }
+        ]
+      },
+      select: { id: true }
+    })
+
+    if (!importedCategory) {
+      return NextResponse.json([])
+    }
+
+    // Récupérer tous les produits de la catégorie "Produits importés"
     const products = await prisma.product.findMany({
+      where: {
+        categoryId: importedCategory.id
+      },
       include: {
         category: {
           select: {
@@ -42,13 +60,8 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Filtrer les produits importés (ceux qui ont des attributs d'importation)
+    // Traiter les produits importés
     const importedProducts = products
-      .filter(product => 
-        product.attributes.some(attr => 
-          ['warehouse', 'transportMode', 'importCost', 'supplierPrice'].includes(attr.name)
-        )
-      )
       .map(product => {
         // Extraire les attributs spécifiques aux produits importés
         const getAttributeValue = (name: string) => {

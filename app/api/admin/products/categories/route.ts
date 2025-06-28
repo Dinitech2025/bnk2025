@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const parentId = formData.get('parentId') as string || null
+    const isVisible = formData.get('isVisible') === 'true'
     const imageFile = formData.get('image') as File | null
 
     // Créer le slug à partir du nom
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
       name,
       description,
       parentId,
-      slug
+      slug,
+      isVisible
     }
 
     // Gérer l'upload d'image si présente

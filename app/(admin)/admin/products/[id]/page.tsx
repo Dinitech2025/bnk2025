@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
-import { formatPrice } from '@/lib/utils'
 import { Edit, ArrowLeft, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -122,12 +122,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <dl className="grid grid-cols-2 gap-4">
             <div>
               <dt className="text-sm font-medium text-gray-500">Prix de vente</dt>
-              <dd className="mt-1 text-sm text-gray-900">{formatPrice(Number(product.price))}</dd>
+              <dd className="mt-1 text-sm text-gray-900"><PriceWithConversion price={Number(product.price)} /></dd>
             </div>
             {product.compareAtPrice && (
               <div>
                 <dt className="text-sm font-medium text-gray-500">Prix barré</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatPrice(Number(product.compareAtPrice))}</dd>
+                <dd className="mt-1 text-sm text-gray-900"><PriceWithConversion price={Number(product.compareAtPrice)} /></dd>
               </div>
             )}
             <div>
@@ -188,7 +188,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Prix</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{formatPrice(Number(variation.price))}</dd>
+                      <dd className="mt-1 text-sm text-gray-900"><PriceWithConversion price={Number(variation.price)} /></dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Stock</dt>

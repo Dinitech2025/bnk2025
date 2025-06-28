@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
@@ -10,7 +26,8 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: white;
+  background: #FBF5F5;
+  min-height: 100vh;
 }
 
 @layer base {
@@ -58,4 +75,4 @@ body {
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.5% 48%;
   }
-} 
+}

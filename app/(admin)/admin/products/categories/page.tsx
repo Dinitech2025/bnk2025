@@ -69,6 +69,7 @@ interface ProductCategory {
   description: string | null
   parentId: string | null
   image: string | null
+  isVisible: boolean
   parent: {
     id: string
     name: string
@@ -378,13 +379,14 @@ export default function ProductCategoriesPage() {
                 </div>
               </TableHead>
               <TableHead>Sous-catégories</TableHead>
+              <TableHead>Affichage</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedCategories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {isLoading ? (
                     <div className="flex flex-col items-center justify-center space-y-4">
                       <Skeleton className="h-8 w-32" />
@@ -463,6 +465,11 @@ export default function ProductCategoriesPage() {
                       <Folder className="h-4 w-4 text-gray-400 mr-1" />
                       <span className="text-sm">{category.children.length}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={category.isVisible ? "default" : "secondary"}>
+                      {category.isVisible ? "Visible" : "Masqué"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">

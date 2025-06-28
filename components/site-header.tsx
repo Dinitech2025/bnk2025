@@ -5,19 +5,22 @@ import Image from 'next/image'
 import { useSettings } from '@/lib/contexts/settings-context'
 import { getSetting } from '@/lib/hooks/use-site-settings'
 import { CurrencySelector } from '@/components/ui/currency-selector'
-import { RefreshCw, ShoppingCart } from 'lucide-react'
+import { RefreshCw, ShoppingCart, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { useState, useEffect } from 'react'
 import { UserMenu } from '@/components/user-menu'
-import { DropdownMenuNav } from '@/components/ui/dropdown-menu-nav'
+import { DropdownMenuNavWithSubcategories } from '@/components/ui/dropdown-menu-nav-with-subcategories'
+import { GlobalSearch } from '@/components/global-search'
 
 export function SiteHeader() {
   const { settings, isLoading, reloadSettings } = useSettings()
   const [cartItemsCount, setCartItemsCount] = useState(0)
   const [isMounted, setIsMounted] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
   
-  const siteName = getSetting(settings, 'siteName', 'BoutikNaka')
+  const siteName = getSetting(settings, 'siteName', 'Boutik\'nakà')
   const logoUrl = getSetting(settings, 'logoUrl', '')
   const useSiteLogo = getSetting(settings, 'useSiteLogo', 'false') === 'true'
 
@@ -31,35 +34,34 @@ export function SiteHeader() {
     console.log('SiteHeader - Settings:', { siteName, logoUrl, useSiteLogo, settings })
   }
 
-  // Simuler le nombre d'articles dans le panier (à remplacer par votre logique réelle)
+  // Écouter les changements du panier
   useEffect(() => {
-    if (!isMounted) return
-
     const updateCartCount = () => {
-      try {
+      if (typeof window !== 'undefined') {
         const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-        setCartItemsCount(cart.length)
-      } catch (error) {
-        console.error('Erreur lors de la lecture du panier:', error)
-        setCartItemsCount(0)
+        const totalItems = cart.reduce((total: number, item: any) => total + (item.quantity || 0), 0)
+        setCartItemsCount(totalItems)
       }
     }
 
-    // Mettre à jour au chargement
+    // Compter initialement
     updateCartCount()
 
-    // Écouter les changements du panier
+    // Écouter les événements de mise à jour du panier
     window.addEventListener('cartUpdated', updateCartCount)
-    window.addEventListener('storage', updateCartCount)
-
+    
     return () => {
       window.removeEventListener('cartUpdated', updateCartCount)
-      window.removeEventListener('storage', updateCartCount)
     }
-  }, [isMounted])
+  }, [])
+
+  // Ne pas rendre le composant côté serveur pour éviter l'hydratation mismatch
+  if (!isMounted) {
+    return null
+  }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background">
+    <header className="sticky top-0 z-50 w-full border-b bg-background shadow-md">
       <div className="container flex h-20 items-center justify-between">
         {/* Logo à gauche */}
         <Link href="/" className="flex items-center space-x-2">
@@ -82,21 +84,21 @@ export function SiteHeader() {
         <nav className="flex items-center space-x-6">
           <Link
             href="/devis"
-            className="text-sm font-medium transition-colors hover:text-primary"
+            className="text-base font-medium transition-colors hover:text-primary"
           >
             Faire un devis
           </Link>
-          <DropdownMenuNav
+          <DropdownMenuNavWithSubcategories
             title="Produits"
             href="/products"
             type="products"
           />
-          <DropdownMenuNav
+          <DropdownMenuNavWithSubcategories
             title="Services"
             href="/services"
             type="services"
           />
-          <DropdownMenuNav
+          <DropdownMenuNavWithSubcategories
             title="Abonnements"
             href="/subscriptions"
             type="platforms"
@@ -105,6 +107,22 @@ export function SiteHeader() {
 
         {/* Actions à droite */}
         <div className="flex items-center space-x-4">
+          {/* Recherche */}
+          <div className="relative">
+            {showSearch ? (
+              <GlobalSearch onClose={() => setShowSearch(false)} />
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSearch(true)}
+                title="Rechercher"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+
           {/* Panier */}
           <Link href="/cart" className="relative">
             <Button variant="ghost" size="sm" className="relative">
@@ -126,14 +144,6 @@ export function SiteHeader() {
               Sélectionnez une devise pour voir les prix convertis
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={reloadSettings}
-            title="Recharger les paramètres"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
           <UserMenu />
         </div>
       </div>
