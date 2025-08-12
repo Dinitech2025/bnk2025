@@ -85,6 +85,39 @@ function getCodePatternForDuration(duration: string): RegExp {
   return new RegExp(`${duration}[A-Za-z0-9]{3,8}`, 'g');
 }
 
+// Fonction pour déterminer la durée basée sur les 2-3 premiers caractères du code
+function getDurationFromCodePrefix(code: string): string | null {
+  // Vérifier les patterns de durée dans les 2-3 premiers caractères
+  const codeStart = code.substring(0, 3).toLowerCase();
+  
+  // Patterns de durée exacte (2-3 caractères)
+  if (code.startsWith('1h')) return '1h';
+  if (code.startsWith('2h')) return '2h';
+  if (code.startsWith('3h')) return '3h';
+  if (code.startsWith('4h')) return '4h';
+  if (code.startsWith('5h')) return '5h';
+  if (code.startsWith('6h')) return '6h';
+  if (code.startsWith('8h')) return '8h';
+  if (code.startsWith('10h')) return '10h';
+  if (code.startsWith('24h')) return '24h';
+  
+  // Minutes (15m, 20m, 30m)
+  if (code.startsWith('15m')) return '15m';
+  if (code.startsWith('20m')) return '20m';
+  if (code.startsWith('30m')) return '30m';
+  
+  // Mois (1m, 3m, 6m)
+  if (code.startsWith('1m')) return '1m';
+  if (code.startsWith('3m')) return '3m';
+  if (code.startsWith('6m')) return '6m';
+  
+  // Semaines et années
+  if (code.startsWith('1s')) return '1s';
+  if (code.startsWith('1y')) return '1y';
+  
+  return null;
+}
+
 // Fonction pour extraire les codes depuis le texte selon un pattern
 function extractCodesFromText(text: string, pattern: RegExp): string[] {
   const matches: string[] = text.match(pattern) || [];
@@ -249,17 +282,82 @@ function extractCodesAndPricesFromText(text: string): Array<{
   price: number;
   codes: string[];
 }> {
-  console.log('🔍 Extraction des codes et prix depuis le PDF...');
+  console.log('🔍 Extraction basée sur les 2-3 premiers caractères des codes...');
   
-  // Patterns possibles pour extraire code + prix
+  // Pattern pour extraire tous les codes possibles (6+ caractères alphanumériques)
+  const codePattern = /\b[A-Za-z0-9]{6,}\b/g;
+  const pricePattern = /(\d+)\s*Ar/g;
+  
+  // Extraire tous les codes du texte
+  const allCodes = text.match(codePattern) || [];
+  console.log(`📋 ${allCodes.length} codes potentiels trouvés:`, allCodes.slice(0, 10));
+  
+  // Extraire tous les prix du texte
+  const allPrices: number[] = [];
+  let priceMatch;
+  while ((priceMatch = pricePattern.exec(text)) !== null) {
+    allPrices.push(parseInt(priceMatch[1]));
+  }
+  console.log(`💰 ${allPrices.length} prix trouvés:`, allPrices);
+  
+  // Grouper les codes par durée (déterminée par les 2-3 premiers caractères)
+  const codesByDuration: { [duration: string]: string[] } = {};
+  
+  allCodes.forEach(code => {
+    const duration = getDurationFromCodePrefix(code);
+    if (duration) {
+      if (!codesByDuration[duration]) {
+        codesByDuration[duration] = [];
+      }
+      codesByDuration[duration].push(code);
+      console.log(`✅ Code ${code} → durée ${duration}`);
+    } else {
+      console.log(`⚠️ Code ${code} → durée non reconnue (premiers caractères: ${String(code).substring(0, 3)})`);
+    }
+  });
+  
+  // Associer chaque durée avec un prix (logique simple pour commencer)
+  const results: Array<{ duration: string; price: number; codes: string[] }> = [];
+  
+  Object.entries(codesByDuration).forEach(([duration, codes]) => {
+    if (codes.length > 0) {
+      // Pour l'instant, utiliser le premier prix ou un prix par défaut basé sur la durée
+      let price = allPrices.length > 0 ? allPrices[0] : 1000;
+      
+      // Prix par défaut basés sur la durée (à ajuster selon vos tarifs)
+      if (duration.includes('30m')) price = 500;
+      else if (duration.includes('1h')) price = 1000;
+      else if (duration.includes('2h')) price = 2000;
+      else if (duration.includes('3h')) price = 3000;
+      
+      results.push({
+        duration,
+        price,
+        codes
+      });
+      
+      console.log(`🎯 Durée ${duration}: ${codes.length} codes, prix: ${price} Ar`);
+    }
+  });
+  
+  // Si aucun code trouvé avec la nouvelle méthode, fallback vers l'ancienne
+  if (results.length === 0) {
+    console.log('🔄 Fallback vers l\'ancienne méthode basée sur les patterns...');
+    return extractCodesOldMethod(text);
+  }
+  
+  return results;
+}
+
+// Fonction fallback avec l'ancienne méthode
+function extractCodesOldMethod(text: string): Array<{
+  duration: string;
+  price: number;
+  codes: string[];
+}> {
   const patterns = [
-    // Pattern principal: DT WIFI ZONE + Coupon + code + durée données prix
     /DT WIFI ZONE\s+\d+\s*\n\s*Coupon\s*\n\s*([A-Za-z0-9]+)\s*\n\s*(\d+[smhy])\s+[^0-9]*(\d+)\s*Ar/gi,
-    
-    // Pattern alternatif: code + durée + prix sur même ligne ou ligne suivante
     /([A-Za-z0-9]*(\d+[smhy])[A-Za-z0-9]*)\s*.*?(\d+)\s*Ar/gi,
-    
-    // Pattern simple: durée + prix
     /(\d+[smhy])\s+[^0-9]*(\d+)\s*Ar/gi
   ];
   
