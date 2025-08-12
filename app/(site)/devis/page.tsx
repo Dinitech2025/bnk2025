@@ -55,6 +55,7 @@ import { useCurrency } from '@/lib/hooks/use-currency'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useCart } from '@/lib/hooks/use-cart'
 
 interface FormData {
   mode: 'air' | 'sea'
@@ -118,7 +119,6 @@ const CURRENCIES = [
   { code: 'USD', name: 'Dollar US', symbol: '$' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
   { code: 'GBP', name: 'Livre Sterling', symbol: '£' },
-  { code: 'CNY', name: 'Yuan Chinois', symbol: '¥' },
   { code: 'MGA', name: 'Ariary', symbol: 'Ar' }
 ]
 
@@ -136,6 +136,7 @@ const SEA_WAREHOUSES = [
 export default function DevisPage() {
   const router = useRouter()
   const { formatWithTargetCurrency, targetCurrency } = useCurrency()
+  const { items: cartItems, addToCart, updateQuantity, removeFromCart: removeCartItem } = useCart()
   
   const [formData, setFormData] = useState<FormData>({
     mode: 'air',
@@ -152,67 +153,6 @@ export default function DevisPage() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [cartItems, setCartItems] = useState<any[]>([])
-  const [isMounted, setIsMounted] = useState(false)
-
-  // Marquer le composant comme monté
-  useEffect(() => {
-    setIsMounted(true)
-    console.log('🚀 Composant devis monté, récupération du panier...')
-    // Forcer une mise à jour après un court délai pour s'assurer que localStorage est accessible
-    setTimeout(() => {
-      updateCartItems()
-    }, 100)
-  }, [])
-
-  // Fonction pour mettre à jour les articles du panier
-  const updateCartItems = () => {
-    if (!isMounted) return
-    try {
-      // Vérifier si localStorage est disponible
-      if (typeof window === 'undefined' || !window.localStorage) {
-        console.warn('localStorage non disponible')
-        return
-      }
-      
-      const cartData = localStorage.getItem('cart')
-      console.log('🔍 Données brutes du localStorage:', cartData)
-      
-      const cart = JSON.parse(cartData || '[]')
-      console.log('🛒 Panier récupéré dans devis:', cart)
-      console.log('📊 Nombre d\'articles:', cart.length)
-      
-      setCartItems(cart)
-    } catch (error) {
-      console.error('Erreur lors de la lecture du panier:', error)
-      setCartItems([])
-    }
-  }
-
-  // Écouter les changements du panier
-  useEffect(() => {
-    if (!isMounted) return
-    
-    const handleCartUpdate = () => {
-      updateCartItems()
-    }
-
-    // Vérification périodique du panier (toutes les 2 secondes)
-    const intervalId = setInterval(() => {
-      updateCartItems()
-    }, 2000)
-
-    window.addEventListener('cartUpdated', handleCartUpdate)
-    window.addEventListener('storage', handleCartUpdate)
-    window.addEventListener('focus', handleCartUpdate) // Quand la fenêtre reprend le focus
-
-    return () => {
-      clearInterval(intervalId)
-      window.removeEventListener('cartUpdated', handleCartUpdate)
-      window.removeEventListener('storage', handleCartUpdate)
-      window.removeEventListener('focus', handleCartUpdate)
-    }
-  }, [isMounted])
 
   // Calculer automatiquement dès que les champs requis sont remplis
   useEffect(() => {
@@ -225,15 +165,14 @@ export default function DevisPage() {
   }, [formData.supplierPrice, formData.supplierCurrency, formData.weight, formData.warehouse, formData.mode, formData.volume])
 
   const shouldAutoCalculate = (data: FormData): boolean => {
-    const hasMinimalData = data.supplierPrice && 
-                          parseFloat(data.supplierPrice) > 0 && 
-                          data.weight && 
-                          parseFloat(data.weight) >= 0 && 
-                          data.warehouse
-    
+    const hasSupplierPrice = data.supplierPrice && parseFloat(data.supplierPrice) > 0
+    const hasValidWeight = data.weight !== undefined && data.weight !== null && 
+                          !isNaN(parseFloat(data.weight) || 0) && 
+                          (parseFloat(data.weight) || 0) >= 0
+    const hasWarehouse = Boolean(data.warehouse)
     const hasVolumeIfNeeded = data.mode === 'air' || (data.mode === 'sea' && data.volume && parseFloat(data.volume) > 0)
     
-    return hasMinimalData && hasVolumeIfNeeded
+    return hasSupplierPrice && hasValidWeight && hasWarehouse && hasVolumeIfNeeded
   }
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -272,7 +211,7 @@ export default function DevisPage() {
           productUrl: formData.productUrl || undefined,
           supplierPrice: parseFloat(formData.supplierPrice),
           supplierCurrency: formData.supplierCurrency,
-          weight: parseFloat(formData.weight),
+          weight: parseFloat(formData.weight) || 0,
           warehouse: formData.warehouse,
           volume: formData.mode === 'sea' ? parseFloat(formData.volume) : undefined
         })
@@ -309,7 +248,9 @@ export default function DevisPage() {
       return false
     }
     
-    if (formData.weight === '' || parseFloat(formData.weight) < 0) {
+    // Accepter le poids 0 et les valeurs vides (qui deviennent 0)
+    const weightValue = parseFloat(formData.weight) || 0
+    if (isNaN(weightValue) || weightValue < 0) {
       setError('Le poids doit être un nombre positif ou zéro')
       return false
     }
@@ -364,42 +305,24 @@ export default function DevisPage() {
 
       const { product } = await createProductResponse.json()
 
-      // Étape 2: Ajouter le produit créé au panier
-      const cartProduct = {
-        id: product.id,
+            // Étape 2: Ajouter le produit créé au panier via la base de données
+      await addToCart({
+        type: 'product',
+        itemId: product.id,
         name: product.name,
-        slug: product.slug,
-        sku: product.sku,
         price: parseFloat(product.price),
-        currency: 'Ar', // Utiliser Ar pour cohérence avec l'interface utilisateur
+        quantity: 1,
         image: null,
-        description: product.description,
-        category: product.category,
-        weight: product.weight ? parseFloat(product.weight) : undefined,
-        attributes: product.attributes,
-        quantity: 1
-      }
+        data: {
+          sku: product.sku,
+          description: product.description,
+          category: product.category,
+          weight: product.weight ? parseFloat(product.weight) : undefined,
+          attributes: product.attributes
+        }
+      })
 
-      const existingCart = JSON.parse(localStorage.getItem('cart') || '[]')
-      
-      // Vérifier si le produit n'est pas déjà dans le panier
-      const existingProductIndex = existingCart.findIndex((item: any) => item.id === product.id)
-      
-      if (existingProductIndex >= 0) {
-        // Si le produit existe déjà, augmenter la quantité
-        existingCart[existingProductIndex].quantity += 1
-        toast.success(`Quantité de "${product.name}" mise à jour dans le panier`)
-      } else {
-        // Sinon, ajouter le nouveau produit
-        existingCart.push(cartProduct)
-        toast.success(`"${product.name}" a été créé et ajouté au panier`)
-      }
-
-      localStorage.setItem('cart', JSON.stringify(existingCart))
-      window.dispatchEvent(new Event('cartUpdated'))
-      
-      // Mettre à jour le mini panier local
-      updateCartItems()
+      toast.success(`"${product.name}" a été créé et ajouté au panier`)
 
       // Réinitialiser le formulaire
       setFormData({
@@ -437,43 +360,28 @@ export default function DevisPage() {
     setError(null)
   }
 
-  // Fonctions pour gérer le panier
-  const updateCartQuantity = (itemId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(itemId)
-      return
-    }
-    
+  // Fonctions pour gérer le panier avec la base de données
+  const handleUpdateQuantity = async (cartItemId: string, newQuantity: number) => {
     try {
-      const updatedCart = cartItems.map(item =>
-        item.id === itemId ? { ...item, quantity: newQuantity } : item
-      )
-      
-      localStorage.setItem('cart', JSON.stringify(updatedCart))
-      setCartItems(updatedCart)
-      
-      // Déclencher l'événement de mise à jour
-      window.dispatchEvent(new Event('cartUpdated'))
-      
-      console.log('✅ Quantité mise à jour:', itemId, newQuantity)
+      if (newQuantity <= 0) {
+        await removeCartItem(cartItemId)
+        return
+      }
+      await updateQuantity(cartItemId, newQuantity)
+      toast.success('Quantité mise à jour')
     } catch (error) {
+      toast.error('Erreur lors de la mise à jour')
       console.error('Erreur lors de la mise à jour de la quantité:', error)
     }
   }
 
-  const removeFromCart = (itemId: string) => {
+  const handleRemoveFromCart = async (cartItemId: string) => {
     try {
-      const updatedCart = cartItems.filter(item => item.id !== itemId)
-      
-      localStorage.setItem('cart', JSON.stringify(updatedCart))
-      setCartItems(updatedCart)
-      
-      // Déclencher l'événement de mise à jour
-      window.dispatchEvent(new Event('cartUpdated'))
-      
-      console.log('🗑️ Article supprimé du panier:', itemId)
+      await removeCartItem(cartItemId)
+      toast.success('Article supprimé du panier')
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
+      toast.error('Erreur lors de la suppression')
+      console.error('Erreur lors de la suppression du panier:', error)
     }
   }
 
@@ -752,7 +660,7 @@ export default function DevisPage() {
                   </CardTitle>
                   {process.env.NODE_ENV === 'development' && (
                     <div className="text-xs text-gray-500 mt-1">
-                      Debug: {cartItems.length} articles - isMounted: {isMounted.toString()}
+                      Debug: {cartItems.length} articles
                     </div>
                   )}
                   <CardDescription>
@@ -765,18 +673,10 @@ export default function DevisPage() {
                       {/* Articles du panier - Version compacte */}
                       <div className="space-y-2 max-h-96 overflow-y-auto">
                         {cartItems.map((item, index) => (
-                          <div key={index} className={`p-2 rounded border ${item.type === 'subscription' ? 'border-blue-200 bg-blue-50/30' : 'bg-gray-50'}`}>
+                          <div key={index} className="p-2 rounded border bg-gray-50">
                             <div className="flex items-center gap-2">
-                              {/* Image/Logo compacte */}
-                              {item.type === 'subscription' && item.platform?.logo ? (
-                                <div className="relative h-8 w-8 flex-shrink-0">
-                                  <img
-                                    src={item.platform.logo}
-                                    alt={item.platform.name}
-                                    className="object-contain rounded w-full h-full"
-                                  />
-                                </div>
-                              ) : item.image ? (
+                              {/* Image compacte */}
+                              {item.image ? (
                                 <div className="relative h-8 w-8 flex-shrink-0">
                                   <img
                                     src={item.image}
@@ -795,9 +695,9 @@ export default function DevisPage() {
                                     <p className="text-xs font-medium text-gray-900 truncate">
                                       {item.name}
                                     </p>
-                                    {item.type === 'subscription' && (
+                                    {item.type === 'service' && (
                                       <Badge variant="secondary" className="text-xs px-1 py-0">
-                                        Abo
+                                        Service
                                       </Badge>
                                     )}
                                   </div>
@@ -805,7 +705,7 @@ export default function DevisPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => removeFromCart(item.id)}
+                                    onClick={() => handleRemoveFromCart(item.id)}
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
@@ -815,7 +715,6 @@ export default function DevisPage() {
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-xs text-primary">
                                     <PriceWithConversion price={item.price} />
-                                    {item.type === 'subscription' && item.duration && ` /${item.duration}`}
                                   </span>
                                   <span className="text-xs font-medium">
                                     <PriceWithConversion price={item.price * item.quantity} />
@@ -824,47 +723,32 @@ export default function DevisPage() {
 
                                 {/* Ligne 3: Contrôles de quantité */}
                                 <div className="flex items-center justify-between">
-                                  {item.type !== 'subscription' ? (
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-5 w-5 p-0"
-                                        onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                                      >
-                                        <Minus className="h-2 w-2" />
-                                      </Button>
-                                      <span className="text-xs font-medium min-w-[15px] text-center">
-                                        {item.quantity}
-                                      </span>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-5 w-5 p-0"
-                                        onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                                      >
-                                        <Plus className="h-2 w-2" />
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-500">
-                                      Qté: {item.quantity}
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-5 w-5 p-0"
+                                      onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                    >
+                                      <Minus className="h-2 w-2" />
+                                    </Button>
+                                    <span className="text-xs font-medium min-w-[15px] text-center">
+                                      {item.quantity}
                                     </span>
-                                  )}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-5 w-5 p-0"
+                                      onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                    >
+                                      <Plus className="h-2 w-2" />
+                                    </Button>
+                                  </div>
                                   
-                                  {/* Détails abonnements compacts */}
-                                  {item.type === 'subscription' && (
-                                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                                      <span className="flex items-center">
-                                        <Clock className="h-2 w-2 mr-1" />
-                                        {item.duration}
-                                      </span>
-                                      <span className="flex items-center">
-                                        <User className="h-2 w-2 mr-1" />
-                                        {item.maxProfiles}
-                                      </span>
-                                    </div>
-                                  )}
+                                  {/* Détails du type d'article */}
+                                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span className="capitalize">{item.type}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -898,10 +782,10 @@ export default function DevisPage() {
                           </span>
                         </div>
 
-                        {/* Note pour les abonnements - compacte */}
-                        {cartItems.some(item => item.type === 'subscription') && (
+                        {/* Note pour les services - compacte */}
+                        {cartItems.some(item => item.type === 'service') && (
                           <div className="bg-blue-50 p-2 rounded text-xs text-blue-700">
-                            <p className="font-medium">ℹ️ Profils réservés temporairement</p>
+                            <p className="font-medium">ℹ️ Services inclus dans votre commande</p>
                           </div>
                         )}
 
