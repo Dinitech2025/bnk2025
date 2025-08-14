@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useState, useEffect } from 'react'
-import { Check } from 'lucide-react'
 import { useCurrency } from '@/lib/hooks/use-currency'
 import {
   Select,
@@ -128,7 +127,7 @@ export function PriceWithConversion({
   price,
   defaultCurrency = 'MGA'
 }: { 
-  price: number;
+  price: number | undefined | null;
   defaultCurrency?: string;
 }) {
   const { 
@@ -138,13 +137,26 @@ export function PriceWithConversion({
     isLoading
   } = useCurrency()
   
-  // Si une devise cible est sélectionnée, afficher le prix converti
-  // Sinon afficher le prix dans la devise principale
-  if (isLoading) {
-    return <span className="animate-pulse">...</span>
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // Marquer le composant comme monté pour éviter les erreurs d'hydratation
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+  
+  // Vérifier si le prix est défini
+  if (price === undefined || price === null) {
+    return <span>Prix non disponible</span>
   }
   
-  if (targetCurrency) {
+  // Pendant le chargement côté serveur et avant le montage côté client, 
+  // afficher toujours en Ariary pour éviter les différences d'hydratation
+  if (!isMounted || isLoading) {
+    return <span>{price.toLocaleString('fr-FR')} Ar</span>
+  }
+  
+  // Une fois monté côté client, utiliser la devise sélectionnée
+  if (targetCurrency && targetCurrency !== 'MGA') {
     return <span>{formatWithTargetCurrency(price, targetCurrency)}</span>
   }
   

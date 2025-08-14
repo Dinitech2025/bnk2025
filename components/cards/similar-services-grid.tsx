@@ -6,9 +6,12 @@ import Image from 'next/image'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ShoppingCart, Eye, Heart, Clock } from 'lucide-react'
+import { ShoppingCart, Eye, Heart, Clock, MessageSquare } from 'lucide-react'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { toast } from '@/components/ui/use-toast'
+import { useCart } from '@/lib/hooks/use-cart'
+import { QuoteRequestForm } from '@/components/quotes/quote-request-form'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface ServiceImage {
   url: string
@@ -28,6 +31,7 @@ interface Service {
   duration: number
   images: ServiceImage[]
   category: ServiceCategory
+  pricingType?: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED'
 }
 
 interface SimilarServicesGridProps {
@@ -46,6 +50,9 @@ export function SimilarServicesGrid({
   const [services, setServices] = useState<Service[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [favorites, setFavorites] = useState<string[]>([])
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false)
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const { addToCart: addToCartAPI, isLoading: cartLoading } = useCart()
 
   // Charger les favoris depuis localStorage
   useEffect(() => {
@@ -81,31 +88,48 @@ export function SimilarServicesGrid({
     }
   }, [categoryId, currentServiceId, maxItems])
 
-  const addToCart = (service: Service) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    const existingItem = cart.find((item: any) => item.id === service.id)
-    
-    if (existingItem) {
-      existingItem.quantity += 1
-    } else {
+  const addToCart = async (service: Service) => {
+    // Pour les services avec devis requis, ouvrir le modal
+    if (service.pricingType === 'QUOTE_REQUIRED') {
+      setSelectedService(service)
+      setQuoteModalOpen(true)
+      return
+    }
+
+    if (cartLoading) return
+
+    try {
       const firstImage = service.images?.find(img => img.type === 'image')
-      cart.push({ 
-        id: service.id, 
-        name: service.name, 
-        price: service.price, 
-        quantity: 1, 
-        image: firstImage?.url || service.images?.[0]?.url,
-        currency: 'Ar',
-        type: 'service'
+      
+      await addToCartAPI({
+        type: 'service',
+        itemId: service.id,
+        name: service.name,
+        price: Number(service.price),
+        quantity: 1,
+        image: firstImage?.url || service.images?.[0]?.url
+      })
+      
+      toast({
+        title: "Service ajouté!",
+        description: `${service.name} ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le service au panier.",
+        variant: "destructive",
       })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
+  }
+
+  const handleQuoteSuccess = (quoteId: string) => {
+    setQuoteModalOpen(false)
+    setSelectedService(null)
     toast({
-      title: "Service ajouté!",
-      description: `${service.name} ajouté à votre panier.`,
+      title: "Demande envoyée !",
+      description: "Votre demande de devis a été transmise. Vous pouvez suivre son évolution dans votre profil.",
     })
   }
 
@@ -127,7 +151,7 @@ export function SimilarServicesGrid({
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">{title}</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {Array.from({ length: maxItems }).map((_, index) => (
             <Card key={index} className="overflow-hidden animate-pulse border-0 shadow-md bg-white">
               <div className="h-48 bg-gray-200"></div>
@@ -149,7 +173,7 @@ export function SimilarServicesGrid({
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
         {services.map((service) => {
           const firstImage = service.images?.find(img => img.type === 'image')
           
@@ -186,9 +210,14 @@ export function SimilarServicesGrid({
                             e.preventDefault()
                             addToCart(service)
                           }}
+                          disabled={cartLoading}
                           className="h-10 w-10 p-0 shadow-xl border-0 rounded-full"
                         >
-                          <ShoppingCart className="h-4 w-4" />
+                          {service.pricingType === 'QUOTE_REQUIRED' ? (
+                            <MessageSquare className="h-4 w-4" />
+                          ) : (
+                            <ShoppingCart className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           size="sm"
@@ -220,17 +249,40 @@ export function SimilarServicesGrid({
                     <span>{service.duration} min</span>
                   </div>
                 </div>
-                <h3 className="font-semibold text-lg mb-2 text-gray-900 line-clamp-2 leading-tight">
+                <h3 className="font-medium text-sm mb-2 text-gray-900 line-clamp-2 leading-tight">
                   {service.name}
                 </h3>
-                <div className="text-xl font-bold text-primary">
-                  <PriceWithConversion price={Number(service.price)} />
+                <div className="text-base font-semibold text-primary">
+                  {service.pricingType === 'QUOTE_REQUIRED' ? (
+                    <span className="text-orange-600">Sur devis</span>
+                  ) : (
+                    <PriceWithConversion price={Number(service.price)} />
+                  )}
                 </div>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {/* Modal de demande de devis */}
+      {selectedService && (
+        <Dialog open={quoteModalOpen} onOpenChange={setQuoteModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Demande de devis</DialogTitle>
+            </DialogHeader>
+            <QuoteRequestForm
+              service={selectedService}
+              onSuccess={handleQuoteSuccess}
+              onCancel={() => {
+                setQuoteModalOpen(false)
+                setSelectedService(null)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 } 

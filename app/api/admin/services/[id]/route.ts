@@ -69,6 +69,11 @@ export async function GET(
             path: true,
             alt: true
           }
+        },
+        _count: {
+          select: {
+            orderItems: true
+          }
         }
       }
     })
@@ -77,7 +82,23 @@ export async function GET(
       return NextResponse.json({ error: 'Service non trouvé' }, { status: 404 })
     }
 
-    return NextResponse.json(service)
+    // Transformer les images pour avoir un format cohérent
+    const transformedImages = service.images.map((image) => ({
+      id: image.id,
+      url: image.path, // Utiliser path comme url
+      alt: image.alt
+    }))
+
+    // Retourner le service avec les images transformées et les comptages
+    const serviceWithTransformedData = {
+      ...service,
+      images: transformedImages,
+      _count: {
+        orders: service._count.orderItems // Renommer pour correspondre à l'interface
+      }
+    }
+
+    return NextResponse.json(serviceWithTransformedData)
   } catch (error) {
     console.error('Erreur lors de la récupération du service:', error)
     return NextResponse.json(

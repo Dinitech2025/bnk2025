@@ -34,6 +34,7 @@ interface Service {
     path: string
     alt: string | null
   }[]
+  pricingType?: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED'
 }
 
 interface ServiceCardProps {
@@ -87,7 +88,11 @@ export function ServiceCard({ service, onDelete, isActionLoading }: ServiceCardP
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center text-gray-600">
                 <DollarSign className="h-4 w-4 mr-1" />
-                <span className="font-medium"><PriceWithConversion price={Number(service.price)} /></span>
+                {service.pricingType === 'QUOTE_REQUIRED' ? (
+                  <span className="font-medium text-orange-600">Sur devis</span>
+                ) : (
+                  <span className="font-medium"><PriceWithConversion price={Number(service.price)} /></span>
+                )}
               </div>
               <div className="flex items-center text-gray-600">
                 <Clock className="h-4 w-4 mr-1" />

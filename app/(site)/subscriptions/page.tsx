@@ -8,6 +8,7 @@ import { Plus, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 import { toast } from '@/components/ui/use-toast'
 import { SubscriptionPopup } from '@/components/ui/subscription-popup'
+import { useCart } from '@/lib/hooks/use-cart'
 
 interface OfferImage {
   url: string;
@@ -44,6 +45,7 @@ async function getOffers(): Promise<Offer[]> {
 }
 
 export default function OffersPage() {
+  const { addToCart: addToDbCart } = useCart()
   const [offers, setOffers] = useState<Offer[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null)
@@ -78,33 +80,43 @@ export default function OffersPage() {
     setSelectedOffer(null)
   }
 
-  const handleAddToCart = (reservationData: any) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    
-    // Créer un ID unique pour cette réservation
-    const reservationId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    
-    const cartItem = {
-      id: reservationId,
-      type: 'subscription',
-      name: reservationData.offerName,
-      price: Number(reservationData.price),
-      quantity: 1,
-      currency: 'Ar',
-      platform: reservationData.platform,
-      duration: reservationData.duration,
-      maxProfiles: reservationData.maxProfiles,
-      reservation: {
-        offerId: reservationData.offerId,
-        account: reservationData.account,
-        profiles: reservationData.profiles,
-        reservedAt: reservationData.reservedAt
-      }
+  const handleAddToCart = async (reservationData: any) => {
+    try {
+      await addToDbCart({
+        type: 'offer',
+        itemId: reservationData.offerId,
+        name: reservationData.offerName,
+        price: Number(reservationData.price),
+        quantity: 1,
+        image: selectedOffer?.images?.[0]?.url || selectedOffer?.platform?.logo,
+        data: {
+          // Données spécifiques aux abonnements
+          platform: reservationData.platform,
+          duration: reservationData.duration,
+          maxProfiles: reservationData.maxProfiles,
+          autoSelected: reservationData.autoSelected,
+          // Données de réservation de comptes et profils
+          reservation: {
+            offerId: reservationData.offerId,
+            account: reservationData.account,
+            profiles: reservationData.profiles,
+            reservedAt: reservationData.reservedAt
+          }
+        }
+      })
+
+      toast({
+        title: "Abonnement ajouté!",
+        description: `${reservationData.offerName} avec ${reservationData.profiles?.length || 0} profil(s) ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter l'abonnement au panier.",
+        variant: "destructive",
+      })
     }
-    
-    cart.push(cartItem)
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
   }
 
   const parseFeatures = (featuresString: string | null): string[] => {

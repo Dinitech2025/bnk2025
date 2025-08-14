@@ -9,10 +9,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")
     const category = searchParams.get("category")
 
-    // Si un ID spécifique est demandé
+    // Si un ID ou slug spécifique est demandé
     if (id) {
-      const service = await prisma.service.findUnique({
-        where: { id },
+      // Essayer d'abord par slug, puis par ID
+      let service = await prisma.service.findUnique({
+        where: { slug: id },
         include: {
           images: true,
           category: {
@@ -23,6 +24,22 @@ export async function GET(request: NextRequest) {
           },
         },
       })
+      
+      // Si pas trouvé par slug, essayer par ID
+      if (!service) {
+        service = await prisma.service.findUnique({
+          where: { id },
+          include: {
+            images: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        })
+      }
       
       if (service) {
         // Transformer les images pour l'API publique
@@ -37,6 +54,12 @@ export async function GET(request: NextRequest) {
         const serviceWithTransformedImages = {
           ...service,
           images: transformedImages,
+          // Les champs de pricing sont maintenant directement disponibles
+          pricingType: service.pricingType,
+          minPrice: service.minPrice,
+          maxPrice: service.maxPrice,
+          requiresQuote: service.requiresQuote,
+          autoAcceptNegotiation: service.autoAcceptNegotiation,
         }
         
         return NextResponse.json([serviceWithTransformedImages])
@@ -112,6 +135,12 @@ export async function GET(request: NextRequest) {
       return {
         ...service,
         images: transformedImages,
+        // Les champs de pricing sont maintenant directement disponibles
+        pricingType: service.pricingType,
+        minPrice: service.minPrice,
+        maxPrice: service.maxPrice,
+        requiresQuote: service.requiresQuote,
+        autoAcceptNegotiation: service.autoAcceptNegotiation,
       }
     })
 

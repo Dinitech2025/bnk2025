@@ -38,6 +38,9 @@ model User {
   subscriptions       Subscription[]
   userProfiles        UserProfile[]
   activeSubscriptions UserSubscription[]
+  quotes              Quote[]
+  quoteMessages       QuoteMessage[]
+  carts               Cart[]
 
   @@index([role])
   @@index([email])
@@ -157,19 +160,28 @@ model ProductVariation {
 }
 
 model Service {
-  id          String          @id @default(cuid())
-  name        String
-  slug        String          @unique
-  description String?
-  price       Decimal
-  duration    Int
-  categoryId  String?
-  published   Boolean         @default(true)
-  category    ServiceCategory? @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
-  images      Media[]         @relation("MediaToService")
+  id                      String             @id @default(cuid())
+  name                    String
+  slug                    String             @unique
+  description             String?
+  price                   Decimal
+  duration                Int
+  categoryId              String?
+  published               Boolean            @default(true)
+  pricingType             ServicePricingType @default(FIXED)
+  minPrice                Decimal?
+  maxPrice                Decimal?
+  requiresQuote           Boolean            @default(false)
+  autoAcceptNegotiation   Boolean            @default(false)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  category                ServiceCategory?   @relation(fields: [categoryId], references: [id])
+  orderItems              OrderItem[]
+  images                  Media[]            @relation("MediaToService")
+  newQuotes               Quote[]            @relation("QuoteToService")
 
   @@index([categoryId])
+  @@index([pricingType])
 }
 
 model Platform {
@@ -563,13 +575,100 @@ model ImportCalculationSettings {
   @@map("import_calculation_settings")
 }
 
+model Quote {
+  id            String         @id @default(cuid())
+  userId        String
+  serviceId     String
+  description   String
+  budget        Decimal?
+  status        QuoteStatus    @default(PENDING)
+  proposedPrice Decimal?
+  finalPrice    Decimal?
+  attachments   String[]       @default([])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service       Service        @relation("QuoteToService", fields: [serviceId], references: [id], onDelete: Cascade)
+  messages      QuoteMessage[]
+
+  @@index([userId])
+  @@index([serviceId])
+  @@index([status])
+}
+
+model QuoteMessage {
+  id            String   @id @default(cuid())
+  quoteId       String
+  senderId      String
+  message       String
+  proposedPrice Decimal?
+  attachments   String[] @default([])
+  createdAt     DateTime @default(now())
+  quote         Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  sender        User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@index([senderId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?
+  sessionId String?
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  type      String   // 'product', 'service', 'offer'
+  itemId    String
+  name      String
+  price     Decimal
+  quantity  Int      @default(1)
+  image     String?
+  data      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+  @@index([type])
+  @@index([itemId])
+}
+
+enum ServicePricingType {
+  FIXED
+  RANGE
+  NEGOTIABLE
+  QUOTE_REQUIRED
+}
+
+enum QuoteStatus {
+  PENDING
+  PRICE_PROPOSED
+  NEGOTIATING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
 enum AccountStatus {
   ACTIVE
   INACTIVE
-  EXPIRED
+  SUSPENDED
 }
 
 enum Availability {
   AVAILABLE
   UNAVAILABLE
+  MAINTENANCE
 }

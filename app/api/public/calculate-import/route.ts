@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
     const data: CalculationRequest = await request.json()
     const { mode, productName, productUrl, supplierPrice, supplierCurrency, weight, warehouse, volume } = data
 
+    console.log('🔍 Données reçues:', { mode, supplierPrice, supplierCurrency, weight, warehouse })
+
     // Validation des données
     if (!mode || supplierPrice === undefined || supplierPrice === null || !supplierCurrency || (weight === undefined && weight !== 0) || !warehouse) {
       return new NextResponse(
@@ -65,6 +67,8 @@ export async function POST(request: NextRequest) {
       exchangeRates[currencyCode] = parseFloat(setting.value || '1')
     })
 
+    console.log('💱 Taux de change:', exchangeRates)
+
     // Récupérer les paramètres de calcul depuis ImportCalculationSettings
     const importSettings = await prisma.importCalculationSettings.findMany()
     
@@ -73,6 +77,8 @@ export async function POST(request: NextRequest) {
       settings[setting.key] = parseFloat(setting.value || '0')
     })
 
+    console.log('⚙️ Paramètres d\'importation:', settings)
+
     // Fonction pour convertir vers MGA
     const convertToMGA = (amount: number, fromCurrency: string): number => {
       if (fromCurrency === 'MGA') return amount
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
       const mgaRate = exchangeRates['MGA'] || 1
       const fromRate = exchangeRates[fromCurrency] || 1
       
+      // Si MGA est le taux de base (1), convertir directement
       if (mgaRate === 1) {
         return amount / fromRate
       }
@@ -123,6 +130,16 @@ export async function POST(request: NextRequest) {
     const transportRate = transportRateInEUR * (exchangeRates[warehouseConfig.currency] / exchangeRates['EUR'])
     const transportCost = weight * transportRate
 
+    console.log('🚚 Transport:', {
+      transportRateInEUR,
+      warehouseCurrency: warehouseConfig.currency,
+      exchangeRateWarehouse: exchangeRates[warehouseConfig.currency],
+      exchangeRateEUR: exchangeRates['EUR'],
+      transportRate,
+      weight,
+      transportCost
+    })
+
     // Calculer la commission variable selon le prix
     let commissionRate = 0
     if (supplierPriceInWarehouseCurrency < 10) {
@@ -139,16 +156,33 @@ export async function POST(request: NextRequest) {
 
     const commission = (supplierPriceInWarehouseCurrency * commissionRate) / 100
 
+    console.log('💰 Commission:', {
+      supplierPriceInWarehouseCurrency,
+      commissionRate,
+      commission
+    })
+
     // Frais fixes
     const processingFee = settings['processing_fee'] || 2
     const taxRate = settings['tax_rate'] || 3.5
     const tax = (supplierPriceInWarehouseCurrency * taxRate) / 100
+
+    console.log('📋 Frais et taxes:', {
+      processingFee,
+      taxRate,
+      tax
+    })
 
     // Total en devise de l'entrepôt
     const totalInWarehouseCurrency = supplierPriceInWarehouseCurrency + transportCost + commission + processingFee + tax
 
     // Convertir en MGA
     const totalInMGA = convertToMGA(totalInWarehouseCurrency, warehouseConfig.currency)
+
+    console.log('💵 Total:', {
+      totalInWarehouseCurrency,
+      totalInMGA
+    })
 
     // Déterminer le délai de livraison
     let transitTime = '2-4 semaines'

@@ -11,8 +11,8 @@ export async function middleware(request: NextRequest) {
   // Protéger les routes admin
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!token) {
-      // Rediriger vers la page de connexion si non connecté
-      return NextResponse.redirect(new URL('/auth/login', request.url))
+      // Rediriger vers la page d'accueil si non connecté (le modal de connexion s'ouvrira)
+      return NextResponse.redirect(new URL('/', request.url))
     }
 
     // Vérifier si l'utilisateur a les droits admin ou staff

@@ -34,6 +34,16 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Solution temporaire : forcer EUR et GBP s'ils sont manquants
+    if (!exchangeRates['EUR']) {
+      exchangeRates['EUR'] = 0.000196
+      console.log('🔧 EUR forcé: 0.000196')
+    }
+    if (!exchangeRates['GBP']) {
+      exchangeRates['GBP'] = 0.000168
+      console.log('🔧 GBP forcé: 0.000168')
+    }
+
     console.log(`🔢 Après transformation: ${Object.keys(exchangeRates).length} taux dans l'objet exchangeRates`)
     console.log('🔍 Clés des taux:', Object.keys(exchangeRates).slice(0, 10).join(', '))
 

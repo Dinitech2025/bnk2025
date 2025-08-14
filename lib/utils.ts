@@ -117,6 +117,7 @@ export function formatDuration(duration: number, unit: string): string {
 /**
  * Convertit un montant d'une devise à une autre en utilisant les taux de change fournis
  * Base: MGA = 1.0 (Ariary Malgache)
+ * Les taux sont stockés comme: 1 MGA = X autre devise
  */
 export function convertCurrency(
   amount: number,
@@ -132,9 +133,19 @@ export function convertCurrency(
     throw new Error(`Taux de change non disponible pour ${fromCurrency} ou ${toCurrency}`);
   }
   
-  // Convertir d'abord en MGA (devise de base), puis dans la devise cible
-  const amountInMGA = amount / exchangeRates[fromCurrency];
-  const convertedAmount = amountInMGA * exchangeRates[toCurrency];
+  let convertedAmount: number;
+  
+  if (fromCurrency === 'MGA') {
+    // Convertir de MGA vers une autre devise: multiplier par le taux
+    convertedAmount = amount * exchangeRates[toCurrency];
+  } else if (toCurrency === 'MGA') {
+    // Convertir d'une autre devise vers MGA: diviser par le taux
+    convertedAmount = amount / exchangeRates[fromCurrency];
+  } else {
+    // Convertir entre deux devises non-MGA: passer par MGA
+    const amountInMGA = amount / exchangeRates[fromCurrency];
+    convertedAmount = amountInMGA * exchangeRates[toCurrency];
+  }
   
   // Arrondir à 2 décimales
   return Math.round(convertedAmount * 100) / 100;

@@ -12,7 +12,8 @@ import { Plus, Search, Filter, Grid3X3, List, Heart, ChevronLeft, ChevronRight, 
 import Image from 'next/image'
 import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
-import { PriceWithConversion } from '@/components/ui/price-with-conversion'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { useCart } from '@/lib/hooks/use-cart'
 
 interface ProductImage {
   url: string;
@@ -53,6 +54,7 @@ async function getCategories(): Promise<ProductCategory[]> {
 
 function ProductsContent() {
   const searchParams = useSearchParams()
+  const { addToCart: addToDbCart } = useCart()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
@@ -138,32 +140,29 @@ function ProductsContent() {
   const endIndex = startIndex + itemsPerPage
   const currentProducts = filteredProducts.slice(startIndex, endIndex)
 
-  const addToCart = (product: Product) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    
-    const existingItem = cart.find((item: any) => item.id === product.id)
-    
-    if (existingItem) {
-      existingItem.quantity += 1
-    } else {
-      cart.push({ 
-        id: product.id, 
-        name: product.name, 
-        price: product.price, 
-        quantity: 1, 
-        image: product.images?.[0]?.url,
-        currency: 'Ar',
-        type: 'product'
+  const addToCart = async (product: Product) => {
+    try {
+      await addToDbCart({
+        type: 'product',
+        itemId: product.id,
+        name: product.name,
+        price: Number(product.price),
+        quantity: 1,
+        image: product.images?.[0]?.url
+      })
+      
+      toast({
+        title: "Produit ajouté!",
+        description: `${product.name} a été ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le produit au panier.",
+        variant: "destructive",
       })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
-    toast({
-      title: "Produit ajouté!",
-      description: `${product.name} a été ajouté à votre panier.`,
-    })
   }
 
   const toggleFavorite = (productId: string) => {
@@ -309,7 +308,7 @@ function ProductsContent() {
       </div>
       
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {Array.from({ length: 16 }).map((_, i) => (
             <Card key={i} className="overflow-hidden animate-pulse">
               <div className="h-48 bg-gray-200"></div>
@@ -351,7 +350,7 @@ function ProductsContent() {
         <>
           <div className={
             viewMode === 'grid' 
-              ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8"
+                              ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8"
               : "space-y-4 mb-8"
           }>
             {currentProducts.map((product) => (
@@ -432,10 +431,10 @@ function ProductsContent() {
                         )}
                       </div>
                     </div>
-                    <h3 className="font-semibold text-lg mb-2 text-gray-900 line-clamp-2 leading-tight">
+                    <h3 className="font-medium text-sm mb-2 text-gray-900 line-clamp-2 leading-tight">
                       {product.name}
                     </h3>
-                    <div className="text-xl font-bold text-primary">
+                    <div className="text-base font-semibold text-primary">
                       <PriceWithConversion price={Number(product.price)} />
                     </div>
                   </CardContent>
@@ -470,12 +469,12 @@ function ProductsContent() {
                           )}
                         </div>
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                      <h3 className="font-medium text-sm mb-2 text-gray-900">
                         {product.name}
                       </h3>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-xl font-bold text-primary">
+                      <div className="text-base font-semibold text-primary">
                         <PriceWithConversion price={Number(product.price)} />
                       </div>
                       <div className="flex items-center space-x-2">

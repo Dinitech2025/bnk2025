@@ -8,10 +8,14 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
-import { Plus, Search, Filter, Grid3X3, List, Heart, ChevronLeft, ChevronRight, Eye, ShoppingCart, Clock } from 'lucide-react'
+import { Plus, Search, Filter, Grid3X3, List, Heart, ChevronLeft, ChevronRight, Eye, ShoppingCart, Clock, MessageSquare } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { PriceWithConversion } from '@/components/ui/price-with-conversion'
+import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { useCart } from '@/lib/hooks/use-cart'
+import { useToast } from '@/components/ui/use-toast'
+import { QuoteRequestForm } from '@/components/quotes/quote-request-form'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface ServiceImage {
   url: string;
@@ -25,11 +29,18 @@ interface ServiceCategory {
 interface Service {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
   price: number;
-  duration: string | null;
+  duration: number | null;
   images: ServiceImage[];
   category: ServiceCategory;
+  // Nouveaux champs de pricing
+  pricingType: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED';
+  minPrice?: number;
+  maxPrice?: number;
+  requiresQuote: boolean;
+  autoAcceptNegotiation: boolean;
 }
 
 async function getServices(): Promise<Service[]> {
@@ -51,6 +62,8 @@ async function getCategories(): Promise<ServiceCategory[]> {
 
 function ServicesContent() {
   const searchParams = useSearchParams()
+  const { addToCart: addToDbCart } = useCart()
+  const { toast } = useToast()
   const [services, setServices] = useState<Service[]>([])
   const [categories, setCategories] = useState<ServiceCategory[]>([])
   const [filteredServices, setFilteredServices] = useState<Service[]>([])
@@ -61,6 +74,8 @@ function ServicesContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [favorites, setFavorites] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false)
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
   const itemsPerPage = 16
 
   // Charger les favoris depuis localStorage et le terme de recherche depuis l'URL
@@ -117,10 +132,10 @@ function ServicesContent() {
           return b.price - a.price
         case 'duration-asc':
           if (!a.duration || !b.duration) return 0
-          return a.duration.localeCompare(b.duration)
+          return a.duration - b.duration
         case 'duration-desc':
           if (!a.duration || !b.duration) return 0
-          return b.duration.localeCompare(a.duration)
+          return b.duration - a.duration
         case 'name':
           return a.name.localeCompare(b.name)
         default:
@@ -138,30 +153,46 @@ function ServicesContent() {
   const endIndex = startIndex + itemsPerPage
   const currentServices = filteredServices.slice(startIndex, endIndex)
 
-  const addToCart = (service: Service) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    
-    const existingItem = cart.find((item: any) => item.id === service.id && item.type === 'service')
-    
-    if (existingItem) {
-      existingItem.quantity += 1
-    } else {
-      cart.push({ 
-        id: service.id, 
-        name: service.name, 
-        price: service.price, 
-        quantity: 1, 
-        image: service.images?.[0]?.url,
-        currency: 'Ar',
+  const addToCart = async (service: Service) => {
+    // Pour les services avec devis requis, ouvrir le modal
+    if (service.pricingType === 'QUOTE_REQUIRED') {
+      setSelectedService(service)
+      setQuoteModalOpen(true)
+      return
+    }
+
+    try {
+      await addToDbCart({
         type: 'service',
-        duration: service.duration
+        itemId: service.id,
+        name: service.name,
+        price: Number(service.price),
+        quantity: 1,
+        image: service.images?.[0]?.url,
+        data: service.duration ? { duration: service.duration } : undefined
+      })
+      
+      toast({
+        title: "Service ajouté!",
+        description: `${service.name} a été ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le service au panier.",
+        variant: "destructive",
       })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
-    console.log(`${service.name} a été ajouté à votre panier.`)
+  }
+
+  const handleQuoteSuccess = (quoteId: string) => {
+    setQuoteModalOpen(false)
+    setSelectedService(null)
+    toast({
+      title: "Demande envoyée !",
+      description: "Votre demande de devis a été transmise. Vous pouvez suivre son évolution dans votre profil.",
+    })
   }
 
   const toggleFavorite = (serviceId: string) => {
@@ -306,7 +337,7 @@ function ServicesContent() {
       </div>
       
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {Array.from({ length: 16 }).map((_, i) => (
             <Card key={i} className="overflow-hidden animate-pulse">
               <div className="h-48 bg-gray-200"></div>
@@ -334,14 +365,14 @@ function ServicesContent() {
         <>
           <div className={
             viewMode === 'grid' 
-              ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8"
+                              ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8"
               : "space-y-4 mb-8"
           }>
             {currentServices.map((service) => (
               viewMode === 'grid' ? (
                 <Card key={service.id} className="group overflow-hidden flex flex-col hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:shadow-xl hover:-translate-y-1">
                   <CardHeader className="p-0 relative">
-                    <Link href={`/services/${service.id}`}>
+                    <Link href={`/services/${service.slug || service.id}`}>
                       <div className="relative w-full aspect-square overflow-hidden">
                         <Image
                           src={service.images?.[0]?.url || '/placeholder-image.svg'}
@@ -360,7 +391,7 @@ function ServicesContent() {
                               className="h-10 w-10 p-0 bg-white/95 hover:bg-white shadow-xl backdrop-blur-sm border-0 rounded-full"
                               asChild
                             >
-                              <Link href={`/services/${service.id}`}>
+                              <Link href={`/services/${service.slug || service.id}`}>
                                 <Eye className="h-4 w-4 text-gray-700" />
                               </Link>
                             </Button>
@@ -372,7 +403,11 @@ function ServicesContent() {
                               }}
                               className="h-10 w-10 p-0 bg-primary hover:bg-primary/90 shadow-xl rounded-full"
                             >
-                              <ShoppingCart className="h-4 w-4 text-white" />
+                              {service.pricingType === 'QUOTE_REQUIRED' ? (
+                                <MessageSquare className="h-4 w-4 text-white" />
+                              ) : (
+                                <ShoppingCart className="h-4 w-4 text-white" />
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -393,25 +428,75 @@ function ServicesContent() {
                       />
                     </Button>
                   </CardHeader>
-                  <CardContent className="p-4 flex-grow">
-                    <div className="mb-2">
+                  <CardContent className="p-3 flex-grow">
+                    <div className="mb-2 flex flex-wrap gap-1">
                       <Badge variant="secondary" className="text-xs px-2 py-1 bg-gray-100 text-gray-700">
                         {service.category.name}
                       </Badge>
+                      {/* Badge pour le type de pricing */}
+                      {service.pricingType === 'NEGOTIABLE' && (
+                        <Badge className="text-xs px-2 py-1 bg-green-100 text-green-700">
+                          Négociable
+                        </Badge>
+                      )}
+                      {service.pricingType === 'RANGE' && (
+                        <Badge className="text-xs px-2 py-1 bg-purple-100 text-purple-700">
+                          Plage
+                        </Badge>
+                      )}
+                      {service.pricingType === 'QUOTE_REQUIRED' && (
+                        <Badge className="text-xs px-2 py-1 bg-orange-100 text-orange-700">
+                          Devis
+                        </Badge>
+                      )}
                     </div>
-                    <Link href={`/services/${service.id}`}>
-                      <CardTitle className="text-base font-semibold mb-3 h-12 overflow-hidden leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                    <Link href={`/services/${service.slug || service.id}`}>
+                      <CardTitle className="text-sm font-medium mb-2 h-12 overflow-hidden leading-tight group-hover:text-primary transition-colors line-clamp-2">
                         {service.name}
                       </CardTitle>
                     </Link>
-                    <div className="space-y-2">
-                      <p className="font-bold text-xl text-primary">
-                        <PriceWithConversion price={Number(service.price)} />
-                      </p>
+                    <div className="space-y-1">
+                      {/* Affichage du prix selon le type */}
+                      {service.pricingType === 'FIXED' && (
+                        <p className="font-semibold text-base text-primary">
+                          <PriceWithConversion price={Number(service.price)} />
+                        </p>
+                      )}
+                      
+                      {service.pricingType === 'NEGOTIABLE' && (
+                        <div>
+                          <p className="font-semibold text-base text-primary">
+                            <PriceWithConversion price={Number(service.price)} />
+                          </p>
+                          <p className="text-xs text-green-600">Négociable</p>
+                        </div>
+                      )}
+                      
+                      {service.pricingType === 'RANGE' && (
+                        <div>
+                          <p className="font-semibold text-base text-primary">
+                            <PriceWithConversion price={Number(service.minPrice || service.price)} /> - <PriceWithConversion price={Number(service.maxPrice || service.price)} />
+                          </p>
+                          <p className="text-xs text-purple-600">Plage de prix</p>
+                        </div>
+                      )}
+                      
+                      {service.pricingType === 'QUOTE_REQUIRED' && (
+                        <div>
+                          <p className="font-semibold text-base text-orange-600">
+                            Sur devis
+                          </p>
+                          <p className="text-xs text-orange-600">Prix personnalisé</p>
+                        </div>
+                      )}
+                      
                       {service.duration && (
                         <div className="flex items-center text-gray-600 text-sm">
                           <Clock className="h-4 w-4 mr-1" />
-                          {service.duration}
+                          {service.duration >= 60 
+                            ? `${Math.floor(service.duration / 60)}h${service.duration % 60 > 0 ? ` ${service.duration % 60}min` : ''}`
+                            : `${service.duration}min`
+                          }
                         </div>
                       )}
                     </div>
@@ -420,7 +505,7 @@ function ServicesContent() {
               ) : (
                 <Card key={service.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                   <div className="flex">
-                    <Link href={`/services/${service.id}`}>
+                    <Link href={`/services/${service.slug || service.id}`}>
                       <div className="relative w-32 h-32 flex-shrink-0">
                         <Image
                           src={service.images?.[0]?.url || '/placeholder-image.svg'}
@@ -432,24 +517,76 @@ function ServicesContent() {
                     </Link>
                     <div className="flex-1 p-4 flex justify-between">
                       <div className="flex-1">
-                        <div className="mb-1">
+                        <div className="mb-1 flex flex-wrap gap-1">
                           <Badge variant="secondary" className="text-xs">
                             {service.category.name}
                           </Badge>
+                          {/* Badge pour le type de pricing */}
+                          {service.pricingType === 'NEGOTIABLE' && (
+                            <Badge className="text-xs bg-green-100 text-green-700">
+                              Négociable
+                            </Badge>
+                          )}
+                          {service.pricingType === 'RANGE' && (
+                            <Badge className="text-xs bg-purple-100 text-purple-700">
+                              Plage
+                            </Badge>
+                          )}
+                          {service.pricingType === 'QUOTE_REQUIRED' && (
+                            <Badge className="text-xs bg-orange-100 text-orange-700">
+                              Devis
+                            </Badge>
+                          )}
                         </div>
-                        <Link href={`/services/${service.id}`}>
-                          <h3 className="font-semibold text-lg mb-2 hover:text-primary transition-colors">
+                        <Link href={`/services/${service.slug || service.id}`}>
+                          <h3 className="font-medium text-sm mb-2 hover:text-primary transition-colors">
                             {service.name}
                           </h3>
                         </Link>
                         <div className="flex items-center space-x-4">
-                          <p className="font-bold text-lg text-primary">
-                            <PriceWithConversion price={Number(service.price)} />
-                          </p>
+                          {/* Affichage du prix selon le type */}
+                          <div>
+                            {service.pricingType === 'FIXED' && (
+                              <p className="font-semibold text-base text-primary">
+                                <PriceWithConversion price={Number(service.price)} />
+                              </p>
+                            )}
+                            
+                            {service.pricingType === 'NEGOTIABLE' && (
+                              <div>
+                                <p className="font-semibold text-base text-primary">
+                                  <PriceWithConversion price={Number(service.price)} />
+                                </p>
+                                <p className="text-xs text-green-600">Négociable</p>
+                              </div>
+                            )}
+                            
+                            {service.pricingType === 'RANGE' && (
+                              <div>
+                                <p className="font-semibold text-base text-primary">
+                                  <PriceWithConversion price={Number(service.minPrice || service.price)} /> - <PriceWithConversion price={Number(service.maxPrice || service.price)} />
+                                </p>
+                                <p className="text-xs text-purple-600">Plage de prix</p>
+                              </div>
+                            )}
+                            
+                            {service.pricingType === 'QUOTE_REQUIRED' && (
+                              <div>
+                                <p className="font-semibold text-base text-orange-600">
+                                  Sur devis
+                                </p>
+                                <p className="text-xs text-orange-600">Prix personnalisé</p>
+                              </div>
+                            )}
+                          </div>
+                          
                           {service.duration && (
                             <div className="flex items-center text-gray-600 text-sm">
                               <Clock className="h-4 w-4 mr-1" />
-                              {service.duration}
+                              {service.duration >= 60 
+                                ? `${Math.floor(service.duration / 60)}h${service.duration % 60 > 0 ? ` ${service.duration % 60}min` : ''}`
+                                : `${service.duration}min`
+                              }
                             </div>
                           )}
                         </div>
@@ -476,7 +613,7 @@ function ServicesContent() {
                             className="h-9 px-3 border-gray-200 hover:border-gray-300"
                             asChild
                           >
-                            <Link href={`/services/${service.id}`}>
+                            <Link href={`/services/${service.slug || service.id}`}>
                               <Eye className="h-4 w-4 mr-2" />
                               Voir
                             </Link>
@@ -486,8 +623,17 @@ function ServicesContent() {
                             size="sm"
                             className="h-9 px-3 shadow-sm hover:shadow-md transition-all duration-200"
                           >
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                            Ajouter
+                            {service.pricingType === 'QUOTE_REQUIRED' ? (
+                              <>
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Demander un devis
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="h-4 w-4 mr-2" />
+                                Ajouter
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -539,6 +685,25 @@ function ServicesContent() {
             </div>
           )}
         </>
+      )}
+
+      {/* Modal de demande de devis */}
+      {selectedService && (
+        <Dialog open={quoteModalOpen} onOpenChange={setQuoteModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Demande de devis</DialogTitle>
+            </DialogHeader>
+            <QuoteRequestForm
+              service={selectedService}
+              onSuccess={handleQuoteSuccess}
+              onCancel={() => {
+                setQuoteModalOpen(false)
+                setSelectedService(null)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

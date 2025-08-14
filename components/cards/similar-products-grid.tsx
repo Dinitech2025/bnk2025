@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ShoppingCart, Eye, Heart } from 'lucide-react'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { toast } from '@/components/ui/use-toast'
+import { useCart } from '@/lib/hooks/use-cart'
 
 interface ProductImage {
   url: string
@@ -46,6 +47,7 @@ export function SimilarProductsGrid({
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [favorites, setFavorites] = useState<string[]>([])
+  const { addToCart: addToCartAPI, isLoading: cartLoading } = useCart()
 
   // Charger les favoris depuis localStorage
   useEffect(() => {
@@ -81,32 +83,33 @@ export function SimilarProductsGrid({
     }
   }, [categoryId, currentProductId, maxItems])
 
-  const addToCart = (product: Product) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    const existingItem = cart.find((item: any) => item.id === product.id)
-    
-    if (existingItem) {
-      existingItem.quantity += 1
-    } else {
+  const addToCart = async (product: Product) => {
+    if (cartLoading) return
+
+    try {
       const firstImage = product.images?.find(img => img.type === 'image')
-      cart.push({ 
-        id: product.id, 
-        name: product.name, 
-        price: product.price, 
-        quantity: 1, 
-        image: firstImage?.url || product.images?.[0]?.url,
-        currency: 'Ar',
-        type: 'product'
+      
+      await addToCartAPI({
+        type: 'product',
+        itemId: product.id,
+        name: product.name,
+        price: Number(product.price),
+        quantity: 1,
+        image: firstImage?.url || product.images?.[0]?.url
+      })
+      
+      toast({
+        title: "Produit ajouté!",
+        description: `${product.name} ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le produit au panier.",
+        variant: "destructive",
       })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
-    toast({
-      title: "Produit ajouté!",
-      description: `${product.name} ajouté à votre panier.`,
-    })
   }
 
   const toggleFavorite = (productId: string) => {
@@ -127,7 +130,7 @@ export function SimilarProductsGrid({
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">{title}</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {Array.from({ length: maxItems }).map((_, index) => (
             <Card key={index} className="overflow-hidden animate-pulse border-0 shadow-md bg-white">
               <div className="h-48 bg-gray-200"></div>
@@ -149,7 +152,7 @@ export function SimilarProductsGrid({
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
         {products.map((product) => {
           const firstImage = product.images?.find(img => img.type === 'image')
           
@@ -186,7 +189,7 @@ export function SimilarProductsGrid({
                             e.preventDefault()
                             addToCart(product)
                           }}
-                          disabled={product.stock <= 0}
+                          disabled={product.stock <= 0 || cartLoading}
                           className="h-10 w-10 p-0 shadow-xl border-0 rounded-full"
                         >
                           <ShoppingCart className="h-4 w-4" />
@@ -230,10 +233,10 @@ export function SimilarProductsGrid({
                     )}
                   </div>
                 </div>
-                <h3 className="font-semibold text-lg mb-2 text-gray-900 line-clamp-2 leading-tight">
+                <h3 className="font-medium text-sm mb-2 text-gray-900 line-clamp-2 leading-tight">
                   {product.name}
                 </h3>
-                <div className="text-xl font-bold text-primary">
+                <div className="text-base font-semibold text-primary">
                   <PriceWithConversion price={Number(product.price)} />
                 </div>
               </CardContent>

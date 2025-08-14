@@ -16,6 +16,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/components/ui/use-toast'
+import { PaymentMethodSelector } from '@/components/checkout/payment-method-selector'
 
 interface OrderItem {
   id: string
@@ -83,8 +84,7 @@ export default function CheckoutPage() {
     shippingCountry: 'Madagascar',
     selectedShippingAddressId: '', // Nouvelle: pour sélectionner une adresse existante
     
-    // Paiement et notes
-    paymentMethod: '',
+    // Notes seulement - paiement géré par PaymentMethodSelector
     notes: '',
     
     // Options de compte
@@ -314,14 +314,7 @@ export default function CheckoutPage() {
       }
     }
 
-    if (!formData.paymentMethod) {
-      toast({
-        title: "Méthode de paiement",
-        description: "Veuillez sélectionner une méthode de paiement",
-        variant: "destructive"
-      })
-      return
-    }
+    // Validation de méthode de paiement maintenant gérée par PaymentMethodSelector
 
     // Validation des adresses
     if (!formData.billingCity) {
@@ -402,7 +395,7 @@ export default function CheckoutPage() {
         }),
         total: orderData.total,
         currency: orderData.currency,
-        paymentMethod: formData.paymentMethod,
+        paymentMethod: 'handled_by_payment_component', // Géré par PaymentMethodSelector
         notes: formData.notes,
         timestamp: new Date().toISOString()
       }
@@ -807,26 +800,12 @@ export default function CheckoutPage() {
             </CardContent>
           </Card>
 
+          {/* Notes optionnelles */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <CreditCard className="h-5 w-5 mr-2" />
-                Méthode de paiement
-              </CardTitle>
+              <CardTitle>Notes et instructions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Select value={formData.paymentMethod} onValueChange={(value) => handleInputChange('paymentMethod', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une méthode de paiement" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mobile_money">Mobile Money (MVola, Orange Money)</SelectItem>
-                  <SelectItem value="bank_transfer">Virement bancaire</SelectItem>
-                  <SelectItem value="cash_on_delivery">Paiement à la livraison</SelectItem>
-                  <SelectItem value="credit_card">Carte bancaire</SelectItem>
-                </SelectContent>
-              </Select>
-              
+            <CardContent>
               <div>
                 <Label htmlFor="notes">Notes (optionnel)</Label>
                 <Textarea
@@ -935,16 +914,49 @@ export default function CheckoutPage() {
             </CardContent>
           </Card>
 
-          <form onSubmit={handleSubmit}>
-            <Button 
-              type="submit" 
-              className="w-full" 
-              size="lg"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Traitement en cours...' : `Confirmer la commande - ${orderData.total.toLocaleString()} Ar`}
-            </Button>
-          </form>
+          {/* Sélecteur de méthode de paiement intégré */}
+          <PaymentMethodSelector
+            total={orderData.total}
+            currency="Ar"
+            orderData={{
+              ...orderData,
+              billingDetails: {
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.billingAddress,
+                city: formData.billingCity,
+                zipCode: formData.billingZipCode,
+                country: formData.billingCountry
+              },
+              shippingDetails: {
+                address: sameAsbilling ? formData.billingAddress : formData.shippingAddress,
+                city: sameAsbilling ? formData.billingCity : formData.shippingCity,
+                zipCode: sameAsbilling ? formData.billingZipCode : formData.shippingZipCode,
+                country: sameAsbilling ? formData.billingCountry : formData.shippingCountry
+              },
+              notes: formData.notes,
+              orderId: `BNK-${Date.now()}`
+            }}
+            onPaymentSuccess={(paymentData) => {
+              console.log('Paiement réussi:', paymentData)
+              toast({
+                title: "Paiement réussi !",
+                description: paymentData.message || "Votre commande a été traitée avec succès.",
+              })
+              // Rediriger vers la page de succès
+              router.push('/order-success')
+            }}
+            onPaymentError={(error) => {
+              console.error('Erreur de paiement:', error)
+              toast({
+                title: "Erreur de paiement",
+                description: error,
+                variant: "destructive",
+              })
+            }}
+          />
         </div>
       </div>
     </div>

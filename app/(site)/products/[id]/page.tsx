@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { SimilarProductsGrid } from '@/components/cards/similar-products-grid'
+import { useCart } from '@/lib/hooks/use-cart'
 
 interface ProductMedia {
   url: string;
@@ -42,6 +43,7 @@ export default function ProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0)
+  const { addToCart: addToCartAPI, isLoading: cartLoading } = useCart()
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -82,35 +84,34 @@ export default function ProductDetailPage() {
     }
   }, [productId])
 
-  const addToCart = () => {
-    if (!product) return
+  const addToCart = async () => {
+    if (!product || cartLoading) return
 
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-    const existingItem = cart.find((item: any) => item.id === product.id)
-    
-    if (existingItem) {
-      existingItem.quantity += quantity
-    } else {
+    try {
       // Utiliser la première image pour le panier
       const firstImage = product.images?.find(media => media.type === 'image')
-      cart.push({ 
-        id: product.id, 
-        name: product.name, 
-        price: product.price, 
-        quantity: quantity, 
-        image: firstImage?.url || product.images?.[0]?.url,
-        currency: 'Ar',
-        type: 'product'
+      
+      await addToCartAPI({
+        type: 'product',
+        itemId: product.id,
+        name: product.name,
+        price: Number(product.price),
+        quantity: quantity,
+        image: firstImage?.url || product.images?.[0]?.url
+      })
+      
+      toast({
+        title: "Produit ajouté!",
+        description: `${quantity} x ${product.name} ajouté(s) à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le produit au panier.",
+        variant: "destructive",
       })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
-    toast({
-      title: "Produit ajouté!",
-      description: `${quantity} x ${product.name} ajouté(s) à votre panier.`,
-    })
   }
 
   const renderMainMedia = () => {
@@ -320,11 +321,11 @@ export default function ProductDetailPage() {
               <Button 
                 onClick={addToCart} 
                 className="w-full h-12 text-lg"
-                disabled={product.stock <= 0}
+                disabled={product.stock <= 0 || cartLoading}
                 variant="danger"
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
-                Ajouter au panier
+                {cartLoading ? 'Ajout en cours...' : 'Ajouter au panier'}
               </Button>
             </div>
           </div>

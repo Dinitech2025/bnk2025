@@ -45,7 +45,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({
         console.log('Envoi du fichier:', file.name, 'type:', file.type)
 
         try {
-          const response = await fetch("/api/upload", {
+          const response = await fetch("/api/upload-imagekit", {
             method: "POST",
             body: formData
           });

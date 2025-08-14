@@ -55,7 +55,7 @@ export function ImageUpload(props: ImageUploadProps) {
     
     formData.append('type', uploadType)
 
-    const response = await fetch('/api/upload', {
+    const response = await fetch('/api/upload-imagekit', {
       method: 'POST',
       body: formData
     })

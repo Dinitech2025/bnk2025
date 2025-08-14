@@ -179,7 +179,7 @@ export default function CategoriesPage() {
       </div>
       
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {Array.from({ length: 12 }).map((_, i) => (
             <Card key={i} className="overflow-hidden animate-pulse">
               <div className="h-48 bg-gray-200"></div>
@@ -202,7 +202,7 @@ export default function CategoriesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
             {currentCategories.map((category) => (
               <Card key={category.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-md">
                 <CardHeader className="p-0 relative">

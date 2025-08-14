@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
   ShoppingBag,
+  ShoppingCart,
   Users,
   Settings,
   Package,
@@ -27,7 +28,8 @@ import {
   Tag,
   List,
   Menu,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -45,6 +47,7 @@ interface NavItem {
   submenuItems?: SubmenuItem[];
 }
 
+// Navigation items for admin sidebar - Updated with Quotes
 const adminNavItems: NavItem[] = [
   {
     title: 'Tableau de bord',
@@ -99,6 +102,16 @@ const adminNavItems: NavItem[] = [
     title: 'Commandes',
     href: '/admin/orders',
     icon: FileText,
+  },
+  {
+    title: 'Paniers',
+    href: '/admin/carts',
+    icon: ShoppingCart,
+  },
+  {
+    title: 'Devis',
+    href: '/admin/quotes',
+    icon: MessageSquare,
   },
   {
     title: 'Paramètres',

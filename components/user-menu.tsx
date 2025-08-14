@@ -12,10 +12,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { AuthModal } from '@/components/auth/auth-modal'
+import { MessageSquare, User, ShoppingBag, MapPin, LogOut, Settings } from 'lucide-react'
 
 export function UserMenu() {
   const { data: session } = useSession()
   const [profileData, setProfileData] = useState<any>(null)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   
   // Récupérer les données complètes du profil utilisateur
   useEffect(() => {
@@ -31,20 +35,34 @@ export function UserMenu() {
     }
   }, [session])
   
+  const openLoginModal = () => {
+    setAuthMode('login')
+    setAuthModalOpen(true)
+  }
+
+  const openRegisterModal = () => {
+    setAuthMode('register')
+    setAuthModalOpen(true)
+  }
+
   if (!session) {
     return (
-      <div className="flex items-center space-x-4">
-        <Link href="/auth/login">
-          <Button variant="ghost" size="sm">
+      <>
+        <div className="flex items-center space-x-2 md:space-x-3">
+          <Button variant="ghost" size="sm" onClick={openLoginModal}>
             Connexion
           </Button>
-        </Link>
-        <Link href="/auth/register">
-          <Button variant="danger" size="sm">
+          <Button variant="danger" size="sm" onClick={openRegisterModal}>
             S'inscrire
           </Button>
-        </Link>
-      </div>
+        </div>
+        
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          defaultMode={authMode}
+        />
+      </>
     )
   }
   
@@ -88,6 +106,12 @@ export function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/profile?tab=orders">Mes commandes</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/profile/quotes">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Mes demandes de devis
+          </Link>
         </DropdownMenuItem>
         {(session.user.role === 'ADMIN' || session.user.role === 'STAFF') && (
           <DropdownMenuItem asChild>

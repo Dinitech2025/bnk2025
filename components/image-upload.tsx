@@ -32,7 +32,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         console.log('Envoi du fichier:', file.name, 'type:', imageType)
 
         try {
-          const response = await fetch("/api/upload", {
+          const response = await fetch("/api/upload-imagekit", {
             method: "POST",
             body: formData
           });

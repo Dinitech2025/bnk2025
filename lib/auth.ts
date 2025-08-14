@@ -48,11 +48,6 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 jours
   },
-  pages: {
-    signIn: '/auth/login',
-    signOut: '/auth/logout',
-    error: '/auth/error',
-  },
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -175,6 +170,29 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
+    async redirect({ url, baseUrl }) {
+      // Si l'URL contient déjà une destination, l'utiliser
+      if (url.startsWith('/')) return `${baseUrl}${url}`
+      
+      // Si l'URL est externe au domaine, retourner la base
+      if (new URL(url).origin !== baseUrl) return baseUrl
+      
+      return url
+    },
+  },
+  pages: {
+    signIn: '/auth/login',
+    error: '/auth/error',
+  },
+  events: {
+    async signIn({ user, account, profile, isNewUser }) {
+      console.log('🎉 Connexion réussie:', {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        isNewUser
+      })
+    }
   },
   debug: process.env.NODE_ENV === 'development',
 }

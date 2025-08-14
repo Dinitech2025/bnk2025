@@ -8,11 +8,14 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { BreadcrumbHeader } from '@/components/ui/breadcrumb'
-import { Plus, Search, Grid3X3, List, Heart, Clock, Calendar, ChevronLeft, ChevronRight, ArrowLeft, Package, Wrench, Eye, ShoppingCart } from 'lucide-react'
+import { Plus, Search, Grid3X3, List, Heart, Clock, Calendar, ChevronLeft, ChevronRight, ArrowLeft, Package, Wrench, Eye, ShoppingCart, MessageSquare } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { useCart } from '@/lib/hooks/use-cart'
+import { QuoteRequestForm } from '@/components/quotes/quote-request-form'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface ProductImage {
   url: string;
@@ -43,6 +46,7 @@ interface Service {
   duration: string | null;
   images: ProductImage[];
   category: Category;
+  pricingType?: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED';
 }
 
 interface CategoryData {
@@ -119,6 +123,7 @@ async function getCategoryData(categoryId: string): Promise<CategoryData | null>
 export default function CategoryPage() {
   const params = useParams()
   const categoryId = params.id as string
+  const { addToCart: addToDbCart } = useCart()
   
   const [categoryData, setCategoryData] = useState<CategoryData | null>(null)
   const [filteredItems, setFilteredItems] = useState<(Product | Service)[]>([])
@@ -128,7 +133,9 @@ export default function CategoryPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [favorites, setFavorites] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 16
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false)
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const itemsPerPage = 20
 
   // Charger les favoris depuis localStorage
   useEffect(() => {
@@ -199,40 +206,47 @@ export default function CategoryPage() {
   const endIndex = startIndex + itemsPerPage
   const currentItems = filteredItems.slice(startIndex, endIndex)
 
-  const addToCart = (item: Product | Service) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+  const addToCart = async (item: Product | Service) => {
+    // Pour les services avec devis requis, ouvrir le modal
+    if (categoryData?.type === 'service' && 'pricingType' in item && item.pricingType === 'QUOTE_REQUIRED') {
+      setSelectedService(item as Service)
+      setQuoteModalOpen(true)
+      return
+    }
+
     const itemType = categoryData?.type || 'product'
     
-    const existingItem = cart.find((cartItem: any) => 
-      cartItem.id === item.id && cartItem.type === itemType
-    )
-    
-    if (existingItem) {
-      existingItem.quantity += 1
-    } else {
-      const cartItem: any = { 
-        id: item.id, 
-        name: item.name, 
-        price: item.price, 
-        quantity: 1, 
+    try {
+      await addToDbCart({
+        type: itemType,
+        itemId: item.id,
+        name: item.name,
+        price: Number(item.price),
+        quantity: 1,
         image: item.images?.[0]?.url,
-        currency: 'Ar',
-        type: itemType
-      }
-
-      if (itemType === 'service' && 'duration' in item) {
-        cartItem.duration = item.duration
-      }
-
-      cart.push(cartItem)
+        data: itemType === 'service' && 'duration' in item ? { duration: item.duration } : undefined
+      })
+      
+      toast({
+        title: `${itemType === 'product' ? 'Produit' : 'Service'} ajouté!`,
+        description: `${item.name} a été ajouté à votre panier.`,
+      })
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout au panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter l'article au panier.",
+        variant: "destructive",
+      })
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart))
-    window.dispatchEvent(new Event('cartUpdated'))
-    
+  }
+
+  const handleQuoteSuccess = (quoteId: string) => {
+    setQuoteModalOpen(false)
+    setSelectedService(null)
     toast({
-      title: `${itemType === 'product' ? 'Produit' : 'Service'} ajouté!`,
-      description: `${item.name} a été ajouté à votre panier.`,
+      title: "Demande envoyée !",
+      description: "Votre demande de devis a été transmise. Vous pouvez suivre son évolution dans votre profil.",
     })
   }
 
@@ -283,7 +297,7 @@ export default function CategoryPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div className="h-8 bg-gray-200 rounded w-64 animate-pulse"></div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} className="overflow-hidden">
                 <div className="h-48 bg-gray-200 animate-pulse"></div>
@@ -452,7 +466,7 @@ export default function CategoryPage() {
           <>
             <div className={
               viewMode === 'grid' 
-                ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8"
+                ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8"
                 : "space-y-4 mb-8"
             }>
               {currentItems.map((item) => (
@@ -492,7 +506,11 @@ export default function CategoryPage() {
                                 disabled={categoryData?.type === 'product' && 'stock' in item && (item.stock || (item as any).inventory || 0) <= 0}
                                 className="h-10 w-10 p-0 shadow-xl border-0 rounded-full"
                               >
-                                <ShoppingCart className="h-4 w-4" />
+                                {categoryData?.type === 'service' && 'pricingType' in item && item.pricingType === 'QUOTE_REQUIRED' ? (
+                                  <MessageSquare className="h-4 w-4" />
+                                ) : (
+                                  <ShoppingCart className="h-4 w-4" />
+                                )}
                               </Button>
                               <Button
                                 size="sm"
@@ -514,8 +532,8 @@ export default function CategoryPage() {
                         </div>
                       </Link>
                     </CardHeader>
-                    <CardContent className="p-4 flex-1 flex flex-col">
-                      <div className="flex items-center justify-between mb-2">
+                    <CardContent className="p-3 flex-1 flex flex-col">
+                      <div className="flex items-center justify-between mb-1">
                         <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
                           {item.category.name}
                         </Badge>
@@ -535,12 +553,16 @@ export default function CategoryPage() {
                           </div>
                         )}
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 text-gray-900 line-clamp-2 leading-tight">
+                      <h3 className="font-medium text-sm mb-2 text-gray-900 line-clamp-2 leading-tight">
                         {item.name}
                       </h3>
                       <div className="flex items-center justify-between">
-                        <div className="text-xl font-bold text-primary">
-                          <PriceWithConversion price={Number(item.price)} />
+                        <div className="text-base font-semibold text-primary">
+                          {categoryData?.type === 'service' && 'pricingType' in item && item.pricingType === 'QUOTE_REQUIRED' ? (
+                            <span className="text-orange-600">Sur devis</span>
+                          ) : (
+                            <PriceWithConversion price={Number(item.price)} />
+                          )}
                         </div>
                         {categoryData?.type === 'service' && 'duration' in item && item.duration && (
                           <div className="flex items-center text-sm text-gray-500">
@@ -583,13 +605,17 @@ export default function CategoryPage() {
                             </div>
                           )}
                         </div>
-                        <h3 className="font-semibold text-lg mb-2 text-gray-900">
+                        <h3 className="font-medium text-sm mb-2 text-gray-900">
                           {item.name}
                         </h3>
                       </div>
                       <div className="flex items-center justify-between">
-                        <div className="text-xl font-bold text-primary">
-                          <PriceWithConversion price={Number(item.price)} />
+                        <div className="text-base font-semibold text-primary">
+                          {categoryData?.type === 'service' && 'pricingType' in item && item.pricingType === 'QUOTE_REQUIRED' ? (
+                            <span className="text-orange-600">Sur devis</span>
+                          ) : (
+                            <PriceWithConversion price={Number(item.price)} />
+                          )}
                         </div>
                         <div className="flex items-center space-x-2">
                           {categoryData?.type === 'service' && 'duration' in item && item.duration && (
@@ -619,8 +645,17 @@ export default function CategoryPage() {
                             disabled={categoryData?.type === 'product' && 'stock' in item && (item.stock || (item as any).inventory || 0) <= 0}
                             className="transition-colors"
                           >
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                            Ajouter
+                            {categoryData?.type === 'service' && 'pricingType' in item && item.pricingType === 'QUOTE_REQUIRED' ? (
+                              <>
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Demander un devis
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="h-4 w-4 mr-2" />
+                                Ajouter
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -677,6 +712,25 @@ export default function CategoryPage() {
           </>
         )}
       </div>
+
+      {/* Modal de demande de devis */}
+      {selectedService && (
+        <Dialog open={quoteModalOpen} onOpenChange={setQuoteModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Demande de devis</DialogTitle>
+            </DialogHeader>
+            <QuoteRequestForm
+              service={selectedService}
+              onSuccess={handleQuoteSuccess}
+              onCancel={() => {
+                setQuoteModalOpen(false)
+                setSelectedService(null)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 } 

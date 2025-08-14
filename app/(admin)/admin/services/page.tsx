@@ -84,6 +84,7 @@ interface Service {
     path: string
     alt: string | null
   }[]
+  pricingType?: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED'
 }
 
 type SortField = "name" | "category" | "price" | "duration" | "published"
@@ -549,7 +550,11 @@ export default function ServicesPage() {
                     <TableCell>
                       <div className="flex items-center">
                         <DollarSign className="h-4 w-4 text-gray-400 mr-1" />
-                        <span className="font-medium"><PriceWithConversion price={Number(service.price)} /></span>
+                        {service.pricingType === 'QUOTE_REQUIRED' ? (
+                          <span className="font-medium text-orange-600">Sur devis</span>
+                        ) : (
+                          <span className="font-medium"><PriceWithConversion price={Number(service.price)} /></span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
