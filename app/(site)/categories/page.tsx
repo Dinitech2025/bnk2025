@@ -121,7 +121,8 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="container mx-auto px-4 py-8">
       <Breadcrumb 
         items={[
           { label: 'Catégories', current: true }
@@ -304,6 +305,7 @@ export default function CategoriesPage() {
           )}
         </>
       )}
+      </div>
     </div>
   )
 } 
