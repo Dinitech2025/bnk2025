@@ -6,6 +6,13 @@ import { prisma } from '@/lib/prisma'
 // GET - Récupérer tous les slides
 export async function GET() {
   try {
+    console.log('🔍 API admin/hero-slides - début')
+    
+    // Test de connexion Prisma
+    console.log('📊 Test de connexion à la base...')
+    await prisma.$connect()
+    console.log('✅ Connexion Prisma réussie')
+    
     const slides = await prisma.heroSlide.findMany({
       orderBy: [
         { order: 'asc' },
@@ -13,11 +20,17 @@ export async function GET() {
       ]
     })
 
+    console.log(`✅ ${slides.length} slides récupérés`)
     return NextResponse.json(slides)
   } catch (error) {
-    console.error('Erreur lors de la récupération des slides:', error)
+    console.error('❌ Erreur lors de la récupération des slides:', error)
+    console.error('Stack trace:', error)
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des slides' },
+      { 
+        error: 'Erreur lors de la récupération des slides',
+        details: error instanceof Error ? error.message : 'Erreur inconnue',
+        stack: error instanceof Error ? error.stack : null
+      },
       { status: 500 }
     )
   }
