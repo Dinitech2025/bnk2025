@@ -114,6 +114,14 @@ const adminNavItems: NavItem[] = [
     icon: MessageSquare,
   },
   {
+    title: 'Contenu du site',
+    icon: Globe,
+    submenu: true,
+    submenuItems: [
+      { title: 'Slides d\'accueil', href: '/admin/hero-slides' },
+    ]
+  },
+  {
     title: 'Paramètres',
     icon: Settings,
     submenu: true,
@@ -142,6 +150,8 @@ function AdminSidebar() {
           ? 'Gestion des produits'
           : pathname.startsWith('/admin/services')
             ? 'Gestion des services'
+            : pathname.startsWith('/admin/hero-slides')
+              ? 'Contenu du site'
         : null
   )
 

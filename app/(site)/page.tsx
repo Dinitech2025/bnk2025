@@ -26,6 +26,17 @@ interface Category {
   image: string | null;
 }
 
+interface HeroSlide {
+  id: string;
+  title: string;
+  description: string | null;
+  image: string;
+  buttonText: string;
+  buttonLink: string;
+  isActive: boolean;
+  order: number;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -64,6 +75,7 @@ export default function HomePage() {
   const [services, setServices] = useState<Service[]>([])
   const [offers, setOffers] = useState<Offer[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -78,11 +90,12 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsRes, servicesRes, offersRes, categoriesRes] = await Promise.all([
+        const [productsRes, servicesRes, offersRes, categoriesRes, heroSlidesRes] = await Promise.all([
           fetch('/api/public/products'),
           fetch('/api/public/services'),
           fetch('/api/public/offers'),
-          fetch('/api/public/categories')
+          fetch('/api/public/categories'),
+          fetch('/api/public/hero-slides')
         ])
 
         if (productsRes.ok) {
@@ -104,6 +117,11 @@ export default function HomePage() {
           const categoriesData = await categoriesRes.json()
           const allCategories = [...(categoriesData.products || []), ...(categoriesData.services || [])]
           setCategories(allCategories.slice(0, 6)) // Limiter à 6 catégories
+        }
+
+        if (heroSlidesRes.ok) {
+          const heroSlidesData = await heroSlidesRes.json()
+          setHeroSlides(heroSlidesData)
         }
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error)
@@ -187,15 +205,15 @@ export default function HomePage() {
   // Carrousel auto-play
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % Math.max(1, categories.length))
+      setCurrentSlide(prev => (prev + 1) % Math.max(1, heroSlides.length))
     }, 5000)
     return () => clearInterval(interval)
-  }, [categories.length])
+  }, [heroSlides.length])
 
   const nextSlide = (type: 'main' | 'product' | 'service' | 'offer') => {
     switch (type) {
       case 'main':
-        setCurrentSlide(prev => (prev + 1) % Math.max(1, categories.length))
+        setCurrentSlide(prev => (prev + 1) % Math.max(1, heroSlides.length))
         break
       case 'product':
         setProductSlide(prev => (prev + 10) % Math.max(10, products.length))
@@ -295,33 +313,33 @@ export default function HomePage() {
               </div>
             </div>
             
-            {/* Carrousel des catégories - Responsive */}
-            {categories.length > 0 && (
+            {/* Carrousel des slides configurables - Responsive */}
+            {heroSlides.length > 0 && (
               <div className="hidden xl:block relative z-10 mt-8 lg:mt-0">
                 <div className="w-[700px] h-[400px] xl:w-[800px] xl:h-[400px] relative overflow-hidden rounded-2xl shadow-2xl border-4 border-white/20">
-                  {categories.map((category, index) => (
+                  {heroSlides.map((slide, index) => (
                     <div
-                      key={category.id}
+                      key={slide.id}
                       className={`absolute inset-0 transition-all duration-700 ease-in-out ${
                         index === currentSlide ? 'translate-x-0 opacity-100' : 
                         index < currentSlide ? '-translate-x-full opacity-0' : 'translate-x-full opacity-0'
                       }`}
                     >
                       <Image
-                        src={category.image || '/placeholder-image.svg'}
-                        alt={category.name}
+                        src={slide.image}
+                        alt={slide.title}
                         fill
                         className="object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end">
                         <div className="p-6 xl:p-8 text-white w-full">
-                          <h3 className="text-xl xl:text-2xl font-bold mb-2 xl:mb-3">{category.name}</h3>
-                          {category.description && (
-                            <p className="text-sm xl:text-lg opacity-90 leading-relaxed line-clamp-2">{category.description}</p>
+                          <h3 className="text-xl xl:text-2xl font-bold mb-2 xl:mb-3">{slide.title}</h3>
+                          {slide.description && (
+                            <p className="text-sm xl:text-lg opacity-90 leading-relaxed line-clamp-2">{slide.description}</p>
                           )}
                           <Button variant="secondary" className="mt-3 xl:mt-4 text-sm" asChild>
-                            <Link href={`/categories/${category.id}`}>
-                              Découvrir
+                            <Link href={slide.buttonLink}>
+                              {slide.buttonText}
                             </Link>
                           </Button>
                         </div>
