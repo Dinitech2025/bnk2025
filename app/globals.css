@@ -29,6 +29,22 @@
       transform: translateX(-50%);
     }
   }
+  
+  .via-rose-25 {
+    --tw-gradient-via: rgb(255 241 242 / 0.25);
+  }
+  
+  .via-sky-25 {
+    --tw-gradient-via: rgb(240 249 255 / 0.25);
+  }
+  
+  .via-violet-25 {
+    --tw-gradient-via: rgb(245 243 255 / 0.25);
+  }
+  
+  .bg-gradient-radial {
+    background: radial-gradient(circle, var(--tw-gradient-stops));
+  }
 }
 
 :root {
