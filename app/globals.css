@@ -45,6 +45,18 @@
   .bg-gradient-radial {
     background: radial-gradient(circle, var(--tw-gradient-stops));
   }
+  
+  /* Classes de flou personnalisées */
+  .blur-\[1px\] { filter: blur(1px); }
+  .blur-\[2px\] { filter: blur(2px); }
+  .blur-\[3px\] { filter: blur(3px); }
+  .blur-\[4px\] { filter: blur(4px); }
+  .blur-\[5px\] { filter: blur(5px); }
+  .blur-\[6px\] { filter: blur(6px); }
+  .blur-\[7px\] { filter: blur(7px); }
+  .blur-\[8px\] { filter: blur(8px); }
+  .blur-\[9px\] { filter: blur(9px); }
+  .blur-\[10px\] { filter: blur(10px); }
 }
 
 :root {

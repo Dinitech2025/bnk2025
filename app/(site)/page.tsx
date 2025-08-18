@@ -41,10 +41,27 @@ interface HeroBanner {
   subtitle: string;
   description: string;
   backgroundImage: string;
+  
+  // Couleurs de texte
+  titleColor: string;
+  subtitleColor: string;
+  descriptionColor: string;
+  
+  // Boutons
   primaryButtonText: string;
   primaryButtonLink: string;
+  primaryButtonColor: string;
+  primaryButtonBg: string;
+  
   secondaryButtonText: string;
   secondaryButtonLink: string;
+  secondaryButtonColor: string;
+  secondaryButtonBg: string;
+  secondaryButtonBorder: string;
+  
+  // Effets
+  backgroundBlur: number;
+  backgroundOpacity: number;
 }
 
 interface Product {

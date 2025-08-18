@@ -695,10 +695,28 @@ model HeroBanner {
   subtitle        String  @default("Boutik'nakà")
   description     String  @default("Découvrez nos produits et services de qualité exceptionnelle")
   backgroundImage String  @default("https://images.unsplash.com/photo-1441986300917-64674bd600d8?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")
+  
+  // Personnalisation des couleurs de texte
+  titleColor      String @default("#ffffff")
+  subtitleColor   String @default("#fde047")
+  descriptionColor String @default("#ffffff")
+  
+  // Personnalisation des boutons
   primaryButtonText   String @default("Explorer nos Produits")
   primaryButtonLink   String @default("/products")
+  primaryButtonColor  String @default("#ffffff")
+  primaryButtonBg     String @default("#3b82f6")
+  
   secondaryButtonText String @default("Découvrir nos Services") 
   secondaryButtonLink String @default("/services")
+  secondaryButtonColor String @default("#ffffff")
+  secondaryButtonBg   String @default("transparent")
+  secondaryButtonBorder String @default("#ffffff")
+  
+  // Effets sur l'image de fond
+  backgroundBlur      Int @default(0) // 0-10 niveau de flou
+  backgroundOpacity   Int @default(40) // 0-100 opacité de l'overlay
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

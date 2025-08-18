@@ -30,10 +30,27 @@ interface HeroBanner {
   subtitle: string;
   description: string;
   backgroundImage: string;
+  
+  // Couleurs de texte
+  titleColor: string;
+  subtitleColor: string;
+  descriptionColor: string;
+  
+  // Boutons
   primaryButtonText: string;
   primaryButtonLink: string;
+  primaryButtonColor: string;
+  primaryButtonBg: string;
+  
   secondaryButtonText: string;
   secondaryButtonLink: string;
+  secondaryButtonColor: string;
+  secondaryButtonBg: string;
+  secondaryButtonBorder: string;
+  
+  // Effets
+  backgroundBlur: number;
+  backgroundOpacity: number;
 }
 
 interface HeroBannerProps {
@@ -70,10 +87,15 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
             src={heroBanner.backgroundImage}
             alt="Background"
             fill
-            className="object-cover"
+            className={`object-cover ${heroBanner.backgroundBlur > 0 ? `blur-[${heroBanner.backgroundBlur}px]` : ''}`}
             priority
           />
-          <div className="absolute inset-0 bg-black/40" />
+          <div 
+            className="absolute inset-0"
+            style={{
+              backgroundColor: `rgba(0, 0, 0, ${heroBanner.backgroundOpacity / 100})`
+            }}
+          />
         </div>
       )}
       
@@ -83,21 +105,32 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
       )}
       
       <div className="relative z-10 container mx-auto px-4 h-full flex flex-col lg:flex-row items-center justify-between">
-        <div className="text-white max-w-lg z-10 text-center lg:text-left">
+        <div className="max-w-lg z-10 text-center lg:text-left">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 leading-tight">
-            {heroBanner?.title || 'Bienvenue chez'}
-            <span className="block text-yellow-300">
+            <span style={{ color: heroBanner?.titleColor || '#ffffff' }}>
+              {heroBanner?.title || 'Bienvenue chez'}
+            </span>
+            <span 
+              className="block"
+              style={{ color: heroBanner?.subtitleColor || '#fde047' }}
+            >
               {heroBanner?.subtitle || "Boutik'nakà"}
             </span>
           </h1>
-          <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-6 md:mb-8 opacity-95 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+          <p 
+            className="text-sm sm:text-base md:text-lg lg:text-xl mb-6 md:mb-8 opacity-95 leading-relaxed max-w-2xl mx-auto lg:mx-0"
+            style={{ color: heroBanner?.descriptionColor || '#ffffff' }}
+          >
             {heroBanner?.description || 'Découvrez nos produits et services de qualité exceptionnelle'}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center lg:justify-start">
             <Button 
               size="lg" 
-              variant="secondary" 
-              className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto shadow-lg hover:shadow-xl transition-all" 
+              className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto shadow-lg hover:shadow-xl transition-all border-0"
+              style={{
+                backgroundColor: heroBanner?.primaryButtonBg || '#3b82f6',
+                color: heroBanner?.primaryButtonColor || '#ffffff'
+              }}
               asChild
             >
               <Link href={heroBanner?.primaryButtonLink || '/products'}>
@@ -107,8 +140,12 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
             </Button>
             <Button 
               size="lg" 
-              variant="outline" 
-              className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto text-white border-white hover:bg-white hover:text-primary shadow-lg hover:shadow-xl transition-all" 
+              className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto shadow-lg hover:shadow-xl transition-all border-2 hover:opacity-80"
+              style={{
+                backgroundColor: heroBanner?.secondaryButtonBg || 'transparent',
+                color: heroBanner?.secondaryButtonColor || '#ffffff',
+                borderColor: heroBanner?.secondaryButtonBorder || '#ffffff'
+              }}
               asChild
             >
               <Link href={heroBanner?.secondaryButtonLink || '/services'}>
