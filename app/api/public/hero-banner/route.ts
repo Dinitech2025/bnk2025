@@ -24,7 +24,17 @@ export async function GET() {
         primaryButtonText: "Explorer nos Produits",
         primaryButtonLink: "/products",
         secondaryButtonText: "Découvrir nos Services",
-        secondaryButtonLink: "/services"
+        secondaryButtonLink: "/services",
+        titleColor: "#ffffff",
+        subtitleColor: "#fde047",
+        descriptionColor: "#ffffff",
+        primaryButtonColor: "#ffffff",
+        primaryButtonBg: "#3b82f6",
+        secondaryButtonColor: "#ffffff",
+        secondaryButtonBg: "transparent",
+        secondaryButtonBorder: "#ffffff",
+        backgroundBlur: 0,
+        backgroundOpacity: 40
       }
       console.log('📝 Utilisation de la bannière par défaut')
       return NextResponse.json(defaultBanner)
@@ -43,7 +53,17 @@ export async function GET() {
       primaryButtonText: "Explorer nos Produits",
       primaryButtonLink: "/products",
       secondaryButtonText: "Découvrir nos Services",
-      secondaryButtonLink: "/services"
+      secondaryButtonLink: "/services",
+      titleColor: "#ffffff",
+      subtitleColor: "#fde047",
+      descriptionColor: "#ffffff",
+      primaryButtonColor: "#ffffff",
+      primaryButtonBg: "#3b82f6",
+      secondaryButtonColor: "#ffffff",
+      secondaryButtonBg: "transparent",
+      secondaryButtonBorder: "#ffffff",
+      backgroundBlur: 0,
+      backgroundOpacity: 40
     }
     
     return NextResponse.json(defaultBanner)
