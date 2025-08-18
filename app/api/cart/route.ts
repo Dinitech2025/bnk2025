@@ -66,16 +66,48 @@ async function getOrCreateCart(userId?: string, sessionId?: string) {
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + GUEST_CART_EXPIRY_DAYS)
 
-      cart = await prisma.cart.create({
-        data: {
-          userId,
-          sessionId: userId ? null : sessionId,
-          expiresAt
-        },
-        include: {
-          items: true
+      // Vérifier si l'utilisateur existe si userId est fourni
+      if (userId) {
+        const userExists = await prisma.user.findUnique({
+          where: { id: userId }
+        })
+        
+        if (!userExists) {
+          // Si l'utilisateur n'existe pas, traiter comme un panier invité
+          cart = await prisma.cart.create({
+            data: {
+              userId: null,
+              sessionId: sessionId,
+              expiresAt
+            },
+            include: {
+              items: true
+            }
+          })
+        } else {
+          cart = await prisma.cart.create({
+            data: {
+              userId,
+              sessionId: null,
+              expiresAt
+            },
+            include: {
+              items: true
+            }
+          })
         }
-      })
+      } else {
+        cart = await prisma.cart.create({
+          data: {
+            userId: null,
+            sessionId: sessionId,
+            expiresAt
+          },
+          include: {
+            items: true
+          }
+        })
+      }
     }
 
     return cart
