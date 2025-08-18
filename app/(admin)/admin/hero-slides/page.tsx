@@ -262,9 +262,10 @@ export default function HeroSlidesPage() {
               <div className="space-y-2">
                 <Label>Image du slide *</Label>
                 <ImageUpload
-                  value={formData.image}
-                  onChange={(url) => setFormData({...formData, image: url})}
-                  disabled={false}
+                  value={formData.image ? [formData.image] : []}
+                  onChange={(urls) => setFormData({...formData, image: urls[0] || ''})}
+                  onRemove={() => setFormData({...formData, image: ''})}
+                  imageType="general"
                 />
               </div>
               
