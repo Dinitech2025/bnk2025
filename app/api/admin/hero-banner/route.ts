@@ -79,6 +79,16 @@ export async function PUT(request: Request) {
           primaryButtonLink: body.primaryButtonLink,
           secondaryButtonText: body.secondaryButtonText,
           secondaryButtonLink: body.secondaryButtonLink,
+          titleColor: body.titleColor,
+          subtitleColor: body.subtitleColor,
+          descriptionColor: body.descriptionColor,
+          primaryButtonColor: body.primaryButtonColor,
+          primaryButtonBg: body.primaryButtonBg,
+          secondaryButtonColor: body.secondaryButtonColor,
+          secondaryButtonBg: body.secondaryButtonBg,
+          secondaryButtonBorder: body.secondaryButtonBorder,
+          backgroundBlur: body.backgroundBlur,
+          backgroundOpacity: body.backgroundOpacity,
         }
       })
       console.log('✅ Bannière mise à jour:', heroBanner.id)
@@ -94,6 +104,16 @@ export async function PUT(request: Request) {
           primaryButtonLink: body.primaryButtonLink,
           secondaryButtonText: body.secondaryButtonText,
           secondaryButtonLink: body.secondaryButtonLink,
+          titleColor: body.titleColor,
+          subtitleColor: body.subtitleColor,
+          descriptionColor: body.descriptionColor,
+          primaryButtonColor: body.primaryButtonColor,
+          primaryButtonBg: body.primaryButtonBg,
+          secondaryButtonColor: body.secondaryButtonColor,
+          secondaryButtonBg: body.secondaryButtonBg,
+          secondaryButtonBorder: body.secondaryButtonBorder,
+          backgroundBlur: body.backgroundBlur,
+          backgroundOpacity: body.backgroundOpacity,
         }
       })
       console.log('✅ Nouvelle bannière créée:', heroBanner.id)
