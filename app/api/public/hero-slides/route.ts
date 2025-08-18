@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // GET - Récupérer les slides actifs pour le public
 export async function GET() {
   try {
-    const slides = await db.heroSlide.findMany({
+    const slides = await prisma.heroSlide.findMany({
       where: { isActive: true },
       orderBy: [
         { order: 'asc' },

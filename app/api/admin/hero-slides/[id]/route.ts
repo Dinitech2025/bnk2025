@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // GET - Récupérer un slide spécifique
 export async function GET(
@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const slide = await db.heroSlide.findUnique({
+    const slide = await prisma.heroSlide.findUnique({
       where: { id: params.id }
     })
 
@@ -42,7 +42,7 @@ export async function PUT(
     const body = await req.json()
     const { title, description, image, buttonText, buttonLink, isActive, order } = body
 
-    const slide = await db.heroSlide.update({
+    const slide = await prisma.heroSlide.update({
       where: { id: params.id },
       data: {
         title,
@@ -77,7 +77,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    await db.heroSlide.delete({
+    await prisma.heroSlide.delete({
       where: { id: params.id }
     })
 

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // GET - Récupérer tous les slides
 export async function GET() {
   try {
-    const slides = await db.heroSlide.findMany({
+    const slides = await prisma.heroSlide.findMany({
       orderBy: [
         { order: 'asc' },
         { createdAt: 'desc' }
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const slide = await db.heroSlide.create({
+    const slide = await prisma.heroSlide.create({
       data: {
         title,
         description,
