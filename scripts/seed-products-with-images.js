@@ -47,7 +47,7 @@ async function seedProductsWithImages() {
       name: 'iPhone 15 Pro Max',
       slug: 'iphone-15-pro-max',
       description: 'Le dernier smartphone d\'Apple avec appareil photo professionnel et puce A17 Pro',
-      price: 1299.99,
+      price: 5849955, // ~1300 EUR en Ariary
       // stock: 25,
       inventory: 25,
       categoryId: electronique.id,
@@ -60,7 +60,7 @@ async function seedProductsWithImages() {
       name: 'MacBook Air M3',
       slug: 'macbook-air-m3',
       description: 'Ordinateur portable ultra-fin avec puce M3 et écran Liquid Retina 13 pouces',
-      price: 1499.99,
+      price: 6749955, // ~1500 EUR en Ariary
       // stock: 15,
       inventory: 15,
       categoryId: electronique.id,
@@ -73,7 +73,7 @@ async function seedProductsWithImages() {
       name: 'AirPods Pro 2',
       slug: 'airpods-pro-2',
       description: 'Écouteurs sans fil avec réduction de bruit active et audio spatial',
-      price: 249.99,
+      price: 1124955, // ~250 EUR en Ariary
       // stock: 50,
       inventory: 50,
       categoryId: electronique.id,
@@ -88,7 +88,7 @@ async function seedProductsWithImages() {
       name: 'Veste en Jean Premium',
       slug: 'veste-jean-premium',
       description: 'Veste en jean de qualité supérieure, coupe moderne et confortable',
-      price: 89.99,
+      price: 404955, // ~90 EUR en Ariary
       // stock: 30,
       inventory: 30,
       categoryId: mode.id,
@@ -101,7 +101,7 @@ async function seedProductsWithImages() {
       name: 'Sneakers Sport Edition',
       slug: 'sneakers-sport-edition',
       description: 'Baskets sportives haute performance pour le running et la marche',
-      price: 129.99,
+      price: 584955, // ~130 EUR en Ariary
       // stock: 40,
       inventory: 40,
       categoryId: mode.id,
@@ -114,7 +114,7 @@ async function seedProductsWithImages() {
       name: 'Montre Connectée Elite',
       slug: 'montre-connectee-elite',
       description: 'Montre intelligente avec suivi de santé, GPS et résistance à l\'eau',
-      price: 299.99,
+      price: 1349955, // ~300 EUR en Ariary
       // stock: 20,
       inventory: 20,
       categoryId: mode.id,
@@ -129,7 +129,7 @@ async function seedProductsWithImages() {
       name: 'Plante Monstera Deliciosa',
       slug: 'plante-monstera-deliciosa',
       description: 'Belle plante d\'intérieur tropicale, parfaite pour décorer votre salon',
-      price: 49.99,
+      price: 224955, // ~50 EUR en Ariary
       // stock: 35,
       inventory: 35,
       categoryId: maison.id,
@@ -142,7 +142,7 @@ async function seedProductsWithImages() {
       name: 'Lampe de Bureau LED',
       slug: 'lampe-bureau-led',
       description: 'Lampe de bureau moderne avec éclairage LED réglable et port USB',
-      price: 79.99,
+      price: 359955, // ~80 EUR en Ariary
       // stock: 25,
       inventory: 25,
       categoryId: maison.id,

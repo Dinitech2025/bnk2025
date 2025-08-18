@@ -54,7 +54,7 @@ async function seedServicesWithImages() {
       name: 'Création de Site Web Vitrine',
       slug: 'creation-site-web-vitrine',
       description: 'Développement d\'un site web professionnel pour présenter votre entreprise avec design responsive et optimisé SEO',
-      price: 1500.00,
+      price: 6750000, // ~1500 EUR en Ariary
       duration: 21, // 2-3 semaines en jours
       categoryId: webDev.id,
       pricingType: 'FIXED',
@@ -67,7 +67,7 @@ async function seedServicesWithImages() {
       name: 'Boutique E-commerce Complète',
       slug: 'boutique-ecommerce-complete',
       description: 'Développement d\'une boutique en ligne complète avec gestion des paiements, stock et commandes',
-      price: 3500.00,
+      price: 15750000, // ~3500 EUR en Ariary
       duration: 42, // 4-6 semaines en jours
       categoryId: webDev.id,
       pricingType: 'NEGOTIABLE',
@@ -80,12 +80,12 @@ async function seedServicesWithImages() {
       name: 'Application Mobile React Native',
       slug: 'application-mobile-react-native',
       description: 'Développement d\'application mobile cross-platform iOS et Android avec React Native',
-      price: 5000.00,
+      price: 22500000, // ~5000 EUR en Ariary
       duration: 56, // 6-8 semaines en jours
       categoryId: webDev.id,
       pricingType: 'RANGE',
-      minPrice: 4000.00,
-      maxPrice: 8000.00,
+      minPrice: 18000000, // ~4000 EUR en Ariary
+      maxPrice: 36000000, // ~8000 EUR en Ariary
       images: [
         'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         'https://images.unsplash.com/photo-1551650975-87deedd944c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
@@ -97,7 +97,7 @@ async function seedServicesWithImages() {
       name: 'Création de Logo Professionnel',
       slug: 'creation-logo-professionnel',
       description: 'Design de logo unique et professionnel avec plusieurs propositions et fichiers vectoriels',
-      price: 350.00,
+      price: 1575000, // ~350 EUR en Ariary
       duration: 7, // 1 semaine en jours
       categoryId: design.id,
       pricingType: 'FIXED',
@@ -110,7 +110,7 @@ async function seedServicesWithImages() {
       name: 'Identité Visuelle Complète',
       slug: 'identite-visuelle-complete',
       description: 'Création d\'une identité visuelle complète : logo, carte de visite, papeterie, charte graphique',
-      price: 1200.00,
+      price: 5400000, // ~1200 EUR en Ariary
       duration: 21, // 2-3 semaines en jours
       categoryId: design.id,
       pricingType: 'NEGOTIABLE',
@@ -125,7 +125,7 @@ async function seedServicesWithImages() {
       name: 'Campagne Réseaux Sociaux',
       slug: 'campagne-reseaux-sociaux',
       description: 'Gestion complète de vos réseaux sociaux avec création de contenu et engagement communauté',
-      price: 800.00,
+      price: 3600000, // ~800 EUR en Ariary
       duration: 30, // Mensuel en jours
       categoryId: marketing.id,
       pricingType: 'FIXED',
@@ -138,7 +138,7 @@ async function seedServicesWithImages() {
       name: 'Audit SEO et Optimisation',
       slug: 'audit-seo-optimisation',
       description: 'Audit complet de votre site web et optimisation SEO pour améliorer votre référencement Google',
-      price: 600.00,
+      price: 2700000, // ~600 EUR en Ariary
       duration: 14, // 1-2 semaines en jours
       categoryId: marketing.id,
       pricingType: 'FIXED',
@@ -153,7 +153,7 @@ async function seedServicesWithImages() {
       name: 'Formation WordPress',
       slug: 'formation-wordpress',
       description: 'Formation complète pour apprendre à créer et gérer votre site WordPress de A à Z',
-      price: 450.00,
+      price: 2025000, // ~450 EUR en Ariary
       duration: 3, // 3 jours
       categoryId: formation.id,
       pricingType: 'FIXED',
