@@ -37,6 +37,18 @@ interface HeroSlide {
   order: number;
 }
 
+interface HeroBanner {
+  id?: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  backgroundImage: string;
+  primaryButtonText: string;
+  primaryButtonLink: string;
+  secondaryButtonText: string;
+  secondaryButtonLink: string;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -76,6 +88,7 @@ export default function HomePage() {
   const [offers, setOffers] = useState<Offer[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
+  const [heroBanner, setHeroBanner] = useState<HeroBanner | null>(null)
   const [favorites, setFavorites] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -90,12 +103,13 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsRes, servicesRes, offersRes, categoriesRes, heroSlidesRes] = await Promise.all([
+        const [productsRes, servicesRes, offersRes, categoriesRes, heroSlidesRes, heroBannerRes] = await Promise.all([
           fetch('/api/public/products'),
           fetch('/api/public/services'),
           fetch('/api/public/offers'),
           fetch('/api/public/categories'),
-          fetch('/api/public/hero-slides')
+          fetch('/api/public/hero-slides'),
+          fetch('/api/public/hero-banner')
         ])
 
         if (productsRes.ok) {
@@ -122,6 +136,11 @@ export default function HomePage() {
         if (heroSlidesRes.ok) {
           const heroSlidesData = await heroSlidesRes.json()
           setHeroSlides(heroSlidesData)
+        }
+
+        if (heroBannerRes.ok) {
+          const heroBannerData = await heroBannerRes.json()
+          setHeroBanner(heroBannerData)
         }
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error)
@@ -275,43 +294,63 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Carrousel - Responsive et impressionnant */}
+      {/* Hero Banner Configurable - Responsive et impressionnant */}
       <section className="relative h-[400px] md:h-[500px] lg:h-[600px] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/95 to-primary/80">
-          <div className="container mx-auto px-4 h-full flex flex-col lg:flex-row items-center justify-between">
-            <div className="text-white max-w-lg z-10 text-center lg:text-left">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 leading-tight">
-                Bienvenue chez 
-                <span className="block text-yellow-300">Boutik'nakà</span>
-              </h1>
-              <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-6 md:mb-8 opacity-95 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-                Découvrez nos produits et services de qualité exceptionnelle
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center lg:justify-start">
-                <Button 
-                  size="lg" 
-                  variant="secondary" 
-                  className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto shadow-lg hover:shadow-xl transition-all" 
-                  asChild
-                >
-                  <Link href="/products">
-                    <Package className="mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">Explorer nos </span>Produits
-                  </Link>
-                </Button>
-                <Button 
-                  size="lg" 
-                  variant="danger" 
-                  className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto text-white border-white hover:bg-white hover:text-primary shadow-lg hover:shadow-xl transition-all" 
-                  asChild
-                >
-                  <Link href="/services">
-                    <Wrench className="mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">Découvrir nos </span>Services
-                  </Link>
-                </Button>
-              </div>
+        {/* Image de fond */}
+        {heroBanner?.backgroundImage && (
+          <div className="absolute inset-0">
+            <Image 
+              src={heroBanner.backgroundImage}
+              alt="Background"
+              fill
+              className="object-cover"
+              priority
+            />
+            <div className="absolute inset-0 bg-black/40" />
+          </div>
+        )}
+        
+        {/* Fallback si pas d'image */}
+        {!heroBanner?.backgroundImage && (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/95 to-primary/80" />
+        )}
+        
+        <div className="relative z-10 container mx-auto px-4 h-full flex flex-col lg:flex-row items-center justify-between">
+          <div className="text-white max-w-lg z-10 text-center lg:text-left">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 leading-tight">
+              {heroBanner?.title || 'Bienvenue chez'}
+              <span className="block text-yellow-300">
+                {heroBanner?.subtitle || "Boutik'nakà"}
+              </span>
+            </h1>
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-6 md:mb-8 opacity-95 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+              {heroBanner?.description || 'Découvrez nos produits et services de qualité exceptionnelle'}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center lg:justify-start">
+              <Button 
+                size="lg" 
+                variant="secondary" 
+                className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto shadow-lg hover:shadow-xl transition-all" 
+                asChild
+              >
+                <Link href={heroBanner?.primaryButtonLink || '/products'}>
+                  <Package className="mr-2 h-4 w-4" />
+                  {heroBanner?.primaryButtonText || 'Explorer nos Produits'}
+                </Link>
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="text-xs md:text-sm lg:text-base px-4 md:px-6 py-2 md:py-3 h-auto text-white border-white hover:bg-white hover:text-primary shadow-lg hover:shadow-xl transition-all" 
+                asChild
+              >
+                <Link href={heroBanner?.secondaryButtonLink || '/services'}>
+                  <Wrench className="mr-2 h-4 w-4" />
+                  {heroBanner?.secondaryButtonText || 'Découvrir nos Services'}
+                </Link>
+              </Button>
             </div>
+          </div>
             
             {/* Carrousel des slides configurables - Responsive */}
             {heroSlides.length > 0 && (
