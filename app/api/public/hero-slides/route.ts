@@ -6,18 +6,12 @@ export async function GET() {
   try {
     const slides = await prisma.heroSlide.findMany({
       where: { isActive: true },
-      orderBy: [
-        { order: 'asc' },
-        { createdAt: 'desc' }
-      ]
+      orderBy: { order: 'asc' }
     })
-
+    
     return NextResponse.json(slides)
   } catch (error) {
-    console.error('Erreur lors de la récupération des slides publics:', error)
-    return NextResponse.json(
-      { error: 'Erreur lors de la récupération des slides' },
-      { status: 500 }
-    )
+    console.error('❌ Erreur slides:', error)
+    return NextResponse.json([], { status: 200 })
   }
 }

@@ -7,12 +7,41 @@ export async function GET() {
     
     await prisma.$connect()
     
-    const heroBanner = await prisma.heroBanner.findFirst({
+    // Désactiver toutes les bannières sauf la plus récente
+    const allActiveBanners = await prisma.heroBanner.findMany({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' }
     })
 
+    if (allActiveBanners.length > 1) {
+      console.log('🔧 Désactivation des anciennes bannières...')
+      const oldBannerIds = allActiveBanners.slice(1).map(b => b.id)
+      await prisma.heroBanner.updateMany({
+        where: { id: { in: oldBannerIds } },
+        data: { isActive: false }
+      })
+      console.log('✅ Anciennes bannières désactivées:', oldBannerIds.length)
+    }
+
+    const heroBanner = await prisma.heroBanner.findFirst({
+      where: { isActive: true },
+      include: {
+        backgroundImages: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
     console.log('📊 Bannière publique trouvée:', heroBanner?.id || 'Aucune')
+    if (heroBanner) {
+      console.log('🎨 Couleurs bannière:', {
+        titre: heroBanner.titleColor,
+        sousTitre: heroBanner.subtitleColor,
+        flou: heroBanner.backgroundBlur
+      })
+    }
 
     if (!heroBanner) {
       // Retourner une bannière par défaut si aucune n'existe
@@ -34,7 +63,12 @@ export async function GET() {
         secondaryButtonBg: "transparent",
         secondaryButtonBorder: "#ffffff",
         backgroundBlur: 0,
-        backgroundOpacity: 40
+        backgroundOpacity: 40,
+        backgroundOverlayColor: "#000000",
+        backgroundSlideshowEnabled: false,
+        backgroundSlideshowDuration: 5000,
+        backgroundSlideshowTransition: "fade",
+        backgroundImages: []
       }
       console.log('📝 Utilisation de la bannière par défaut')
       return NextResponse.json(defaultBanner)
@@ -63,7 +97,12 @@ export async function GET() {
       secondaryButtonBg: "transparent",
       secondaryButtonBorder: "#ffffff",
       backgroundBlur: 0,
-      backgroundOpacity: 40
+      backgroundOpacity: 40,
+      backgroundOverlayColor: "#000000",
+      backgroundSlideshowEnabled: false,
+      backgroundSlideshowDuration: 5000,
+      backgroundSlideshowTransition: "fade",
+      backgroundImages: []
     }
     
     return NextResponse.json(defaultBanner)

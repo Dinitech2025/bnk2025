@@ -696,6 +696,11 @@ model HeroBanner {
   description     String  @default("Découvrez nos produits et services de qualité exceptionnelle")
   backgroundImage String  @default("https://images.unsplash.com/photo-1441986300917-64674bd600d8?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")
   
+  // Configuration du diaporama d'images de fond
+  backgroundSlideshowEnabled Boolean @default(false) // Activer/désactiver le diaporama
+  backgroundSlideshowDuration Int @default(5000) // Durée entre les changements (ms)
+  backgroundSlideshowTransition String @default("fade") // Type de transition: "fade", "slide", "zoom"
+  
   // Personnalisation des couleurs de texte
   titleColor      String @default("#ffffff")
   subtitleColor   String @default("#fde047")
@@ -716,9 +721,32 @@ model HeroBanner {
   // Effets sur l'image de fond
   backgroundBlur      Int @default(0) // 0-10 niveau de flou
   backgroundOpacity   Int @default(40) // 0-100 opacité de l'overlay
+  backgroundOverlayColor String @default("#000000") // Couleur de l'overlay (noir par défaut)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  // Relation avec les images de fond du diaporama
+  backgroundImages HeroBannerImage[]
 
   @@index([isActive])
+}
+
+model HeroBannerImage {
+  id              String @id @default(cuid())
+  heroBannerId    String
+  imageUrl        String
+  title           String? // Titre optionnel pour l'image
+  description     String? // Description optionnelle
+  order           Int @default(0) // Ordre d'affichage
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relation avec la bannière
+  heroBanner      HeroBanner @relation(fields: [heroBannerId], references: [id], onDelete: Cascade)
+  
+  @@index([heroBannerId])
+  @@index([isActive])
+  @@index([order])
 }

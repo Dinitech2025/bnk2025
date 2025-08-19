@@ -35,6 +35,15 @@ interface HeroSlide {
   order: number;
 }
 
+interface HeroBannerImage {
+  id: string;
+  imageUrl: string;
+  title?: string;
+  description?: string;
+  order: number;
+  isActive: boolean;
+}
+
 interface HeroBanner {
   id?: string;
   title: string;
@@ -62,6 +71,13 @@ interface HeroBanner {
   // Effets
   backgroundBlur: number;
   backgroundOpacity: number;
+  backgroundOverlayColor: string;
+  
+  // Diaporama
+  backgroundSlideshowEnabled: boolean;
+  backgroundSlideshowDuration: number;
+  backgroundSlideshowTransition: string;
+  backgroundImages: HeroBannerImage[];
 }
 
 interface Product {
@@ -323,4 +339,4 @@ export default function HomePage() {
       </div>
     </div>
   )
-}
+} 

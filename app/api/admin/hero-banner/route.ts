@@ -18,6 +18,12 @@ export async function GET() {
 
     const heroBanner = await prisma.heroBanner.findFirst({
       where: { isActive: true },
+      include: {
+        backgroundImages: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     })
 
@@ -117,6 +123,33 @@ export async function PUT(request: Request) {
         }
       })
       console.log('✅ Nouvelle bannière créée:', heroBanner.id)
+    }
+
+    // Gestion des images du diaporama
+    if (body.backgroundImages && Array.isArray(body.backgroundImages)) {
+      console.log('📋 Mise à jour des images du diaporama:', body.backgroundImages.length)
+      
+      // Supprimer les anciennes images
+      await prisma.heroBannerImage.deleteMany({
+        where: { heroBannerId: heroBanner.id }
+      })
+      
+      // Ajouter les nouvelles images
+      for (const [index, image] of body.backgroundImages.entries()) {
+        if (image.imageUrl && image.imageUrl.trim()) {
+          await prisma.heroBannerImage.create({
+            data: {
+              heroBannerId: heroBanner.id,
+              imageUrl: image.imageUrl,
+              title: image.title || `Image ${index + 1}`,
+              description: image.description || '',
+              order: index + 1,
+              isActive: true
+            }
+          })
+        }
+      }
+      console.log('✅ Images du diaporama mises à jour')
     }
 
     return NextResponse.json(heroBanner)

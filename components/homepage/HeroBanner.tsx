@@ -24,6 +24,15 @@ interface HeroSlide {
   order: number;
 }
 
+interface HeroBannerImage {
+  id: string;
+  imageUrl: string;
+  title?: string;
+  description?: string;
+  order: number;
+  isActive: boolean;
+}
+
 interface HeroBanner {
   id?: string;
   title: string;
@@ -51,6 +60,13 @@ interface HeroBanner {
   // Effets
   backgroundBlur: number;
   backgroundOpacity: number;
+  backgroundOverlayColor: string;
+  
+  // Diaporama d'images de fond
+  backgroundSlideshowEnabled: boolean;
+  backgroundSlideshowDuration: number;
+  backgroundSlideshowTransition: string;
+  backgroundImages: HeroBannerImage[];
 }
 
 interface HeroBannerProps {
@@ -61,14 +77,25 @@ interface HeroBannerProps {
 
 export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroBannerProps) {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [currentBackgroundImage, setCurrentBackgroundImage] = useState(0)
 
-  // Auto-play carrousel
+  // Auto-play carrousel des slides
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % Math.max(1, heroSlides.length))
     }, 5000)
     return () => clearInterval(interval)
   }, [heroSlides.length])
+
+  // Auto-play diaporama des images de fond
+  useEffect(() => {
+    if (heroBanner?.backgroundSlideshowEnabled && heroBanner?.backgroundImages?.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentBackgroundImage(prev => (prev + 1) % heroBanner.backgroundImages.length)
+      }, heroBanner.backgroundSlideshowDuration || 5000)
+      return () => clearInterval(interval)
+    }
+  }, [heroBanner?.backgroundSlideshowEnabled, heroBanner?.backgroundImages?.length, heroBanner?.backgroundSlideshowDuration])
 
   const nextSlide = () => {
     setCurrentSlide(prev => (prev + 1) % Math.max(1, heroSlides.length))
@@ -80,8 +107,47 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
 
   return (
     <section className="relative h-[400px] md:h-[500px] lg:h-[600px] overflow-hidden">
-      {/* Image de fond */}
-      {heroBanner?.backgroundImage && (
+      {/* Images de fond avec diaporama */}
+      {heroBanner?.backgroundSlideshowEnabled && heroBanner?.backgroundImages?.length > 0 ? (
+        // Mode diaporama activé
+        <div className="absolute inset-0">
+          {heroBanner.backgroundImages.map((bgImage, index) => (
+            <div
+              key={bgImage.id}
+              className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
+                heroBanner.backgroundSlideshowTransition === 'fade' 
+                  ? (index === currentBackgroundImage ? 'opacity-100' : 'opacity-0')
+                  : heroBanner.backgroundSlideshowTransition === 'slide'
+                  ? (index === currentBackgroundImage 
+                      ? 'translate-x-0' 
+                      : index < currentBackgroundImage 
+                      ? '-translate-x-full' 
+                      : 'translate-x-full')
+                  : heroBanner.backgroundSlideshowTransition === 'zoom'
+                  ? (index === currentBackgroundImage 
+                      ? 'scale-100 opacity-100' 
+                      : 'scale-110 opacity-0')
+                  : 'opacity-100'
+              }`}
+            >
+              <Image 
+                src={bgImage.imageUrl}
+                alt={bgImage.title || 'Background'}
+                fill
+                className={`object-cover ${heroBanner.backgroundBlur > 0 ? `blur-[${heroBanner.backgroundBlur}px]` : ''}`}
+                priority={index === 0}
+              />
+            </div>
+          ))}
+          <div 
+            className="absolute inset-0"
+            style={{
+              backgroundColor: `${heroBanner.backgroundOverlayColor}${Math.round((heroBanner.backgroundOpacity / 100) * 255).toString(16).padStart(2, '0')}`
+            }}
+          />
+        </div>
+      ) : heroBanner?.backgroundImage ? (
+        // Mode image simple
         <div className="absolute inset-0">
           <Image 
             src={heroBanner.backgroundImage}
@@ -93,11 +159,11 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
           <div 
             className="absolute inset-0"
             style={{
-              backgroundColor: `rgba(0, 0, 0, ${heroBanner.backgroundOpacity / 100})`
+              backgroundColor: `${heroBanner.backgroundOverlayColor}${Math.round((heroBanner.backgroundOpacity / 100) * 255).toString(16).padStart(2, '0')}`
             }}
           />
         </div>
-      )}
+      ) : null}
       
       {/* Fallback si pas d'image */}
       {!heroBanner?.backgroundImage && (
@@ -135,7 +201,7 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
             >
               <Link href={heroBanner?.primaryButtonLink || '/products'}>
                 <Package className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Explorer nos </span>{heroBanner?.primaryButtonText || 'Produits'}
+                {heroBanner?.primaryButtonText || 'Explorer nos Produits'}
               </Link>
             </Button>
             <Button 
@@ -150,15 +216,15 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
             >
               <Link href={heroBanner?.secondaryButtonLink || '/services'}>
                 <Wrench className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Découvrir nos </span>{heroBanner?.secondaryButtonText || 'Services'}
+                {heroBanner?.secondaryButtonText || 'Découvrir nos Services'}
               </Link>
             </Button>
           </div>
         </div>
         
         {/* Carrousel des slides configurables */}
-        {heroSlides.length > 0 && (
-          <div className="hidden xl:block relative z-10 mt-8 lg:mt-0">
+        {heroSlides.length > 0 ? (
+          <div className="hidden lg:block relative z-10 mt-8 lg:mt-0">
             <div className="w-[700px] h-[400px] xl:w-[800px] xl:h-[400px] relative overflow-hidden rounded-2xl shadow-2xl border-4 border-white/20">
               {heroSlides.map((slide, index) => (
                 <div
@@ -224,6 +290,27 @@ export default function HeroBanner({ heroBanner, heroSlides, categories }: HeroB
                   onClick={() => setCurrentSlide(index)}
                 />
               ))}
+            </div>
+          </div>
+        ) : null}
+        
+        {/* Indicateurs du diaporama d'images de fond */}
+        {heroBanner?.backgroundSlideshowEnabled && heroBanner?.backgroundImages?.length > 1 && (
+          <div className="absolute bottom-4 left-4 z-20 flex space-x-2">
+            {heroBanner.backgroundImages.map((_, index) => (
+              <button
+                key={index}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index === currentBackgroundImage 
+                    ? 'bg-white scale-125 shadow-lg' 
+                    : 'bg-white/60 hover:bg-white/80'
+                }`}
+                onClick={() => setCurrentBackgroundImage(index)}
+                aria-label={`Image de fond ${index + 1}`}
+              />
+            ))}
+            <div className="ml-2 px-2 py-1 bg-black/30 rounded text-white text-xs">
+              {currentBackgroundImage + 1}/{heroBanner.backgroundImages.length}
             </div>
           </div>
         )}
