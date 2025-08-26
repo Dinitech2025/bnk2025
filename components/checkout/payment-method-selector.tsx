@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
-import { PayPalCheckout } from './paypal-checkout'
-import { PayPalFallback } from './paypal-fallback'
-import { CreditCardPayPal } from './credit-card-paypal'
-import { DigitalWalletsPayPal } from './digital-wallets-paypal'
+import { PayPalUnified } from './paypal-unified'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -28,10 +25,6 @@ export function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   const [selectedMethod, setSelectedMethod] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [showPayPalButtons, setShowPayPalButtons] = useState(false)
-  const [usePayPalFallback, setUsePayPalFallback] = useState(false)
-  const [showCreditCardForm, setShowCreditCardForm] = useState(false)
-  const [showDigitalWallets, setShowDigitalWallets] = useState(false)
 
   const paymentMethods = [
     {
@@ -60,7 +53,7 @@ export function PaymentMethodSelector({
       name: 'Mobile Money',
       description: 'MVola, Orange Money',
       icon: <Smartphone className="h-5 w-5" />,
-      enabled: true
+      enabled: false // Pas encore implémenté
     },
     {
       id: 'cash_on_delivery',
@@ -71,95 +64,27 @@ export function PaymentMethodSelector({
     }
   ]
 
-  const handleTraditionalPayment = async (method: string) => {
-    setIsProcessing(true)
-    try {
-      // Simuler le traitement pour les méthodes traditionnelles
-      // Dans un vrai cas, vous appelleriez votre API backend
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      onPaymentSuccess({
-        method,
-        status: 'pending',
-        message: 'Commande créée avec succès. Instructions de paiement envoyées par email.'
-      })
-    } catch (error) {
-      onPaymentError('Erreur lors du traitement de la commande')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
   const renderPaymentForm = () => {
-    // Ne rendre le composant PayPal que si explicitement sélectionné
+    if (!selectedMethod) return null
+
     switch (selectedMethod) {
       case 'paypal':
         return (
           <div className="space-y-4 pt-4">
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                💳 Payez avec PayPal ou votre carte bancaire (Visa, Mastercard, Amex) via PayPal sécurisé.
+                💳 Payez avec votre compte PayPal ou toute carte bancaire via PayPal sécurisé.
               </p>
             </div>
             
-            {!showPayPalButtons ? (
-              <div className="space-y-3">
-                <Button 
-                  onClick={() => setShowPayPalButtons(true)}
-                  className="w-full"
-                  size="lg"
-                >
-                  Activer PayPal
-                </Button>
-                <Button 
-                  onClick={() => setUsePayPalFallback(true)}
-                  variant="outline"
-                  className="w-full"
-                  size="lg"
-                >
-                  PayPal (Mode alternatif)
-                </Button>
-              </div>
-            ) : usePayPalFallback ? (
-              <PayPalFallback
-                amount={total}
-                currency={currency}
-                orderData={orderData}
-                onSuccess={onPaymentSuccess}
-                onError={(error) => {
-                  // En cas d'erreur, proposer l'alternative
-                  setUsePayPalFallback(false)
-                  setShowPayPalButtons(false)
-                  onPaymentError(error)
-                }}
-              />
-            ) : (
-              <div className="space-y-3">
-                <PayPalCheckout
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={(error) => {
-                    // En cas d'erreur, proposer l'alternative
-                    console.error('Erreur PayPal standard:', error)
-                    setShowPayPalButtons(false)
-                    onPaymentError(`${error}. Essayez le mode alternatif.`)
-                  }}
-                />
-                <Button 
-                  onClick={() => {
-                    setShowPayPalButtons(false)
-                    setUsePayPalFallback(true)
-                  }}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  Problème de chargement ? Essayez le mode alternatif
-                </Button>
-              </div>
-            )}
+            <PayPalUnified
+              paymentType="paypal"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={onPaymentError}
+            />
           </div>
         )
 
@@ -172,27 +97,14 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {!showCreditCardForm ? (
-              <Button 
-                onClick={() => setShowCreditCardForm(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                size="lg"
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Payer par carte bancaire
-              </Button>
-            ) : (
-              <CreditCardPayPal
-                amount={total}
-                currency={currency}
-                orderData={orderData}
-                onSuccess={onPaymentSuccess}
-                onError={(error) => {
-                  setShowCreditCardForm(false)
-                  onPaymentError(error)
-                }}
-              />
-            )}
+            <PayPalUnified
+              paymentType="credit_card"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={onPaymentError}
+            />
           </div>
         )
 
@@ -201,31 +113,18 @@ export function PaymentMethodSelector({
           <div className="space-y-4 pt-4">
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
               <p className="text-sm text-purple-800">
-                📱 Payez rapidement avec Apple Pay, Google Pay ou votre portefeuille digital. Authentification biométrique sécurisée.
+                📱 Payez rapidement avec Apple Pay, Google Pay. Authentification biométrique sécurisée.
               </p>
             </div>
             
-            {!showDigitalWallets ? (
-              <Button 
-                onClick={() => setShowDigitalWallets(true)}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-                size="lg"
-              >
-                <Smartphone className="h-4 w-4 mr-2" />
-                Activer portefeuille digital
-              </Button>
-            ) : (
-              <DigitalWalletsPayPal
-                amount={total}
-                currency={currency}
-                orderData={orderData}
-                onSuccess={onPaymentSuccess}
-                onError={(error) => {
-                  setShowDigitalWallets(false)
-                  onPaymentError(error)
-                }}
-              />
-            )}
+            <PayPalUnified
+              paymentType="digital_wallet"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={onPaymentError}
+            />
           </div>
         )
       
@@ -236,33 +135,54 @@ export function PaymentMethodSelector({
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
                 {selectedMethod === 'mobile_money' 
-                  ? '📱 Vous recevrez les instructions de paiement Mobile Money par SMS et email après confirmation.'
-                  : '🚚 Le paiement sera collecté lors de la livraison. Préparez le montant exact.'
+                  ? '📱 Paiement via Mobile Money. Fonctionnalité bientôt disponible.'
+                  : '🚚 Vous payerez en espèces ou par carte lors de la livraison.'
                 }
               </p>
             </div>
-            <Button 
-              onClick={() => handleTraditionalPayment(selectedMethod)}
-              disabled={isProcessing}
-              className="w-full"
-              size="lg"
-            >
-              {isProcessing ? 'Traitement...' : 'Confirmer la commande'}
-            </Button>
+            
+            {selectedMethod === 'cash_on_delivery' && (
+              <Button 
+                onClick={() => {
+                  onPaymentSuccess({
+                    method: 'cash_on_delivery',
+                    status: 'pending',
+                    message: 'Commande confirmée - Paiement à la livraison'
+                  })
+                }}
+                className="w-full bg-green-600 hover:bg-green-700"
+                size="lg"
+                disabled={isProcessing}
+              >
+                <Truck className="h-4 w-4 mr-2" />
+                Confirmer la commande
+              </Button>
+            )}
+
+            {selectedMethod === 'mobile_money' && (
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                <p className="text-sm text-gray-600">
+                  🚧 Fonctionnalité en développement
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  MVola et Orange Money seront bientôt disponibles
+                </p>
+              </div>
+            )}
           </div>
         )
-      
+
       default:
         return null
     }
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <CreditCard className="h-5 w-5 mr-2" />
-          Méthode de paiement
+        <CardTitle className="flex items-center space-x-2">
+          <CreditCard className="h-5 w-5" />
+          <span>Méthode de paiement</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -270,75 +190,74 @@ export function PaymentMethodSelector({
           value={selectedMethod} 
           onValueChange={(value) => {
             setSelectedMethod(value)
-            // Reset tous les formulaires quand on change de méthode
-            if (value !== 'paypal') {
-              setShowPayPalButtons(false)
-              setUsePayPalFallback(false)
-            }
-            if (value !== 'credit_card') {
-              setShowCreditCardForm(false)
-            }
-            if (value !== 'digital_wallet') {
-              setShowDigitalWallets(false)
-            }
+            setIsProcessing(false)
           }}
         >
           <div className="grid grid-cols-1 gap-3">
             {paymentMethods.map((method) => (
               <div
                 key={method.id}
-                className={`relative rounded-lg border p-4 cursor-pointer transition-all ${
-                  selectedMethod === method.id
-                    ? 'border-primary bg-primary/5'
+                className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
+                  selectedMethod === method.id 
+                    ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 } ${!method.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <div className="flex items-center space-x-3">
-                  <RadioGroupItem
-                    value={method.id}
+                <Label
+                  htmlFor={method.id}
+                  className={`flex items-center space-x-3 cursor-pointer ${
+                    !method.enabled ? 'cursor-not-allowed' : ''
+                  }`}
+                >
+                  <RadioGroupItem 
+                    value={method.id} 
                     id={method.id}
                     disabled={!method.enabled}
-                    className="shrink-0"
                   />
                   <div className="flex items-center space-x-3 flex-1">
-                    <div className={`p-2 rounded-full ${
-                      selectedMethod === method.id ? 'bg-primary text-white' : 'bg-gray-100'
-                    }`}>
+                    <div className="flex-shrink-0">
                       {method.icon}
                     </div>
                     <div className="flex-1">
-                      <Label 
-                        htmlFor={method.id} 
-                        className="font-medium cursor-pointer"
-                      >
-                        {method.name}
-                      </Label>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <div className="font-medium text-gray-900 flex items-center space-x-2">
+                        <span>{method.name}</span>
+                        {!method.enabled && (
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                            Bientôt
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
                         {method.description}
-                      </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Label>
               </div>
             ))}
           </div>
         </RadioGroup>
 
-        {/* Affichage du formulaire de paiement selon la méthode sélectionnée */}
-        {selectedMethod && renderPaymentForm()}
+        {/* Affichage du formulaire de paiement */}
+        {renderPaymentForm()}
 
-        {/* Badges de sécurité */}
-        <div className="flex items-center justify-center space-x-4 pt-4 border-t">
-          <div className="flex items-center space-x-2 text-xs text-gray-500">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span>Paiement sécurisé SSL</span>
+        {/* Total récapitulatif */}
+        {selectedMethod && (
+          <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex justify-between items-center font-semibold">
+              <span>Total à payer :</span>
+              <span className="text-lg">
+                {total.toLocaleString()} {currency}
+                {currency === 'Ar' && (
+                  <span className="text-sm text-gray-600 ml-2">
+                    (≈ {(total / 5000).toFixed(2)}€)
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 text-xs text-gray-500">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span>Données protégées</span>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   )
-} 
+}
