@@ -62,3 +62,20 @@ logs
 
 # Keep example env file
 !.env.example
+
+# Temporary files (Security)
+temp/
+temp_images/
+temp_*.pdf
+temp_*.png
+*.tmp
+
+# Security - Exclude potentially malicious uploads
+uploads/*.exe
+uploads/*.bat
+uploads/*.sh
+uploads/*.scr
+uploads/*.com
+uploads/*.pif
+uploads/*.zip
+uploads/*.rar

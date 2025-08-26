@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession, signIn } from 'next-auth/react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -59,6 +59,7 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [sameAsbilling, setSameAsBinding] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
+  const [sessionInitialized, setSessionInitialized] = useState(false)
   const router = useRouter()
 
   // Données du formulaire étendues
@@ -97,21 +98,25 @@ export default function CheckoutPage() {
     setIsMounted(true)
   }, [])
 
-  // Charger les adresses de l'utilisateur connecté
+  // Gestion optimisée de la session utilisateur
   useEffect(() => {
-    if (session?.user?.id) {
-      loadUserAddresses()
-      // Pré-remplir les informations utilisateur
-      setFormData(prev => ({
-        ...prev,
-        email: session.user.email || '',
-        phone: session.user.phone || '',
-        firstName: session.user.firstName || '',
-        lastName: session.user.lastName || '',
-        hasAccount: true // L'utilisateur est déjà connecté
-      }))
+    // Initialiser dès que le statut de session est connu
+    if (status !== 'loading') {
+      if (session?.user?.id) {
+        // Utilisateur connecté : charger ses données
+        setFormData(prev => ({
+          ...prev,
+          email: session.user.email || '',
+          phone: session.user.phone || '',
+          firstName: session.user.firstName || '',
+          lastName: session.user.lastName || '',
+          hasAccount: true // L'utilisateur est déjà connecté
+        }))
+        loadUserAddresses()
+      }
+      setSessionInitialized(true)
     }
-  }, [session])
+  }, [session, status])
 
   const loadUserAddresses = async () => {
     try {
@@ -151,8 +156,9 @@ export default function CheckoutPage() {
     }
   }
 
+  // Chargement optimisé des données de commande
   useEffect(() => {
-    if (!isMounted) return
+    if (!isMounted || !sessionInitialized) return
 
     // Charger les données de commande depuis localStorage
     const savedOrder = localStorage.getItem('pendingOrder')
@@ -161,6 +167,7 @@ export default function CheckoutPage() {
         const parsedOrder = JSON.parse(savedOrder)
         console.log('Données de commande chargées:', parsedOrder)
         setOrderData(parsedOrder)
+        setIsLoading(false)
       } catch (error) {
         console.error('Erreur lors du parsing des données de commande:', error)
         router.push('/cart')
@@ -169,8 +176,7 @@ export default function CheckoutPage() {
       // Rediriger vers le panier si pas de commande en attente
       router.push('/cart')
     }
-    setIsLoading(false)
-  }, [router, isMounted])
+  }, [router, isMounted, sessionInitialized])
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -273,6 +279,7 @@ export default function CheckoutPage() {
     if (!orderData) return
 
     // Si l'utilisateur n'est pas connecté mais a un compte, demander de se connecter d'abord
+    // (Cette vérification est ignorée si l'utilisateur est déjà connecté)
     if (formData.hasAccount && !session) {
       toast({
         title: "Connexion requise",
@@ -282,8 +289,8 @@ export default function CheckoutPage() {
       return
     }
 
-    // Validation basique : au moins email OU téléphone
-    if (!formData.email && !formData.phone) {
+    // Validation basique : au moins email OU téléphone (seulement si pas connecté)
+    if (!session && !formData.email && !formData.phone) {
       toast({
         title: "Contact requis",
         description: "Veuillez saisir au moins votre email ou votre téléphone",
@@ -292,8 +299,8 @@ export default function CheckoutPage() {
       return
     }
 
-    // Validation des champs requis selon le mode (connexion vs création)
-    if (!formData.hasAccount) {
+    // Validation des champs requis selon le mode (connexion vs création) - seulement si pas connecté
+    if (!session && !formData.hasAccount) {
       // Mode création de compte : prénom, nom requis
       if (!formData.firstName || !formData.lastName) {
         toast({
@@ -341,11 +348,11 @@ export default function CheckoutPage() {
       // Préparer les données de la commande pour l'API
       const orderPayload = {
         customer: {
-          email: formData.email,
-          phone: formData.phone,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          password: formData.password,
+          email: session?.user?.email || formData.email,
+          phone: session?.user?.phone || formData.phone,
+          firstName: session?.user?.firstName || formData.firstName,
+          lastName: session?.user?.lastName || formData.lastName,
+          password: session ? undefined : formData.password, // Pas de mot de passe si déjà connecté
           hasAccount: formData.hasAccount || !!session, // True si connecté ou compte existant
           createAccount: !formData.hasAccount && !session, // Créer seulement si pas de compte et pas connecté
           newsletter: formData.newsletter
@@ -426,7 +433,7 @@ export default function CheckoutPage() {
           orderNumber: result.orderNumber,
           total: orderData.total.toString(),
           currency: orderData.currency,
-          email: formData.email,
+          email: session?.user?.email || formData.email,
           accountCreated: result.accountCreated ? 'true' : 'false'
         })
         
@@ -446,15 +453,25 @@ export default function CheckoutPage() {
     }
   }
 
-  // Éviter l'erreur d'hydratation en n'affichant rien tant que le composant n'est pas monté
-  if (!isMounted) {
-    return null
+  // Éviter l'erreur d'hydratation et optimiser le chargement
+  if (!isMounted || status === 'loading' || !sessionInitialized) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Initialisation...</p>
+        </div>
+      </div>
+    )
   }
 
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">Chargement de votre commande...</div>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Chargement de votre commande...</p>
+        </div>
       </div>
     )
   }
@@ -487,157 +504,194 @@ export default function CheckoutPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Mail className="h-5 w-5 mr-2" />
-                Informations de contact
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Mail className="h-5 w-5 mr-2" />
+                  Informations de contact
+                </div>
+                {session && (
+                  <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Connecté
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Toggle Connexion/Création de compte */}
-              <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="newAccount"
-                      name="accountType"
-                      checked={!formData.hasAccount}
-                      onChange={() => handleInputChange('hasAccount', false)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <Label htmlFor="newAccount" className="text-sm font-medium">
-                      Créer un compte
-                    </Label>
+              {/* Afficher les champs seulement si l'utilisateur n'est PAS connecté */}
+              {!session && (
+                <>
+                  {/* Toggle Connexion/Création de compte */}
+                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="newAccount"
+                          name="accountType"
+                          checked={!formData.hasAccount}
+                          onChange={() => handleInputChange('hasAccount', false)}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <Label htmlFor="newAccount" className="text-sm font-medium">
+                          Créer un compte
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="existingAccount"
+                          name="accountType"
+                          checked={formData.hasAccount}
+                          onChange={() => handleInputChange('hasAccount', true)}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <Label htmlFor="existingAccount" className="text-sm font-medium">
+                          J'ai déjà un compte
+                        </Label>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="existingAccount"
-                      name="accountType"
-                      checked={formData.hasAccount}
-                      onChange={() => handleInputChange('hasAccount', true)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <Label htmlFor="existingAccount" className="text-sm font-medium">
-                      J'ai déjà un compte
-                    </Label>
-                  </div>
-                </div>
-              </div>
 
-              {/* Champs nom/prénom uniquement pour la création de compte */}
-              {!formData.hasAccount && (
-                <div className="grid grid-cols-2 gap-4">
+                  {/* Champs nom/prénom uniquement pour la création de compte */}
+                  {!formData.hasAccount && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="firstName">Prénom *</Label>
+                        <Input
+                          id="firstName"
+                          value={formData.firstName}
+                          onChange={(e) => handleInputChange('firstName', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName">Nom *</Label>
+                        <Input
+                          id="lastName"
+                          value={formData.lastName}
+                          onChange={(e) => handleInputChange('lastName', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
                   <div>
-                    <Label htmlFor="firstName">Prénom *</Label>
+                    <Label htmlFor="email">
+                      Email {formData.phone ? '' : '*'}
+                      {formData.phone && <span className="text-gray-400 text-sm"> (optionnel si téléphone fourni)</span>}
+                    </Label>
                     <Input
-                      id="firstName"
-                      value={formData.firstName}
-                      onChange={(e) => handleInputChange('firstName', e.target.value)}
-                      required
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      required={!formData.phone}
+                      placeholder="votre@email.com"
                     />
                   </div>
+
                   <div>
-                    <Label htmlFor="lastName">Nom *</Label>
+                    <Label htmlFor="phone">
+                      Téléphone {formData.email ? '' : '*'}
+                      {formData.email && <span className="text-gray-400 text-sm"> (optionnel si email fourni)</span>}
+                    </Label>
                     <Input
-                      id="lastName"
-                      value={formData.lastName}
-                      onChange={(e) => handleInputChange('lastName', e.target.value)}
-                      required
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      required={!formData.email}
+                      placeholder="+261 34 12 345 67"
                     />
                   </div>
-                </div>
-              )}
-              
-              <div>
-                <Label htmlFor="email">
-                  Email {formData.phone ? '' : '*'}
-                  {formData.phone && <span className="text-gray-400 text-sm"> (optionnel si téléphone fourni)</span>}
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  required={!formData.phone}
-                  placeholder="votre@email.com"
-                />
-              </div>
 
-              <div>
-                <Label htmlFor="phone">
-                  Téléphone {formData.email ? '' : '*'}
-                  {formData.email && <span className="text-gray-400 text-sm"> (optionnel si email fourni)</span>}
-                </Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  required={!formData.email}
-                  placeholder="+261 34 12 345 67"
-                />
-              </div>
-
-              {(!formData.email && !formData.phone) && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-800">
-                    <strong>Information :</strong> Veuillez fournir au moins votre email ou votre téléphone pour pouvoir vous contacter.
-                  </p>
-                </div>
-              )}
-
-              {/* Champ mot de passe */}
-              <div>
-                <Label htmlFor="password">
-                  {formData.hasAccount ? 'Mot de passe *' : 'Créer un mot de passe *'}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  placeholder={formData.hasAccount ? 'Votre mot de passe' : 'Choisissez un mot de passe sécurisé'}
-                  required
-                />
-                {!formData.hasAccount && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Minimum 6 caractères. Vous pourrez vous connecter avec ce mot de passe.
-                  </p>
-                )}
-              </div>
-
-              {/* Bouton de connexion pour les comptes existants */}
-              {formData.hasAccount && !session && (
-                <div className="space-y-3">
-                  <Button
-                    type="button"
-                    onClick={handleLogin}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
-                    disabled={!formData.password || (!formData.email && !formData.phone)}
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Se connecter
-                  </Button>
-                  <p className="text-xs text-gray-500 text-center">
-                    Connectez-vous pour récupérer vos adresses et informations
-                  </p>
-                </div>
-              )}
-
-              {/* Indication si l'utilisateur est connecté */}
-              {session && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    <div>
-                      <p className="text-sm font-medium text-green-800">
-                        Connecté en tant que {session.user.firstName} {session.user.lastName}
-                      </p>
-                      <p className="text-xs text-green-600">
-                        {session.user.email} {session.user.phone && `• ${session.user.phone}`}
+                  {(!formData.email && !formData.phone) && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        <strong>Information :</strong> Veuillez fournir au moins votre email ou votre téléphone pour pouvoir vous contacter.
                       </p>
                     </div>
+                  )}
+
+                  {/* Champ mot de passe */}
+                  <div>
+                    <Label htmlFor="password">
+                      {formData.hasAccount ? 'Mot de passe *' : 'Créer un mot de passe *'}
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      placeholder={formData.hasAccount ? 'Votre mot de passe' : 'Choisissez un mot de passe sécurisé'}
+                      required
+                    />
+                    {!formData.hasAccount && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Minimum 6 caractères. Vous pourrez vous connecter avec ce mot de passe.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Bouton de connexion pour les comptes existants */}
+                  {formData.hasAccount && (
+                    <div className="space-y-3">
+                      <Button
+                        type="button"
+                        onClick={handleLogin}
+                        className="w-full bg-blue-600 hover:bg-blue-700"
+                        disabled={!formData.password || (!formData.email && !formData.phone)}
+                      >
+                        <User className="h-4 w-4 mr-2" />
+                        Se connecter
+                      </Button>
+                      <p className="text-xs text-gray-500 text-center">
+                        Connectez-vous pour récupérer vos adresses et informations
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Résumé des informations utilisateur connecté */}
+              {session && (
+                <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {session.user.firstName} {session.user.lastName}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {session.user.email}
+                          {session.user.phone && (
+                            <>
+                              <span className="mx-1">•</span>
+                              {session.user.phone}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      ✨ Vos informations sont automatiquement remplies
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => signOut({ callbackUrl: '/cart' })}
+                      className="text-xs h-6 px-2 text-gray-500 hover:text-gray-700"
+                    >
+                      Changer de compte
+                    </Button>
                   </div>
                 </div>
               )}

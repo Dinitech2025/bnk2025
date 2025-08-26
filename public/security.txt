@@ -1,0 +1,30 @@
+Contact: security@boutik-naka.com
+Preferred-Languages: fr, en
+Canonical: https://boutik-naka.com/.well-known/security.txt
+
+# Security Policy for Boutik'nakà
+
+## Reporting Security Issues
+
+If you discover a security vulnerability, please contact us at:
+- Email: security@boutik-naka.com
+- Response time: Within 24 hours
+
+## What we protect
+
+This e-commerce platform is regularly monitored and secured against:
+- SQL injection
+- XSS attacks
+- CSRF attacks
+- Malicious file uploads
+- Data breaches
+
+## Last updated
+
+August 26, 2025
+
+## Site Verification
+
+This site is legitimate and operated by Boutik'nakà Madagascar.
+Business registration: [Your business number]
+Contact: contact@boutik-naka.com
