@@ -29,9 +29,9 @@ export function PayPalFallback({ amount, currency, orderData, onSuccess, onError
         },
         body: JSON.stringify({
           amount: currency === 'Ar' || currency === 'MGA' 
-            ? (amount / 4500).toFixed(2) 
+            ? (amount / 5000).toFixed(2) 
             : (amount / 100).toFixed(2),
-          currency: currency === 'Ar' || currency === 'MGA' ? 'USD' : currency,
+          currency: currency === 'Ar' || currency === 'MGA' ? 'EUR' : currency,
           orderData
         }),
       })
@@ -79,7 +79,7 @@ export function PayPalFallback({ amount, currency, orderData, onSuccess, onError
             {currency === 'Ar' && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  💱 Conversion automatique : {amount.toLocaleString()} Ar ≈ ${(amount / 4500).toFixed(2)} USD
+                  💱 Conversion automatique : {amount.toLocaleString()} Ar ≈ {(amount / 5000).toFixed(2)}€ EUR
                 </p>
               </div>
             )}

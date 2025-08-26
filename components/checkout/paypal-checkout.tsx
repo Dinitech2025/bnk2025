@@ -53,18 +53,18 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
   // Convertir le montant selon la devise
   const getPayPalAmount = () => {
     // PayPal supporte différentes devises
-    // Pour Madagascar, nous pourrions convertir en USD ou EUR
+    // Pour Madagascar, nous convertissons en EUR
     if (currency === 'Ar' || currency === 'MGA') {
-      // Conversion approximative MGA vers USD (1 USD ≈ 4500 MGA)
-      return (amount / 4500).toFixed(2)
+      // Conversion approximative MGA vers EUR (1 EUR ≈ 5000 MGA)
+      return (amount / 5000).toFixed(2)
     }
     return (amount / 100).toFixed(2) // Pour les autres devises déjà en centimes
   }
 
   const getPayPalCurrency = () => {
-    // PayPal ne supporte pas MGA directement
+    // PayPal ne supporte pas MGA directement, on utilise EUR
     if (currency === 'Ar' || currency === 'MGA') {
-      return 'USD'
+      return 'EUR'
     }
     return currency.toUpperCase()
   }
@@ -166,7 +166,7 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
             {currency === 'Ar' && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  💱 Conversion automatique : {amount.toLocaleString()} Ar ≈ ${getPayPalAmount()} USD
+                  💱 Conversion automatique : {amount.toLocaleString()} Ar ≈ {getPayPalAmount()}€ EUR
                 </p>
               </div>
             )}
@@ -264,13 +264,13 @@ export function PayPalCheckout(props: PayPalCheckoutProps) {
 
   const paypalOptions = {
     clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
-    currency: props.currency === 'Ar' ? 'USD' : props.currency.toUpperCase(),
+    currency: props.currency === 'Ar' ? 'EUR' : props.currency.toUpperCase(),
     intent: 'capture' as const,
     components: 'buttons',
     'enable-funding': 'venmo,paylater',
     'disable-funding': 'credit,card',
-    // Options pour améliorer le chargement
-    'buyer-country': 'US',
+    // Options pour améliorer le chargement - EUR zone
+    'buyer-country': 'FR', // France pour EUR
     locale: 'fr_FR',
     // Optimisations de performance
     'data-sdk-integration-source': 'button-factory',
