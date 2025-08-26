@@ -20,18 +20,34 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState<string>('')
   const [isSDKReady, setIsSDKReady] = useState(false)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
 
-  // Vérifier que le SDK PayPal est chargé
+  // Vérifier que le SDK PayPal est chargé avec timeout
   useEffect(() => {
+    let attempts = 0
+    const maxAttempts = 30 // 30 secondes maximum
+
     const checkSDK = () => {
+      attempts++
+      
       if (typeof window !== 'undefined' && window.paypal && window.paypal.Buttons) {
         setIsSDKReady(true)
+        setLoadingTimeout(false)
+      } else if (attempts >= maxAttempts) {
+        // Timeout après 30 secondes
+        setLoadingTimeout(true)
+        setPaymentError('Impossible de charger PayPal. Vérifiez votre connexion internet.')
+        onError('Timeout de chargement PayPal')
       } else {
         // Réessayer après un délai
         setTimeout(checkSDK, 1000)
       }
     }
-    checkSDK()
+
+    // Démarrer la vérification après un court délai
+    const initialTimeout = setTimeout(checkSDK, 500)
+    
+    return () => clearTimeout(initialTimeout)
   }, [])
 
   // Convertir le montant selon la devise
@@ -171,7 +187,26 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
             )}
 
             <div className="min-h-[200px]">
-              {isSDKReady ? (
+              {loadingTimeout ? (
+                <div className="flex flex-col items-center justify-center p-8 space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm text-red-600 mb-2">⚠️ Impossible de charger PayPal</p>
+                    <p className="text-xs text-gray-500">
+                      Vérifiez votre connexion internet ou réessayez
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setLoadingTimeout(false)
+                      setPaymentError('')
+                      window.location.reload()
+                    }}
+                    className="px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                  >
+                    Réessayer
+                  </button>
+                </div>
+              ) : isSDKReady ? (
                 <PayPalButtons
                   style={{
                     layout: 'vertical',
@@ -187,11 +222,12 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
                   disabled={isProcessing}
                 />
               ) : (
-                <div className="flex items-center justify-center p-8">
+                <div className="flex flex-col items-center justify-center p-8 space-y-2">
                   <div className="flex items-center space-x-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm text-gray-600">Chargement de PayPal...</span>
                   </div>
+                  <p className="text-xs text-gray-400">Cela peut prendre quelques secondes</p>
                 </div>
               )}
             </div>
@@ -233,9 +269,12 @@ export function PayPalCheckout(props: PayPalCheckoutProps) {
     components: 'buttons',
     'enable-funding': 'venmo,paylater',
     'disable-funding': 'credit,card',
-    // Ajout d'options pour une meilleure stabilité
+    // Options pour améliorer le chargement
     'buyer-country': 'US',
-    locale: 'fr_FR'
+    locale: 'fr_FR',
+    // Optimisations de performance
+    'data-sdk-integration-source': 'button-factory',
+    'data-namespace': 'paypal_sdk'
   }
 
   return (

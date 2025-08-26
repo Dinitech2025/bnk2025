@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
 import { PayPalCheckout } from './paypal-checkout'
+import { PayPalFallback } from './paypal-fallback'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -26,6 +27,7 @@ export function PaymentMethodSelector({
   const [selectedMethod, setSelectedMethod] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [showPayPalButtons, setShowPayPalButtons] = useState(false)
+  const [usePayPalFallback, setUsePayPalFallback] = useState(false)
 
   const paymentMethods = [
     {
@@ -83,21 +85,62 @@ export function PaymentMethodSelector({
             </div>
             
             {!showPayPalButtons ? (
-              <Button 
-                onClick={() => setShowPayPalButtons(true)}
-                className="w-full"
-                size="lg"
-              >
-                Activer PayPal
-              </Button>
-            ) : (
-              <PayPalCheckout
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => setShowPayPalButtons(true)}
+                  className="w-full"
+                  size="lg"
+                >
+                  Activer PayPal
+                </Button>
+                <Button 
+                  onClick={() => setUsePayPalFallback(true)}
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                >
+                  PayPal (Mode alternatif)
+                </Button>
+              </div>
+            ) : usePayPalFallback ? (
+              <PayPalFallback
                 amount={total}
                 currency={currency}
                 orderData={orderData}
                 onSuccess={onPaymentSuccess}
-                onError={onPaymentError}
+                onError={(error) => {
+                  // En cas d'erreur, proposer l'alternative
+                  setUsePayPalFallback(false)
+                  setShowPayPalButtons(false)
+                  onPaymentError(error)
+                }}
               />
+            ) : (
+              <div className="space-y-3">
+                <PayPalCheckout
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  onSuccess={onPaymentSuccess}
+                  onError={(error) => {
+                    // En cas d'erreur, proposer l'alternative
+                    console.error('Erreur PayPal standard:', error)
+                    setShowPayPalButtons(false)
+                    onPaymentError(`${error}. Essayez le mode alternatif.`)
+                  }}
+                />
+                <Button 
+                  onClick={() => {
+                    setShowPayPalButtons(false)
+                    setUsePayPalFallback(true)
+                  }}
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                >
+                  Problème de chargement ? Essayez le mode alternatif
+                </Button>
+              </div>
             )}
           </div>
         )
@@ -146,6 +189,7 @@ export function PaymentMethodSelector({
             // Reset PayPal buttons quand on change de méthode
             if (value !== 'paypal') {
               setShowPayPalButtons(false)
+              setUsePayPalFallback(false)
             }
           }}
         >
