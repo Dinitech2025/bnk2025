@@ -10,6 +10,7 @@ import { PayPalUnified } from './paypal-unified'
 import { PayPalPopup } from './paypal-popup'
 import { PayPalNewTab } from './paypal-new-tab'
 import { PayPalWindow } from './paypal-window'
+import { PayPalRedirect } from './paypal-redirect'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -31,6 +32,7 @@ export function PaymentMethodSelector({
   const [usePopupMode, setUsePopupMode] = useState(false)
   const [useNewTabMode, setUseNewTabMode] = useState(false)
   const [useWindowMode, setUseWindowMode] = useState(false)
+  const [useRedirectMode, setUseRedirectMode] = useState(false)
 
   const paymentMethods = [
     {
@@ -83,7 +85,31 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useWindowMode ? (
+            {useRedirectMode ? (
+              <div className="space-y-3">
+                <PayPalRedirect
+                  paymentType="paypal"
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  onSuccess={onPaymentSuccess}
+                  onError={onPaymentError}
+                />
+                <Button 
+                  onClick={() => {
+                    setUseRedirectMode(false)
+                    setUseWindowMode(false)
+                    setUseNewTabMode(false)
+                    setUsePopupMode(false)
+                  }}
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                >
+                  🔄 Retour au mode normal
+                </Button>
+              </div>
+            ) : useWindowMode ? (
               <div className="space-y-3">
                 <PayPalWindow
                   paymentType="paypal"
@@ -178,12 +204,19 @@ export function PaymentMethodSelector({
                   orderData={orderData}
                   onSuccess={onPaymentSuccess}
                   onError={(error) => {
-                    console.log('🔄 PayPal SDK échoué, proposition du mode fenêtre')
-                    // En cas d'erreur, proposer directement le mode fenêtre
-                    setUseWindowMode(true)
+                    console.log('🔄 PayPal SDK échoué, proposition du mode redirection')
+                    // En cas d'erreur, proposer directement le mode redirection
+                    setUseRedirectMode(true)
                   }}
                 />
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-4 gap-1">
+                  <Button 
+                    onClick={() => setUseRedirectMode(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    🌐 Redirection
+                  </Button>
                   <Button 
                     onClick={() => setUseWindowMode(true)}
                     variant="outline"
@@ -220,7 +253,26 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useWindowMode ? (
+            {useRedirectMode ? (
+              <div className="space-y-3">
+                <PayPalRedirect
+                  paymentType="credit_card"
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  onSuccess={onPaymentSuccess}
+                  onError={onPaymentError}
+                />
+                <Button 
+                  onClick={() => setUseRedirectMode(false)}
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                >
+                  🔄 Retour au mode normal
+                </Button>
+              </div>
+            ) : useWindowMode ? (
               <div className="space-y-3">
                 <PayPalWindow
                   paymentType="credit_card"
@@ -248,17 +300,17 @@ export function PaymentMethodSelector({
                   orderData={orderData}
                   onSuccess={onPaymentSuccess}
                   onError={(error) => {
-                    console.log('🔄 Cartes SDK échoué, proposition du mode fenêtre')
-                    setUseWindowMode(true)
+                    console.log('🔄 Cartes SDK échoué, proposition du mode redirection')
+                    setUseRedirectMode(true)
                   }}
                 />
                 <Button 
-                  onClick={() => setUseWindowMode(true)}
+                  onClick={() => setUseRedirectMode(true)}
                   variant="outline"
                   className="w-full"
                   size="sm"
                 >
-                  🪟 Problème de chargement ? Essayez la fenêtre
+                  🌐 Problème de chargement ? Essayez la redirection
                 </Button>
               </div>
             )}
@@ -278,12 +330,12 @@ export function PaymentMethodSelector({
               <div className="space-y-3">
                 <PayPalWindow
                   paymentType="digital_wallet"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
+            amount={total}
+            currency={currency}
+            orderData={orderData}
+            onSuccess={onPaymentSuccess}
+            onError={onPaymentError}
+          />
                 <Button 
                   onClick={() => setUseWindowMode(false)}
                   variant="outline"
@@ -385,6 +437,7 @@ export function PaymentMethodSelector({
             setUsePopupMode(false) // Reset popup mode when changing payment method
             setUseNewTabMode(false) // Reset new tab mode when changing payment method
             setUseWindowMode(false) // Reset window mode when changing payment method
+            setUseRedirectMode(false) // Reset redirect mode when changing payment method
           }}
         >
           <div className="grid grid-cols-1 gap-3">
