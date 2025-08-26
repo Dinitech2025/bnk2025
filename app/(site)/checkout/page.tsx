@@ -120,14 +120,24 @@ export default function CheckoutPage() {
 
   const loadUserAddresses = async () => {
     try {
+      console.log('🏠 Chargement des adresses utilisateur...')
       const response = await fetch('/api/profile/addresses')
+      console.log('📡 Réponse API addresses:', response.status)
+      
       if (response.ok) {
         const addresses = await response.json()
+        console.log('📍 Adresses récupérées:', addresses)
+        console.log('📊 Nombre d\'adresses:', addresses.length)
+        console.log('🏷️ Types d\'adresses:', addresses.map((addr: UserAddress) => addr.type))
+        
         setUserAddresses(addresses)
         
         // Pré-sélectionner les adresses par défaut
         const defaultBilling = addresses.find((addr: UserAddress) => addr.type === 'BILLING' && addr.isDefault)
         const defaultShipping = addresses.find((addr: UserAddress) => addr.type === 'SHIPPING' && addr.isDefault)
+        
+        console.log('🏠 Adresse facturation par défaut:', defaultBilling)
+        console.log('🚚 Adresse livraison par défaut:', defaultShipping)
         
         if (defaultBilling) {
           setFormData(prev => ({
@@ -150,9 +160,11 @@ export default function CheckoutPage() {
             shippingCountry: defaultShipping.country
           }))
         }
+      } else {
+        console.error('❌ Erreur réponse API addresses:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des adresses:', error)
+      console.error('❌ Erreur lors du chargement des adresses:', error)
     }
   }
 
@@ -762,21 +774,21 @@ export default function CheckoutPage() {
                   <MapPin className="h-5 w-5 mr-2" />
                   Adresse de facturation
                 </div>
-                {session && userAddresses.filter(addr => addr.type === 'BILLING').length > 0 && (
+                {session && userAddresses.filter(addr => addr.type === 'BILLING' || addr.type === 'HOME' || addr.type === 'WORK').length > 0 && (
                   <Badge variant="outline" className="text-xs">
-                    {userAddresses.filter(addr => addr.type === 'BILLING').length} adresse(s) disponible(s)
+                    {userAddresses.filter(addr => addr.type === 'BILLING' || addr.type === 'HOME' || addr.type === 'WORK').length} adresse(s) disponible(s)
                   </Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Sélecteur d'adresses pour utilisateurs connectés */}
-              {session && userAddresses.filter(addr => addr.type === 'BILLING').length > 0 && (
+              {session && userAddresses.filter(addr => addr.type === 'BILLING' || addr.type === 'HOME' || addr.type === 'WORK').length > 0 && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Choisir une adresse sauvegardée</Label>
                   <div className="grid gap-3">
                     {userAddresses
-                      .filter(addr => addr.type === 'BILLING')
+                      .filter(addr => addr.type === 'BILLING' || addr.type === 'HOME' || addr.type === 'WORK')
                       .map((address) => (
                         <div
                           key={address.id}
@@ -794,6 +806,9 @@ export default function CheckoutPage() {
                                 {address.isDefault && (
                                   <Badge variant="secondary" className="text-xs">Par défaut</Badge>
                                 )}
+                                <Badge variant="outline" className="text-xs">
+                                  {address.type === 'HOME' ? 'Domicile' : address.type === 'WORK' ? 'Travail' : address.type}
+                                </Badge>
                               </div>
                               <p className="text-xs text-gray-600">
                                 {address.city}, {address.zipCode} - {address.country}
@@ -834,7 +849,7 @@ export default function CheckoutPage() {
               )}
 
               {/* Formulaire de saisie manuelle (affiché si pas d'adresse sélectionnée ou pas d'utilisateur connecté) */}
-              {(!session || userAddresses.filter(addr => addr.type === 'BILLING').length === 0 || !formData.selectedBillingAddressId) && (
+              {(!session || userAddresses.filter(addr => addr.type === 'BILLING' || addr.type === 'HOME' || addr.type === 'WORK').length === 0 || !formData.selectedBillingAddressId) && (
                 <>
                   <div>
                     <Label htmlFor="billingAddress">Adresse</Label>
@@ -894,9 +909,9 @@ export default function CheckoutPage() {
                   <Truck className="h-5 w-5 mr-2" />
                   Adresse de livraison
                 </div>
-                {session && userAddresses.filter(addr => addr.type === 'SHIPPING').length > 0 && (
+                {session && userAddresses.filter(addr => addr.type === 'SHIPPING' || addr.type === 'HOME' || addr.type === 'WORK').length > 0 && (
                   <Badge variant="outline" className="text-xs">
-                    {userAddresses.filter(addr => addr.type === 'SHIPPING').length} adresse(s) disponible(s)
+                    {userAddresses.filter(addr => addr.type === 'SHIPPING' || addr.type === 'HOME' || addr.type === 'WORK').length} adresse(s) disponible(s)
                   </Badge>
                 )}
               </CardTitle>
@@ -916,12 +931,12 @@ export default function CheckoutPage() {
               {!sameAsbilling && (
                 <>
                   {/* Sélecteur d'adresses de livraison pour utilisateurs connectés */}
-                  {session && userAddresses.filter(addr => addr.type === 'SHIPPING').length > 0 && (
+                  {session && userAddresses.filter(addr => addr.type === 'SHIPPING' || addr.type === 'HOME' || addr.type === 'WORK').length > 0 && (
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">Choisir une adresse de livraison sauvegardée</Label>
                       <div className="grid gap-3">
                         {userAddresses
-                          .filter(addr => addr.type === 'SHIPPING')
+                          .filter(addr => addr.type === 'SHIPPING' || addr.type === 'HOME' || addr.type === 'WORK')
                           .map((address) => (
                             <div
                               key={address.id}
@@ -939,6 +954,9 @@ export default function CheckoutPage() {
                                     {address.isDefault && (
                                       <Badge variant="secondary" className="text-xs">Par défaut</Badge>
                                     )}
+                                    <Badge variant="outline" className="text-xs">
+                                      {address.type === 'HOME' ? 'Domicile' : address.type === 'WORK' ? 'Travail' : address.type}
+                                    </Badge>
                                   </div>
                                   <p className="text-xs text-gray-600">
                                     {address.city}, {address.zipCode} - {address.country}
@@ -979,7 +997,7 @@ export default function CheckoutPage() {
                   )}
 
                   {/* Formulaire de saisie manuelle (affiché si pas d'adresse sélectionnée ou pas d'utilisateur connecté) */}
-                  {(!session || userAddresses.filter(addr => addr.type === 'SHIPPING').length === 0 || !formData.selectedShippingAddressId) && (
+                  {(!session || userAddresses.filter(addr => addr.type === 'SHIPPING' || addr.type === 'HOME' || addr.type === 'WORK').length === 0 || !formData.selectedShippingAddressId) && (
                     <>
                       <div>
                         <Label htmlFor="shippingAddress">Adresse</Label>
