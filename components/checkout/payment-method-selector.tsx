@@ -25,6 +25,7 @@ export function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   const [selectedMethod, setSelectedMethod] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showPayPalButtons, setShowPayPalButtons] = useState(false)
 
   const paymentMethods = [
     {
@@ -70,16 +71,35 @@ export function PaymentMethodSelector({
   }
 
   const renderPaymentForm = () => {
+    // Ne rendre le composant PayPal que si explicitement sélectionné
     switch (selectedMethod) {
       case 'paypal':
         return (
-          <PayPalCheckout
-            amount={total}
-            currency={currency}
-            orderData={orderData}
-            onSuccess={onPaymentSuccess}
-            onError={onPaymentError}
-          />
+          <div className="space-y-4 pt-4">
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                💳 Vous allez être redirigé vers PayPal pour finaliser le paiement sécurisé.
+              </p>
+            </div>
+            
+            {!showPayPalButtons ? (
+              <Button 
+                onClick={() => setShowPayPalButtons(true)}
+                className="w-full"
+                size="lg"
+              >
+                Activer PayPal
+              </Button>
+            ) : (
+              <PayPalCheckout
+                amount={total}
+                currency={currency}
+                orderData={orderData}
+                onSuccess={onPaymentSuccess}
+                onError={onPaymentError}
+              />
+            )}
+          </div>
         )
       
       case 'mobile_money':
@@ -119,7 +139,16 @@ export function PaymentMethodSelector({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <RadioGroup value={selectedMethod} onValueChange={setSelectedMethod}>
+        <RadioGroup 
+          value={selectedMethod} 
+          onValueChange={(value) => {
+            setSelectedMethod(value)
+            // Reset PayPal buttons quand on change de méthode
+            if (value !== 'paypal') {
+              setShowPayPalButtons(false)
+            }
+          }}
+        >
           <div className="grid grid-cols-1 gap-3">
             {paymentMethods.map((method) => (
               <div
