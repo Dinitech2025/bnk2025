@@ -36,6 +36,7 @@ interface UseCartReturn {
 let globalCart: Cart | null = null
 let globalItems: CartItem[] = []
 let globalIsLoading = true
+let globalUserId: string | null = null // Pour tracker les changements d'utilisateur
 let subscribers: (() => void)[] = []
 
 function notifySubscribers() {
@@ -108,10 +109,23 @@ export function useCart(): UseCartReturn {
     }
   }, [session?.user?.id, sessionId])
 
-  // Charger le panier au montage et quand la session change
+  // Charger le panier au montage et quand la session change (mais éviter les refetch inutiles)
   useEffect(() => {
     if (sessionId || session?.user?.id) {
-      fetchCart()
+      // Ne pas refetch si on a déjà des données et que l'utilisateur n'a pas changé
+      const hasValidData = globalCart && globalItems.length >= 0
+      const currentUserId = session?.user?.id
+      
+      // Refetch seulement si nécessaire
+      if (!hasValidData || (currentUserId !== globalUserId)) {
+        globalUserId = currentUserId || null
+        fetchCart()
+      } else {
+        // Utiliser les données globales existantes
+        setCart(globalCart)
+        setItems(globalItems)
+        setIsLoading(false)
+      }
     }
   }, [fetchCart, sessionId, session?.user?.id])
 

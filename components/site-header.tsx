@@ -50,13 +50,19 @@ export function SiteHeader() {
     setIsMounted(true)
   }, [])
 
-  // Charger les catégories et plateformes pour le menu mobile
+  // Charger les catégories et plateformes pour le menu mobile (avec cache)
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [categoriesRes, platformsRes] = await Promise.all([
-          fetch('/api/public/categories'),
-          fetch('/api/public/platforms')
+          fetch('/api/public/categories', { 
+            cache: 'force-cache',
+            next: { revalidate: 300 } // 5 minutes
+          }),
+          fetch('/api/public/platforms', { 
+            cache: 'force-cache',
+            next: { revalidate: 300 } // 5 minutes
+          })
         ])
         
         if (categoriesRes.ok) {
@@ -73,7 +79,10 @@ export function SiteHeader() {
       }
     }
 
-    fetchData()
+    // Charger seulement si pas déjà chargé
+    if (categories.products.length === 0 && categories.services.length === 0) {
+      fetchData()
+    }
   }, [])
 
   // Reduced logging during build to avoid spam
