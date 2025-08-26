@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Shield } from 'lucide-react'
+import { Loader2, Shield, CreditCard } from 'lucide-react'
 
-interface PayPalCheckoutProps {
+interface CreditCardPayPalProps {
   amount: number
   currency: string
   orderData: any
@@ -14,9 +14,9 @@ interface PayPalCheckoutProps {
   onError: (error: string) => void
 }
 
-interface PayPalButtonsWrapperProps extends PayPalCheckoutProps {}
+interface CreditCardButtonsWrapperProps extends CreditCardPayPalProps {}
 
-function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError }: PayPalButtonsWrapperProps) {
+function CreditCardButtonsWrapper({ amount, currency, orderData, onSuccess, onError }: CreditCardButtonsWrapperProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState<string>('')
   const [isSDKReady, setIsSDKReady] = useState(false)
@@ -36,8 +36,8 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
       } else if (attempts >= maxAttempts) {
         // Timeout après 30 secondes
         setLoadingTimeout(true)
-        setPaymentError('Impossible de charger PayPal. Vérifiez votre connexion internet.')
-        onError('Timeout de chargement PayPal')
+        setPaymentError('Impossible de charger le système de cartes. Vérifiez votre connexion internet.')
+        onError('Timeout de chargement du système de cartes')
       } else {
         // Réessayer après un délai
         setTimeout(checkSDK, 1000)
@@ -52,17 +52,14 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
 
   // Convertir le montant selon la devise
   const getPayPalAmount = () => {
-    // PayPal supporte différentes devises
-    // Pour Madagascar, nous convertissons en EUR
     if (currency === 'Ar' || currency === 'MGA') {
       // Conversion approximative MGA vers EUR (1 EUR ≈ 5000 MGA)
       return (amount / 5000).toFixed(2)
     }
-    return (amount / 100).toFixed(2) // Pour les autres devises déjà en centimes
+    return (amount / 100).toFixed(2)
   }
 
   const getPayPalCurrency = () => {
-    // PayPal ne supporte pas MGA directement, on utilise EUR
     if (currency === 'Ar' || currency === 'MGA') {
       return 'EUR'
     }
@@ -91,12 +88,12 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
       if (data.id) {
         return data.id
       } else {
-        throw new Error(data.error || 'Erreur lors de la création de la commande PayPal')
+        throw new Error(data.error || 'Erreur lors de la création de la commande')
       }
     } catch (error) {
-      console.error('Erreur création commande PayPal:', error)
-      setPaymentError('Impossible de créer la commande PayPal')
-      onError('Impossible de créer la commande PayPal')
+      console.error('Erreur création commande carte:', error)
+      setPaymentError('Impossible de traiter le paiement par carte')
+      onError('Impossible de traiter le paiement par carte')
       return null
     } finally {
       setIsProcessing(false)
@@ -123,33 +120,33 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
 
       if (result.status === 'COMPLETED') {
         onSuccess({
-          method: 'paypal',
+          method: 'credit_card',
           status: 'completed',
           transactionId: result.id,
           paypalOrderId: data.orderID,
-          message: 'Paiement PayPal effectué avec succès'
+          message: 'Paiement par carte effectué avec succès'
         })
       } else {
-        throw new Error('Paiement non confirmé')
+        throw new Error('Paiement par carte non confirmé')
       }
     } catch (error) {
-      console.error('Erreur capture paiement PayPal:', error)
-      setPaymentError('Erreur lors de la confirmation du paiement')
-      onError('Erreur lors de la confirmation du paiement PayPal')
+      console.error('Erreur capture paiement carte:', error)
+      setPaymentError('Erreur lors de la confirmation du paiement par carte')
+      onError('Erreur lors de la confirmation du paiement par carte')
     } finally {
       setIsProcessing(false)
     }
   }
 
   const onErrorHandler = (err: any) => {
-    console.error('Erreur PayPal:', err)
-    setPaymentError('Erreur PayPal inattendue')
-    onError('Erreur PayPal inattendue')
+    console.error('Erreur PayPal carte:', err)
+    setPaymentError('Erreur de traitement de la carte')
+    onError('Erreur de traitement de la carte')
     setIsProcessing(false)
   }
 
   const onCancel = () => {
-    setPaymentError('Paiement annulé par l\'utilisateur')
+    setPaymentError('Paiement par carte annulé')
     setIsProcessing(false)
   }
 
@@ -159,8 +156,8 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
         <CardContent className="p-0">
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-sm font-medium text-gray-700">
-              <Shield className="h-4 w-4" />
-              <span>Paiement sécurisé PayPal</span>
+              <CreditCard className="h-4 w-4" />
+              <span>Paiement sécurisé par carte bancaire</span>
             </div>
 
             {currency === 'Ar' && (
@@ -170,6 +167,12 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
                 </p>
               </div>
             )}
+
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                💳 Utilisez votre carte Visa, Mastercard ou American Express. Traitement sécurisé via PayPal.
+              </p>
+            </div>
 
             {paymentError && (
               <Alert variant="destructive">
@@ -181,7 +184,7 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
               <div className="flex items-center justify-center p-4">
                 <div className="flex items-center space-x-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-gray-600">Traitement PayPal en cours...</span>
+                  <span className="text-sm text-gray-600">Traitement carte en cours...</span>
                 </div>
               </div>
             )}
@@ -190,7 +193,7 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
               {loadingTimeout ? (
                 <div className="flex flex-col items-center justify-center p-8 space-y-4">
                   <div className="text-center">
-                    <p className="text-sm text-red-600 mb-2">⚠️ Impossible de charger PayPal</p>
+                    <p className="text-sm text-red-600 mb-2">⚠️ Impossible de charger le système de cartes</p>
                     <p className="text-xs text-gray-500">
                       Vérifiez votre connexion internet ou réessayez
                     </p>
@@ -210,13 +213,13 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
                 <PayPalButtons
                   style={{
                     layout: 'vertical',
-                    color: 'gold',
+                    color: 'blue', // Bleu pour les cartes
                     shape: 'rect',
-                    label: 'pay', // 'pay' au lieu de 'paypal' pour inclure cartes
+                    label: 'pay', // Label générique pour cartes
                     height: 45,
-                    tagline: false // Supprime le tagline pour plus d'espace
+                    tagline: false
                   }}
-                  fundingSource={undefined} // Permet toutes les sources de financement
+                  fundingSource="card" // Force l'utilisation des cartes
                   createOrder={createOrder}
                   onApprove={onApprove}
                   onError={onErrorHandler}
@@ -227,16 +230,16 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
                 <div className="flex flex-col items-center justify-center p-8 space-y-2">
                   <div className="flex items-center space-x-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-gray-600">Chargement de PayPal...</span>
+                    <span className="text-sm text-gray-600">Chargement du système de cartes...</span>
                   </div>
-                  <p className="text-xs text-gray-400">Cela peut prendre quelques secondes</p>
+                  <p className="text-xs text-gray-400">Initialisation sécurisée</p>
                 </div>
               )}
             </div>
 
             <div className="flex items-center space-x-2 text-xs text-gray-500">
               <Shield className="h-3 w-3" />
-              <span>Protection des acheteurs PayPal incluse</span>
+              <span>Sécurité PCI-DSS • Données chiffrées • Protection anti-fraude</span>
             </div>
           </div>
         </CardContent>
@@ -244,7 +247,7 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
 
       <div className="text-center">
         <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
-          <span>Powered by</span>
+          <span>Traitement sécurisé par</span>
           <div className="font-semibold text-blue-600">PayPal</div>
         </div>
       </div>
@@ -252,13 +255,13 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
   )
 }
 
-export function PayPalCheckout(props: PayPalCheckoutProps) {
+export function CreditCardPayPal(props: CreditCardPayPalProps) {
   // Vérifier que les variables d'environnement sont définies
   if (!process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID) {
     return (
       <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
         <p className="text-sm text-red-800">
-          ⚠️ PayPal non configuré. Veuillez configurer NEXT_PUBLIC_PAYPAL_CLIENT_ID dans les variables d'environnement.
+          ⚠️ Système de cartes non configuré. Veuillez configurer NEXT_PUBLIC_PAYPAL_CLIENT_ID.
         </p>
       </div>
     )
@@ -268,20 +271,20 @@ export function PayPalCheckout(props: PayPalCheckoutProps) {
     clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
     currency: props.currency === 'Ar' ? 'EUR' : props.currency.toUpperCase(),
     intent: 'capture' as const,
-    components: 'buttons', // Seulement buttons pour PayPal pur
-    'enable-funding': 'venmo,paylater', // Pas de cartes pour ce composant
-    'disable-funding': 'card', // Désactiver cartes pour PayPal pur
-    // Options pour améliorer le chargement - EUR zone
-    'buyer-country': 'FR', // France pour EUR
+    components: 'buttons,hosted-fields', // Support hosted fields pour cartes
+    'enable-funding': 'card', // Forcer l'activation des cartes
+    'disable-funding': 'paypal,paylater,venmo', // Désactiver PayPal pour ce composant
+    // Options pour cartes bancaires
+    'buyer-country': 'FR',
     locale: 'fr_FR',
-    // Optimisations de performance
+    // Optimisations
     'data-sdk-integration-source': 'button-factory',
-    'data-namespace': 'paypal_sdk_pure'
+    'data-namespace': 'paypal_sdk_cards'
   }
 
   return (
     <PayPalScriptProvider options={paypalOptions}>
-      <PayPalButtonsWrapper {...props} />
+      <CreditCardButtonsWrapper {...props} />
     </PayPalScriptProvider>
   )
-} 
+}

@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
 import { PayPalCheckout } from './paypal-checkout'
 import { PayPalFallback } from './paypal-fallback'
+import { CreditCardPayPal } from './credit-card-paypal'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -28,13 +29,21 @@ export function PaymentMethodSelector({
   const [isProcessing, setIsProcessing] = useState(false)
   const [showPayPalButtons, setShowPayPalButtons] = useState(false)
   const [usePayPalFallback, setUsePayPalFallback] = useState(false)
+  const [showCreditCardForm, setShowCreditCardForm] = useState(false)
 
   const paymentMethods = [
     {
       id: 'paypal',
-      name: 'PayPal & Carte bancaire',
-      description: 'PayPal, Visa, Mastercard, American Express',
+      name: 'PayPal',
+      description: 'Paiement via votre compte PayPal',
       icon: <DollarSign className="h-5 w-5" />,
+      enabled: true
+    },
+    {
+      id: 'credit_card',
+      name: 'Carte bancaire',
+      description: 'Visa, Mastercard, American Express',
+      icon: <CreditCard className="h-5 w-5" />,
       enabled: true
     },
     {
@@ -144,6 +153,39 @@ export function PaymentMethodSelector({
             )}
           </div>
         )
+
+      case 'credit_card':
+        return (
+          <div className="space-y-4 pt-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💳 Payez directement avec votre carte bancaire. Traitement sécurisé via PayPal (pas besoin de compte).
+              </p>
+            </div>
+            
+            {!showCreditCardForm ? (
+              <Button 
+                onClick={() => setShowCreditCardForm(true)}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                size="lg"
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Payer par carte bancaire
+              </Button>
+            ) : (
+              <CreditCardPayPal
+                amount={total}
+                currency={currency}
+                orderData={orderData}
+                onSuccess={onPaymentSuccess}
+                onError={(error) => {
+                  setShowCreditCardForm(false)
+                  onPaymentError(error)
+                }}
+              />
+            )}
+          </div>
+        )
       
       case 'mobile_money':
       case 'cash_on_delivery':
@@ -186,10 +228,13 @@ export function PaymentMethodSelector({
           value={selectedMethod} 
           onValueChange={(value) => {
             setSelectedMethod(value)
-            // Reset PayPal buttons quand on change de méthode
+            // Reset tous les formulaires quand on change de méthode
             if (value !== 'paypal') {
               setShowPayPalButtons(false)
               setUsePayPalFallback(false)
+            }
+            if (value !== 'credit_card') {
+              setShowCreditCardForm(false)
             }
           }}
         >
