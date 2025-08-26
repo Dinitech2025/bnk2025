@@ -9,6 +9,7 @@ import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
 import { PayPalUnified } from './paypal-unified'
 import { PayPalPopup } from './paypal-popup'
 import { PayPalNewTab } from './paypal-new-tab'
+import { PayPalWindow } from './paypal-window'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -29,6 +30,7 @@ export function PaymentMethodSelector({
   const [isProcessing, setIsProcessing] = useState(false)
   const [usePopupMode, setUsePopupMode] = useState(false)
   const [useNewTabMode, setUseNewTabMode] = useState(false)
+  const [useWindowMode, setUseWindowMode] = useState(false)
 
   const paymentMethods = [
     {
@@ -81,9 +83,9 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useNewTabMode ? (
+            {useWindowMode ? (
               <div className="space-y-3">
-                <PayPalNewTab
+                <PayPalWindow
                   paymentType="paypal"
                   amount={total}
                   currency={currency}
@@ -93,6 +95,7 @@ export function PaymentMethodSelector({
                 />
                 <Button 
                   onClick={() => {
+                    setUseWindowMode(false)
                     setUseNewTabMode(false)
                     setUsePopupMode(false)
                   }}
@@ -102,6 +105,39 @@ export function PaymentMethodSelector({
                 >
                   🔄 Retour au mode normal
                 </Button>
+              </div>
+            ) : useNewTabMode ? (
+              <div className="space-y-3">
+                <PayPalNewTab
+                  paymentType="paypal"
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  onSuccess={onPaymentSuccess}
+                  onError={onPaymentError}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => {
+                      setUseNewTabMode(false)
+                      setUseWindowMode(true)
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    🪟 Fenêtre
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setUseNewTabMode(false)
+                      setUsePopupMode(false)
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    🔄 Mode normal
+                  </Button>
+                </div>
               </div>
             ) : usePopupMode ? (
               <div className="space-y-3">
@@ -142,27 +178,32 @@ export function PaymentMethodSelector({
                   orderData={orderData}
                   onSuccess={onPaymentSuccess}
                   onError={(error) => {
-                    console.log('🔄 PayPal SDK échoué, proposition des modes alternatifs')
-                    // En cas d'erreur, proposer directement le mode nouvel onglet
-                    setUseNewTabMode(true)
+                    console.log('🔄 PayPal SDK échoué, proposition du mode fenêtre')
+                    // En cas d'erreur, proposer directement le mode fenêtre
+                    setUseWindowMode(true)
                   }}
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1">
+                  <Button 
+                    onClick={() => setUseWindowMode(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    🪟 Fenêtre
+                  </Button>
                   <Button 
                     onClick={() => setUseNewTabMode(true)}
                     variant="outline"
-                    className="w-full"
                     size="sm"
                   >
-                    🗂️ Nouvel onglet
+                    🗂️ Onglet
                   </Button>
                   <Button 
                     onClick={() => setUsePopupMode(true)}
                     variant="outline"
-                    className="w-full"
                     size="sm"
                   >
-                    🪟 Mode popup
+                    📋 Popup
                   </Button>
                 </div>
               </div>
@@ -179,9 +220,9 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useNewTabMode ? (
+            {useWindowMode ? (
               <div className="space-y-3">
-                <PayPalNewTab
+                <PayPalWindow
                   paymentType="credit_card"
                   amount={total}
                   currency={currency}
@@ -190,7 +231,7 @@ export function PaymentMethodSelector({
                   onError={onPaymentError}
                 />
                 <Button 
-                  onClick={() => setUseNewTabMode(false)}
+                  onClick={() => setUseWindowMode(false)}
                   variant="outline"
                   className="w-full"
                   size="sm"
@@ -207,17 +248,17 @@ export function PaymentMethodSelector({
                   orderData={orderData}
                   onSuccess={onPaymentSuccess}
                   onError={(error) => {
-                    console.log('🔄 Cartes SDK échoué, proposition du mode nouvel onglet')
-                    setUseNewTabMode(true)
+                    console.log('🔄 Cartes SDK échoué, proposition du mode fenêtre')
+                    setUseWindowMode(true)
                   }}
                 />
                 <Button 
-                  onClick={() => setUseNewTabMode(true)}
+                  onClick={() => setUseWindowMode(true)}
                   variant="outline"
                   className="w-full"
                   size="sm"
                 >
-                  🗂️ Problème de chargement ? Essayez le nouvel onglet
+                  🪟 Problème de chargement ? Essayez la fenêtre
                 </Button>
               </div>
             )}
@@ -233,9 +274,9 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useNewTabMode ? (
+                        {useWindowMode ? (
               <div className="space-y-3">
-                <PayPalNewTab
+                <PayPalWindow
                   paymentType="digital_wallet"
                   amount={total}
                   currency={currency}
@@ -244,7 +285,7 @@ export function PaymentMethodSelector({
                   onError={onPaymentError}
                 />
                 <Button 
-                  onClick={() => setUseNewTabMode(false)}
+                  onClick={() => setUseWindowMode(false)}
                   variant="outline"
                   className="w-full"
                   size="sm"
@@ -261,17 +302,17 @@ export function PaymentMethodSelector({
                   orderData={orderData}
                   onSuccess={onPaymentSuccess}
                   onError={(error) => {
-                    console.log('🔄 Portefeuilles SDK échoué, proposition du mode nouvel onglet')
-                    setUseNewTabMode(true)
+                    console.log('🔄 Portefeuilles SDK échoué, proposition du mode fenêtre')
+                    setUseWindowMode(true)
                   }}
                 />
                 <Button 
-                  onClick={() => setUseNewTabMode(true)}
+                  onClick={() => setUseWindowMode(true)}
                   variant="outline"
                   className="w-full"
                   size="sm"
                 >
-                  🗂️ Problème de chargement ? Essayez le nouvel onglet
+                  🪟 Problème de chargement ? Essayez la fenêtre
                 </Button>
               </div>
             )}
@@ -292,7 +333,7 @@ export function PaymentMethodSelector({
             </div>
             
             {selectedMethod === 'cash_on_delivery' && (
-              <Button 
+            <Button 
                 onClick={() => {
                   onPaymentSuccess({
                     method: 'cash_on_delivery',
@@ -302,11 +343,11 @@ export function PaymentMethodSelector({
                 }}
                 className="w-full bg-green-600 hover:bg-green-700"
                 size="lg"
-                disabled={isProcessing}
-              >
+              disabled={isProcessing}
+            >
                 <Truck className="h-4 w-4 mr-2" />
                 Confirmer la commande
-              </Button>
+            </Button>
             )}
 
             {selectedMethod === 'mobile_money' && (
@@ -321,7 +362,7 @@ export function PaymentMethodSelector({
             )}
           </div>
         )
-
+      
       default:
         return null
     }
@@ -343,6 +384,7 @@ export function PaymentMethodSelector({
             setIsProcessing(false)
             setUsePopupMode(false) // Reset popup mode when changing payment method
             setUseNewTabMode(false) // Reset new tab mode when changing payment method
+            setUseWindowMode(false) // Reset window mode when changing payment method
           }}
         >
           <div className="grid grid-cols-1 gap-3">
@@ -350,7 +392,7 @@ export function PaymentMethodSelector({
               <div
                 key={method.id}
                 className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
-                  selectedMethod === method.id 
+                  selectedMethod === method.id
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 } ${!method.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -361,8 +403,8 @@ export function PaymentMethodSelector({
                     !method.enabled ? 'cursor-not-allowed' : ''
                   }`}
                 >
-                  <RadioGroupItem 
-                    value={method.id} 
+                  <RadioGroupItem
+                    value={method.id}
                     id={method.id}
                     disabled={!method.enabled}
                   />
@@ -406,10 +448,10 @@ export function PaymentMethodSelector({
                   </span>
                 )}
               </span>
-            </div>
+          </div>
           </div>
         )}
       </CardContent>
     </Card>
   )
-}
+} 
