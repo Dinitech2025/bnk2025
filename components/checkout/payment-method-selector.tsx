@@ -32,8 +32,8 @@ export function PaymentMethodSelector({
   const paymentMethods = [
     {
       id: 'paypal',
-      name: 'PayPal',
-      description: 'Paiement sécurisé via PayPal',
+      name: 'PayPal & Carte bancaire',
+      description: 'PayPal, Visa, Mastercard, American Express',
       icon: <DollarSign className="h-5 w-5" />,
       enabled: true
     },
@@ -80,7 +80,7 @@ export function PaymentMethodSelector({
           <div className="space-y-4 pt-4">
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                💳 Vous allez être redirigé vers PayPal pour finaliser le paiement sécurisé.
+                💳 Payez avec PayPal ou votre carte bancaire (Visa, Mastercard, Amex) via PayPal sécurisé.
               </p>
             </div>
             

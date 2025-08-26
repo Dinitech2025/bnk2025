@@ -160,7 +160,7 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
           <div className="space-y-4">
             <div className="flex items-center space-x-2 text-sm font-medium text-gray-700">
               <Shield className="h-4 w-4" />
-              <span>Paiement PayPal sécurisé</span>
+              <span>Paiement sécurisé PayPal & Carte bancaire</span>
             </div>
 
             {currency === 'Ar' && (
@@ -212,9 +212,11 @@ function PayPalButtonsWrapper({ amount, currency, orderData, onSuccess, onError 
                     layout: 'vertical',
                     color: 'gold',
                     shape: 'rect',
-                    label: 'paypal',
-                    height: 45
+                    label: 'pay', // 'pay' au lieu de 'paypal' pour inclure cartes
+                    height: 45,
+                    tagline: false // Supprime le tagline pour plus d'espace
                   }}
+                  fundingSource={undefined} // Permet toutes les sources de financement
                   createOrder={createOrder}
                   onApprove={onApprove}
                   onError={onErrorHandler}
@@ -266,9 +268,9 @@ export function PayPalCheckout(props: PayPalCheckoutProps) {
     clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
     currency: props.currency === 'Ar' ? 'EUR' : props.currency.toUpperCase(),
     intent: 'capture' as const,
-    components: 'buttons',
-    'enable-funding': 'venmo,paylater',
-    'disable-funding': 'credit,card',
+    components: 'buttons,hosted-fields', // Ajout hosted-fields pour cartes
+    'enable-funding': 'venmo,paylater,card', // Activation des cartes
+    'disable-funding': '', // Ne pas désactiver les cartes
     // Options pour améliorer le chargement - EUR zone
     'buyer-country': 'FR', // France pour EUR
     locale: 'fr_FR',
