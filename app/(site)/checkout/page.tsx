@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, CreditCard, Phone, Mail, MapPin, Users, Clock, CheckCircle, Truck, User } from 'lucide-react'
+import { ArrowLeft, CreditCard, Phone, Mail, MapPin, Users, Clock, CheckCircle, Truck, User, Plus, Edit3 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -196,6 +196,36 @@ export default function CheckoutPage() {
         shippingZipCode: prev.billingZipCode,
         shippingCountry: prev.billingCountry
       }))
+    }
+  }
+
+  // Fonction pour sélectionner une adresse sauvegardée
+  const handleSelectAddress = (address: UserAddress, type: 'billing' | 'shipping') => {
+    const updates: any = {}
+    
+    if (type === 'billing') {
+      updates.selectedBillingAddressId = address.id
+      updates.billingAddress = address.street
+      updates.billingCity = address.city
+      updates.billingZipCode = address.zipCode
+      updates.billingCountry = address.country
+    } else {
+      updates.selectedShippingAddressId = address.id
+      updates.shippingAddress = address.street
+      updates.shippingCity = address.city
+      updates.shippingZipCode = address.zipCode
+      updates.shippingCountry = address.country
+    }
+    
+    setFormData(prev => ({ ...prev, ...updates }))
+  }
+
+  // Fonction pour passer en mode saisie manuelle
+  const handleManualAddress = (type: 'billing' | 'shipping') => {
+    if (type === 'billing') {
+      setFormData(prev => ({ ...prev, selectedBillingAddressId: '' }))
+    } else {
+      setFormData(prev => ({ ...prev, selectedShippingAddressId: '' }))
     }
   }
 
@@ -727,66 +757,148 @@ export default function CheckoutPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <MapPin className="h-5 w-5 mr-2" />
-                Adresse de facturation
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 mr-2" />
+                  Adresse de facturation
+                </div>
+                {session && userAddresses.filter(addr => addr.type === 'BILLING').length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {userAddresses.filter(addr => addr.type === 'BILLING').length} adresse(s) disponible(s)
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="billingAddress">Adresse</Label>
-                <Textarea
-                  id="billingAddress"
-                  value={formData.billingAddress}
-                  onChange={(e) => handleInputChange('billingAddress', e.target.value)}
-                  rows={3}
-                  placeholder="Numéro, rue, quartier..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="billingCity">Ville *</Label>
-                  <Input
-                    id="billingCity"
-                    value={formData.billingCity}
-                    onChange={(e) => handleInputChange('billingCity', e.target.value)}
-                    required
-                  />
+              {/* Sélecteur d'adresses pour utilisateurs connectés */}
+              {session && userAddresses.filter(addr => addr.type === 'BILLING').length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Choisir une adresse sauvegardée</Label>
+                  <div className="grid gap-3">
+                    {userAddresses
+                      .filter(addr => addr.type === 'BILLING')
+                      .map((address) => (
+                        <div
+                          key={address.id}
+                          className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                            formData.selectedBillingAddressId === address.id
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleSelectAddress(address, 'billing')}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">{address.street}</p>
+                                {address.isDefault && (
+                                  <Badge variant="secondary" className="text-xs">Par défaut</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600">
+                                {address.city}, {address.zipCode} - {address.country}
+                              </p>
+                            </div>
+                            {formData.selectedBillingAddressId === address.id && (
+                              <CheckCircle className="h-4 w-4 text-blue-500" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                  
+                  {/* Options saisie manuelle et nouvelle adresse */}
+                  <div className="pt-2 border-t space-y-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleManualAddress('billing')}
+                      className="w-full justify-start text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    >
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Saisir une nouvelle adresse
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open('/profile/addresses/new?type=billing&redirect=checkout', '_blank')}
+                      className="w-full justify-start text-gray-600 hover:text-gray-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ajouter une adresse de facturation
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="billingZipCode">Code postal</Label>
-                  <Input
-                    id="billingZipCode"
-                    value={formData.billingZipCode}
-                    onChange={(e) => handleInputChange('billingZipCode', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="billingCountry">Pays</Label>
-                <Select 
-                  value={formData.billingCountry} 
-                  onValueChange={(value) => handleInputChange('billingCountry', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Madagascar">Madagascar</SelectItem>
-                    <SelectItem value="France">France</SelectItem>
-                    <SelectItem value="Maurice">Maurice</SelectItem>
-                    <SelectItem value="Comores">Comores</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              )}
+
+              {/* Formulaire de saisie manuelle (affiché si pas d'adresse sélectionnée ou pas d'utilisateur connecté) */}
+              {(!session || userAddresses.filter(addr => addr.type === 'BILLING').length === 0 || !formData.selectedBillingAddressId) && (
+                <>
+                  <div>
+                    <Label htmlFor="billingAddress">Adresse</Label>
+                    <Textarea
+                      id="billingAddress"
+                      value={formData.billingAddress}
+                      onChange={(e) => handleInputChange('billingAddress', e.target.value)}
+                      rows={3}
+                      placeholder="Numéro, rue, quartier..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="billingCity">Ville *</Label>
+                      <Input
+                        id="billingCity"
+                        value={formData.billingCity}
+                        onChange={(e) => handleInputChange('billingCity', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="billingZipCode">Code postal</Label>
+                      <Input
+                        id="billingZipCode"
+                        value={formData.billingZipCode}
+                        onChange={(e) => handleInputChange('billingZipCode', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="billingCountry">Pays</Label>
+                    <Select 
+                      value={formData.billingCountry} 
+                      onValueChange={(value) => handleInputChange('billingCountry', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Madagascar">Madagascar</SelectItem>
+                        <SelectItem value="France">France</SelectItem>
+                        <SelectItem value="Maurice">Maurice</SelectItem>
+                        <SelectItem value="Comores">Comores</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Truck className="h-5 w-5 mr-2" />
-                Adresse de livraison
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Truck className="h-5 w-5 mr-2" />
+                  Adresse de livraison
+                </div>
+                {session && userAddresses.filter(addr => addr.type === 'SHIPPING').length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {userAddresses.filter(addr => addr.type === 'SHIPPING').length} adresse(s) disponible(s)
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -803,52 +915,120 @@ export default function CheckoutPage() {
               
               {!sameAsbilling && (
                 <>
-                  <div>
-                    <Label htmlFor="shippingAddress">Adresse</Label>
-                    <Textarea
-                      id="shippingAddress"
-                      value={formData.shippingAddress}
-                      onChange={(e) => handleInputChange('shippingAddress', e.target.value)}
-                      rows={3}
-                      placeholder="Numéro, rue, quartier..."
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="shippingCity">Ville *</Label>
-                      <Input
-                        id="shippingCity"
-                        value={formData.shippingCity}
-                        onChange={(e) => handleInputChange('shippingCity', e.target.value)}
-                        required={!sameAsbilling}
-                      />
+                  {/* Sélecteur d'adresses de livraison pour utilisateurs connectés */}
+                  {session && userAddresses.filter(addr => addr.type === 'SHIPPING').length > 0 && (
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Choisir une adresse de livraison sauvegardée</Label>
+                      <div className="grid gap-3">
+                        {userAddresses
+                          .filter(addr => addr.type === 'SHIPPING')
+                          .map((address) => (
+                            <div
+                              key={address.id}
+                              className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                formData.selectedShippingAddressId === address.id
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => handleSelectAddress(address, 'shipping')}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium">{address.street}</p>
+                                    {address.isDefault && (
+                                      <Badge variant="secondary" className="text-xs">Par défaut</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600">
+                                    {address.city}, {address.zipCode} - {address.country}
+                                  </p>
+                                </div>
+                                {formData.selectedShippingAddressId === address.id && (
+                                  <CheckCircle className="h-4 w-4 text-blue-500" />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                      
+                      {/* Options saisie manuelle et nouvelle adresse */}
+                      <div className="pt-2 border-t space-y-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManualAddress('shipping')}
+                          className="w-full justify-start text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Edit3 className="h-4 w-4 mr-2" />
+                          Saisir une nouvelle adresse de livraison
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open('/profile/addresses/new?type=shipping&redirect=checkout', '_blank')}
+                          className="w-full justify-start text-gray-600 hover:text-gray-700"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Ajouter une adresse de livraison
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="shippingZipCode">Code postal</Label>
-                      <Input
-                        id="shippingZipCode"
-                        value={formData.shippingZipCode}
-                        onChange={(e) => handleInputChange('shippingZipCode', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="shippingCountry">Pays</Label>
-                    <Select 
-                      value={formData.shippingCountry} 
-                      onValueChange={(value) => handleInputChange('shippingCountry', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Madagascar">Madagascar</SelectItem>
-                        <SelectItem value="France">France</SelectItem>
-                        <SelectItem value="Maurice">Maurice</SelectItem>
-                        <SelectItem value="Comores">Comores</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  )}
+
+                  {/* Formulaire de saisie manuelle (affiché si pas d'adresse sélectionnée ou pas d'utilisateur connecté) */}
+                  {(!session || userAddresses.filter(addr => addr.type === 'SHIPPING').length === 0 || !formData.selectedShippingAddressId) && (
+                    <>
+                      <div>
+                        <Label htmlFor="shippingAddress">Adresse</Label>
+                        <Textarea
+                          id="shippingAddress"
+                          value={formData.shippingAddress}
+                          onChange={(e) => handleInputChange('shippingAddress', e.target.value)}
+                          rows={3}
+                          placeholder="Numéro, rue, quartier..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="shippingCity">Ville *</Label>
+                          <Input
+                            id="shippingCity"
+                            value={formData.shippingCity}
+                            onChange={(e) => handleInputChange('shippingCity', e.target.value)}
+                            required={!sameAsbilling}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="shippingZipCode">Code postal</Label>
+                          <Input
+                            id="shippingZipCode"
+                            value={formData.shippingZipCode}
+                            onChange={(e) => handleInputChange('shippingZipCode', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="shippingCountry">Pays</Label>
+                        <Select 
+                          value={formData.shippingCountry} 
+                          onValueChange={(value) => handleInputChange('shippingCountry', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Madagascar">Madagascar</SelectItem>
+                            <SelectItem value="France">France</SelectItem>
+                            <SelectItem value="Maurice">Maurice</SelectItem>
+                            <SelectItem value="Comores">Comores</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </CardContent>
