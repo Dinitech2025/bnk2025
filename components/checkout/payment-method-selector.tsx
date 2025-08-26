@@ -9,6 +9,7 @@ import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
 import { PayPalCheckout } from './paypal-checkout'
 import { PayPalFallback } from './paypal-fallback'
 import { CreditCardPayPal } from './credit-card-paypal'
+import { DigitalWalletsPayPal } from './digital-wallets-paypal'
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -30,6 +31,7 @@ export function PaymentMethodSelector({
   const [showPayPalButtons, setShowPayPalButtons] = useState(false)
   const [usePayPalFallback, setUsePayPalFallback] = useState(false)
   const [showCreditCardForm, setShowCreditCardForm] = useState(false)
+  const [showDigitalWallets, setShowDigitalWallets] = useState(false)
 
   const paymentMethods = [
     {
@@ -44,6 +46,13 @@ export function PaymentMethodSelector({
       name: 'Carte bancaire',
       description: 'Visa, Mastercard, American Express',
       icon: <CreditCard className="h-5 w-5" />,
+      enabled: true
+    },
+    {
+      id: 'digital_wallet',
+      name: 'Portefeuille digital',
+      description: 'Apple Pay, Google Pay',
+      icon: <Smartphone className="h-5 w-5" />,
       enabled: true
     },
     {
@@ -186,6 +195,39 @@ export function PaymentMethodSelector({
             )}
           </div>
         )
+
+      case 'digital_wallet':
+        return (
+          <div className="space-y-4 pt-4">
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-sm text-purple-800">
+                📱 Payez rapidement avec Apple Pay, Google Pay ou votre portefeuille digital. Authentification biométrique sécurisée.
+              </p>
+            </div>
+            
+            {!showDigitalWallets ? (
+              <Button 
+                onClick={() => setShowDigitalWallets(true)}
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                size="lg"
+              >
+                <Smartphone className="h-4 w-4 mr-2" />
+                Activer portefeuille digital
+              </Button>
+            ) : (
+              <DigitalWalletsPayPal
+                amount={total}
+                currency={currency}
+                orderData={orderData}
+                onSuccess={onPaymentSuccess}
+                onError={(error) => {
+                  setShowDigitalWallets(false)
+                  onPaymentError(error)
+                }}
+              />
+            )}
+          </div>
+        )
       
       case 'mobile_money':
       case 'cash_on_delivery':
@@ -235,6 +277,9 @@ export function PaymentMethodSelector({
             }
             if (value !== 'credit_card') {
               setShowCreditCardForm(false)
+            }
+            if (value !== 'digital_wallet') {
+              setShowDigitalWallets(false)
             }
           }}
         >
