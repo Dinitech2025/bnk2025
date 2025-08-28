@@ -120,9 +120,6 @@ export async function POST(request: NextRequest) {
         orderNumber: order.orderNumber,
         status: order.status,
         total: order.total,
-        currency: order.currency,
-        paymentStatus: order.paymentStatus,
-        transactionId: order.transactionId,
         items: order.items,
         createdAt: order.createdAt
       }
