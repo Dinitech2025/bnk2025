@@ -51,42 +51,23 @@ export async function POST(request: NextRequest) {
     const order = await prisma.order.create({
       data: {
         orderNumber,
-        userId: session?.user?.id || null,
-        
-        // Informations client
-        email: email || session?.user?.email,
-        phone: phone || '',
-        firstName: firstName || session?.user?.name?.split(' ')[0] || '',
-        lastName: lastName || session?.user?.name?.split(' ').slice(1).join(' ') || '',
+        userId: session?.user?.id || 'guest',
         
         // Montants
         total,
-        currency: currency || 'Ar',
-        
-        // Adresses
-        shippingAddress: shippingAddress ? JSON.stringify(shippingAddress) : null,
-        billingAddress: billingAddress ? JSON.stringify(billingAddress) : null,
-        
-        // Paiement
-        paymentMethod: paymentData.method,
-        paymentStatus: paymentData.status === 'completed' ? 'PAID' : 'PENDING',
-        transactionId: paymentData.transactionId,
-        paymentDetails: JSON.stringify(paymentData),
         
         // Statut
         status: 'CONFIRMED',
-        notes: notes || '',
         
         // Articles de la commande
         items: {
           create: items.map((item: any) => ({
             productId: item.productId || item.id,
             serviceId: item.serviceId || null,
-            name: item.name,
-            description: item.description || '',
-            price: item.price,
-            quantity: item.quantity,
-            total: item.price * item.quantity,
+            itemType: item.type || 'product',
+            quantity: item.quantity || 1,
+            unitPrice: item.price,
+            totalPrice: item.price * (item.quantity || 1),
             metadata: item.metadata ? JSON.stringify(item.metadata) : null
           }))
         }
@@ -98,15 +79,13 @@ export async function POST(request: NextRequest) {
               select: {
                 id: true,
                 name: true,
-                imageUrl: true,
-                stock: true
+                inventory: true
               }
             },
             service: {
               select: {
                 id: true,
-                name: true,
-                imageUrl: true
+                name: true
               }
             }
           }
