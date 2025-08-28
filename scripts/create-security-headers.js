@@ -1,4 +1,14 @@
-const { withSentryConfig } = require('@sentry/nextjs')
+// Création des headers de sécurité pour next.config.js
+const fs = require('fs')
+const path = require('path')
+
+console.log('🛡️ CRÉATION HEADERS DE SÉCURITÉ POUR NEXT.JS')
+console.log('==============================================\n')
+
+const nextConfigPath = path.join(__dirname, '..', 'next.config.js')
+
+// Configuration de sécurité complète
+const securityConfig = `const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -118,4 +128,50 @@ const nextConfig = {
   }
 }
 
-module.exports = nextConfig
+module.exports = nextConfig`
+
+// Sauvegarder la configuration
+try {
+  // Backup de l'ancien fichier s'il existe
+  if (fs.existsSync(nextConfigPath)) {
+    const backup = fs.readFileSync(nextConfigPath, 'utf8')
+    fs.writeFileSync(nextConfigPath + '.backup', backup)
+    console.log('✅ Sauvegarde de next.config.js créée')
+  }
+
+  // Créer le nouveau fichier
+  fs.writeFileSync(nextConfigPath, securityConfig)
+  console.log('✅ Nouveau next.config.js créé avec headers de sécurité')
+  
+} catch (error) {
+  console.error('❌ Erreur lors de la création:', error.message)
+}
+
+console.log('')
+console.log('🛡️ HEADERS DE SÉCURITÉ AJOUTÉS:')
+console.log('================================')
+console.log('✅ X-Frame-Options: DENY')
+console.log('✅ X-Content-Type-Options: nosniff')
+console.log('✅ X-XSS-Protection: 1; mode=block')
+console.log('✅ Referrer-Policy: strict-origin-when-cross-origin')
+console.log('✅ Permissions-Policy: Restrictions appropriées')
+console.log('✅ Content-Security-Policy: Configuration stricte')
+console.log('✅ Strict-Transport-Security: Force HTTPS')
+console.log('')
+
+console.log('🔧 ACTIONS REQUISES:')
+console.log('--------------------')
+console.log('1. Redémarrer le serveur de développement')
+console.log('2. Tester les headers avec: curl -I http://localhost:3000')
+console.log('3. Vérifier que PayPal fonctionne toujours')
+console.log('4. Déployer en production')
+console.log('')
+
+console.log('🌐 VÉRIFICATION EN LIGNE:')
+console.log('-------------------------')
+console.log('https://securityheaders.com')
+console.log('https://observatory.mozilla.org')
+console.log('https://ssllabs.com/ssltest')
+console.log('')
+
+console.log('🚀 Configuration de sécurité renforcée créée ! 🛡️')
