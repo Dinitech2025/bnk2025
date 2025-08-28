@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPayPalReturnUrls } from '@/lib/utils/get-base-url'
 
 // Configuration PayPal
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID
@@ -47,6 +48,9 @@ export async function POST(request: NextRequest) {
     // Obtenir le token d'accès
     const accessToken = await getPayPalAccessToken()
 
+    // Obtenir les URLs de retour sécurisées
+    const { returnUrl, cancelUrl } = getPayPalReturnUrls()
+
     // Créer la commande PayPal
     const paypalOrder = {
       intent: 'CAPTURE',
@@ -63,8 +67,8 @@ export async function POST(request: NextRequest) {
         brand_name: 'BNK E-commerce',
         landing_page: 'BILLING',
         user_action: 'PAY_NOW',
-        return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/order-success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/checkout`
+        return_url: returnUrl,
+        cancel_url: cancelUrl
       }
     }
 

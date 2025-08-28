@@ -4,7 +4,7 @@ export async function GET() {
   try {
     // Tenter d'appeler l'API des commandes directement comme le fait la page admin
     // Utiliser l'URL absolue du serveur local
-    const res = await fetch(`http://localhost:3000/api/admin/orders?t=${Date.now()}`, {
+    const res = await fetch(`https://localhost:3000/api/admin/orders?t=${Date.now()}`, {
       cache: 'no-store',
     });
     
@@ -23,7 +23,7 @@ export async function GET() {
       success: true,
       ordersCount: data.length,
       orders: data,
-      apiUrl: 'http://localhost:3000'
+      apiUrl: 'https://localhost:3000'
     });
   } catch (error) {
     console.error('Erreur debug check-orders:', error);

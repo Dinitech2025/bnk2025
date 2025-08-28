@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 async function getOrders(): Promise<Order[]> {
   try {
     // Utiliser notre API de débogage pour récupérer les commandes
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:3000'
     const res = await fetch(`${baseUrl}/api/debug/direct-orders`, {
       cache: 'no-store',
     });

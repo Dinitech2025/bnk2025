@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Shield, ExternalLink, CreditCard, DollarSign, Smartphone, ArrowRight } from 'lucide-react'
+import { getSecureBaseUrl, getPayPalReturnUrls } from '@/lib/utils/get-base-url'
 
 interface PayPalRedirectProps {
   paymentType: 'paypal' | 'credit_card' | 'digital_wallet'
@@ -89,10 +90,10 @@ export function PayPalRedirect({ paymentType, amount, currency, orderData, onSuc
         errorCallback: 'paypal_error'
       }))
 
-      // Créer la commande PayPal avec URLs de retour
-      const currentUrl = window.location.origin + window.location.pathname
-      const returnUrl = `${currentUrl}?paypal_return=success&payment_type=${paymentType}`
-      const cancelUrl = `${currentUrl}?paypal_return=cancel&payment_type=${paymentType}`
+      // Créer la commande PayPal avec URLs de retour sécurisées
+      const baseUrl = getSecureBaseUrl()
+      const returnUrl = `${baseUrl}/checkout?paypal_return=success&payment_type=${paymentType}`
+      const cancelUrl = `${baseUrl}/checkout?paypal_return=cancel&payment_type=${paymentType}`
 
       const response = await fetch('/api/paypal/create-order', {
         method: 'POST',

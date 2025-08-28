@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 async function getTickets() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:3000'
     const response = await fetch(baseUrl + '/api/admin/tickets', {
       cache: 'no-store'
     });
@@ -31,7 +31,7 @@ async function getTickets() {
 
 async function getDailyReport() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:3000'
     const response = await fetch(baseUrl + '/api/admin/tickets/daily-report', {
       cache: 'no-store'
     });

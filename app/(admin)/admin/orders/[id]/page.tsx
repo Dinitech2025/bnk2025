@@ -131,7 +131,7 @@ function formatPaymentMethod(method: string): string {
 }
 
 async function getOrder(id: string): Promise<Order> {
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://localhost:3000';
   const response = await fetch(`${baseUrl}/api/admin/orders/${encodeURIComponent(id)}`, {
     cache: 'no-store'
   });
