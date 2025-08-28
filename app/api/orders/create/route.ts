@@ -109,9 +109,8 @@ export async function POST(request: NextRequest) {
 
     // Log pour audit
     console.log(`📋 AUDIT COMMANDE: ${order.orderNumber}`)
-    console.log(`   User: ${order.userId || 'Guest'} (${order.email})`)
-    console.log(`   Total: ${order.total} ${order.currency}`)
-    console.log(`   Payment: ${order.paymentMethod} - ${order.transactionId}`)
+    console.log(`   User: ${order.userId || 'Guest'} (${order.user?.email || 'No email'})`)
+    console.log(`   Total: ${order.total}`)
     console.log(`   Items: ${order.items.length} articles`)
 
     return NextResponse.json({
