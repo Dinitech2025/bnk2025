@@ -220,7 +220,7 @@ function DigitalWalletsButtonsWrapper({ amount, currency, orderData, onSuccess, 
                       label: 'pay',
                       height: 45
                     }}
-                    fundingSource="applepay"
+                    fundingSource={'applepay' as any}
                     createOrder={createOrder}
                     onApprove={onApprove}
                     onError={onErrorHandler}
@@ -237,7 +237,7 @@ function DigitalWalletsButtonsWrapper({ amount, currency, orderData, onSuccess, 
                       label: 'pay',
                       height: 45
                     }}
-                    fundingSource="googlepay"
+                    fundingSource={'googlepay' as any}
                     createOrder={createOrder}
                     onApprove={onApprove}
                     onError={onErrorHandler}

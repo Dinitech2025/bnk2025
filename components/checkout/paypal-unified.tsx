@@ -215,7 +215,7 @@ function PayPalButtonsWrapper({ paymentType, amount, currency, orderData, onSucc
               ...baseStyle,
               color: 'gold'
             }}
-            fundingSource="paypal"
+            fundingSource={'paypal' as any}
             createOrder={createOrder}
             onApprove={onApprove}
             onError={onErrorHandler}
@@ -231,7 +231,7 @@ function PayPalButtonsWrapper({ paymentType, amount, currency, orderData, onSucc
               ...baseStyle,
               color: 'blue'
             }}
-            fundingSource="card"
+            fundingSource={'card' as any}
             createOrder={createOrder}
             onApprove={onApprove}
             onError={onErrorHandler}
@@ -248,7 +248,7 @@ function PayPalButtonsWrapper({ paymentType, amount, currency, orderData, onSucc
                 ...baseStyle,
                 color: 'black'
               }}
-              fundingSource="applepay"
+              fundingSource={'applepay' as any}
               createOrder={createOrder}
               onApprove={onApprove}
               onError={onErrorHandler}
@@ -260,7 +260,7 @@ function PayPalButtonsWrapper({ paymentType, amount, currency, orderData, onSucc
                 ...baseStyle,
                 color: 'white'
               }}
-              fundingSource="googlepay"
+              fundingSource={'googlepay' as any}
               createOrder={createOrder}
               onApprove={onApprove}
               onError={onErrorHandler}

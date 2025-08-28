@@ -219,7 +219,7 @@ function CreditCardButtonsWrapper({ amount, currency, orderData, onSuccess, onEr
                     height: 45,
                     tagline: false
                   }}
-                  fundingSource="card" // Force l'utilisation des cartes
+                  fundingSource={'card' as any} // Force l'utilisation des cartes
                   createOrder={createOrder}
                   onApprove={onApprove}
                   onError={onErrorHandler}
