@@ -326,11 +326,28 @@ model Order {
   userId            String
   status            String         @default("QUOTE")
   total             Decimal
+  currency          String         @default("Ar")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   addressId         String?        // Adresse de livraison
   billingAddressId  String?        // Adresse de facturation
   orderNumber       String?        @unique
+  
+  // Informations client (pour commandes invités)
+  email             String?
+  phone             String?
+  firstName         String?
+  lastName          String?
+  
+  // Informations de paiement
+  paymentMethod     String?
+  paymentStatus     String         @default("PENDING")
+  transactionId     String?
+  paymentDetails    Json?
+  
+  // Notes et métadonnées
+  notes             String?
+  
   shippingAddress   Address?       @relation("shippingAddress", fields: [addressId], references: [id])
   billingAddress    Address?       @relation("billingAddress", fields: [billingAddressId], references: [id])
   user              User           @relation(fields: [userId], references: [id])
@@ -340,6 +357,7 @@ model Order {
   @@index([userId])
   @@index([status])
   @@index([orderNumber])
+  @@index([paymentStatus])
 }
 
 model OrderItem {

@@ -53,11 +53,25 @@ export async function POST(request: NextRequest) {
         orderNumber,
         userId: session?.user?.id || 'guest',
         
+        // Informations client
+        email: email || session?.user?.email,
+        phone: phone || '',
+        firstName: firstName || session?.user?.name?.split(' ')[0] || '',
+        lastName: lastName || session?.user?.name?.split(' ').slice(1).join(' ') || '',
+        
         // Montants
         total,
+        currency: currency || 'Ar',
+        
+        // Paiement
+        paymentMethod: paymentData.method,
+        paymentStatus: paymentData.status === 'completed' ? 'PAID' : 'PENDING',
+        transactionId: paymentData.transactionId,
+        paymentDetails: JSON.stringify(paymentData),
         
         // Statut
         status: 'CONFIRMED',
+        notes: notes || '',
         
         // Articles de la commande
         items: {
@@ -109,8 +123,9 @@ export async function POST(request: NextRequest) {
 
     // Log pour audit
     console.log(`📋 AUDIT COMMANDE: ${order.orderNumber}`)
-    console.log(`   User: ${order.userId || 'Guest'} (${order.user?.email || 'No email'})`)
-    console.log(`   Total: ${order.total}`)
+    console.log(`   User: ${order.userId || 'Guest'} (${order.email})`)
+    console.log(`   Total: ${order.total} ${order.currency}`)
+    console.log(`   Payment: ${order.paymentMethod} - ${order.transactionId}`)
     console.log(`   Items: ${order.items.length} articles`)
 
     return NextResponse.json({
@@ -120,6 +135,9 @@ export async function POST(request: NextRequest) {
         orderNumber: order.orderNumber,
         status: order.status,
         total: order.total,
+        currency: order.currency,
+        paymentStatus: order.paymentStatus,
+        transactionId: order.transactionId,
         items: order.items,
         createdAt: order.createdAt
       }
