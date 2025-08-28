@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         name: true,
-        stock: true,
-        trackInventory: true
+        inventory: true
       }
     })
 
@@ -34,26 +33,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Si le suivi d'inventaire n'est pas activé, pas besoin de décrémenter
-    if (!product.trackInventory) {
-      console.log(`ℹ️ Suivi inventaire désactivé pour ${product.name}`)
-      return NextResponse.json({
-        success: true,
-        message: 'Suivi inventaire désactivé',
-        productId,
-        oldStock: product.stock,
-        newStock: product.stock,
-        changed: false
-      })
-    }
-
     // Vérifier le stock disponible
-    if (product.stock < quantity) {
-      console.warn(`⚠️ Stock insuffisant: ${product.name} (${product.stock} disponible, ${quantity} demandé)`)
+    if (product.inventory < quantity) {
+      console.warn(`⚠️ Stock insuffisant: ${product.name} (${product.inventory} disponible, ${quantity} demandé)`)
       return NextResponse.json(
         { 
           error: 'Stock insuffisant',
-          available: product.stock,
+          available: product.inventory,
           requested: quantity
         },
         { status: 400 }
@@ -64,31 +50,30 @@ export async function POST(request: NextRequest) {
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
       data: {
-        stock: {
+        inventory: {
           decrement: quantity
         }
       },
       select: {
         id: true,
         name: true,
-        stock: true,
-        trackInventory: true
+        inventory: true
       }
     })
 
     console.log(`✅ Inventaire décrémenté: ${product.name}`)
-    console.log(`   Stock avant: ${product.stock}`)
+    console.log(`   Stock avant: ${product.inventory}`)
     console.log(`   Quantité vendue: ${quantity}`)
-    console.log(`   Stock après: ${updatedProduct.stock}`)
+    console.log(`   Stock après: ${updatedProduct.inventory}`)
 
     // Log d'audit
     console.log(`📋 AUDIT INVENTAIRE: ${product.name} (${productId})`)
     console.log(`   Opération: VENTE (-${quantity})`)
-    console.log(`   Stock: ${product.stock} → ${updatedProduct.stock}`)
+    console.log(`   Stock: ${product.inventory} → ${updatedProduct.inventory}`)
 
     // Alerte si stock faible
-    if (updatedProduct.stock <= 5) {
-      console.log(`🔔 ALERTE STOCK FAIBLE: ${product.name} (${updatedProduct.stock} restant)`)
+    if (updatedProduct.inventory <= 5) {
+      console.log(`🔔 ALERTE STOCK FAIBLE: ${product.name} (${updatedProduct.inventory} restant)`)
     }
 
     return NextResponse.json({
@@ -96,11 +81,11 @@ export async function POST(request: NextRequest) {
       message: 'Inventaire mis à jour avec succès',
       productId,
       productName: product.name,
-      oldStock: product.stock,
-      newStock: updatedProduct.stock,
+      oldStock: product.inventory,
+      newStock: updatedProduct.inventory,
       decremented: quantity,
       changed: true,
-      lowStockAlert: updatedProduct.stock <= 5
+      lowStockAlert: updatedProduct.inventory <= 5
     })
 
   } catch (error) {
