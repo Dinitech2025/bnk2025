@@ -79,3 +79,37 @@ uploads/*.com
 uploads/*.pif
 uploads/*.zip
 uploads/*.rar
+
+# Documentation temporaire (ne pas commiter)
+*CORRECTION*.md
+*GUIDE*.md
+*AJOUT*.md
+*ALERTE*.md
+*ANALYSE*.md
+*DEMANDE*.md
+*REVISION*.md
+*URGENT*.md
+*SOLUTIONS*.md
+FICHIERS-A-SUPPRIMER.md
+
+# Scripts de debug/test temporaires
+debug-*.js
+*-test.js
+*-debug.js
+scripts/*-test.js
+scripts/urgent-*.js
+scripts/check-*.js
+
+# Fichiers SQL temporaires
+*.sql
+scripts/*.sql
+
+# Backups temporaires
+*.backup
+*~
+app/auth-backup/
+components/auth-backup/
+
+# Fichiers debug HTML
+public/debug-*.html
+debug-*.html
