@@ -278,9 +278,9 @@ export function QuoteDiscussion({ quoteId, onStatusChange }: QuoteDiscussionProp
               className={`text-sm px-3 py-1 rounded-md hover:underline ${
                 isAdmin ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
-            >
-              Ouvrir
-            </a>
+                          >
+                📄 Consulter
+              </a>
           </div>
         )
       
@@ -301,9 +301,9 @@ export function QuoteDiscussion({ quoteId, onStatusChange }: QuoteDiscussionProp
               className={`text-sm px-3 py-1 rounded-md hover:underline ${
                 isAdmin ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
-            >
-              Télécharger
-            </a>
+                          >
+                📋 Voir document
+              </a>
           </div>
         )
       
@@ -324,9 +324,9 @@ export function QuoteDiscussion({ quoteId, onStatusChange }: QuoteDiscussionProp
               className={`text-sm px-3 py-1 rounded-md hover:underline ${
                 isAdmin ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
-            >
-              Ouvrir
-            </a>
+                          >
+                📄 Consulter
+              </a>
           </div>
         )
     }

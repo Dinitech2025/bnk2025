@@ -12,6 +12,7 @@ import ProductsSection from '@/components/homepage/ProductsSection'
 import ServicesSection from '@/components/homepage/ServicesSection'
 import OffersSection from '@/components/homepage/OffersSection'
 import PartnersSlider from '@/components/homepage/PartnersSlider'
+import { SecurityBadgeRow } from '@/components/ui/security-badge'
 
 interface ProductImage {
   url: string;
@@ -289,6 +290,18 @@ export default function HomePage() {
         heroSlides={heroSlides}
         categories={categories}
       />
+      
+      {/* Badges de sécurité pour rassurer Google Safe Browsing */}
+      <section className="py-6 bg-white border-b">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">
+              🏢 Boutique e-commerce officielle Madagascar
+            </h2>
+          </div>
+          <SecurityBadgeRow className="justify-center" />
+        </div>
+      </section>
       
       <div className="container mx-auto px-4 py-8 space-y-12">
         {/* Section Produits Populaires */}

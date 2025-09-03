@@ -248,7 +248,7 @@ export default function AdminQuoteDetailPage() {
                 onClick={() => window.open(attachment, '_blank')}
                 className="border-red-300 text-red-700 hover:bg-red-100"
               >
-                Ouvrir
+                📄 Consulter
               </Button>
             </div>
           </div>
@@ -268,7 +268,7 @@ export default function AdminQuoteDetailPage() {
                 onClick={() => window.open(attachment, '_blank')}
                 className="border-blue-300 text-blue-700 hover:bg-blue-100"
               >
-                Télécharger
+                📋 Voir document
               </Button>
             </div>
           </div>
@@ -288,7 +288,7 @@ export default function AdminQuoteDetailPage() {
                 onClick={() => window.open(attachment, '_blank')}
                 className="border-gray-300 text-gray-700 hover:bg-gray-100"
               >
-                Télécharger
+                📋 Voir document
               </Button>
             </div>
           </div>

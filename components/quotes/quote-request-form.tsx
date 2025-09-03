@@ -195,9 +195,18 @@ export function QuoteRequestForm({
           </div>
         </div>
 
-        {/* Upload de fichiers */}
+        {/* Upload de fichiers - CONTEXTE BUSINESS SÉCURISÉ */}
         <div className="space-y-2">
-          <Label>Fichiers joints (optionnel)</Label>
+          <Label className="flex items-center gap-2">
+            🏢 Fichiers pour votre devis professionnel (optionnel)
+            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">✅ Sécurisé</span>
+          </Label>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+            <p className="text-sm text-blue-800 font-medium">📋 Documents business acceptés :</p>
+            <p className="text-xs text-blue-600 mt-1">
+              Cahier des charges, plans, spécifications techniques pour votre projet professionnel
+            </p>
+          </div>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Input
@@ -206,7 +215,7 @@ export function QuoteRequestForm({
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-upload"
-                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.mp4,.webm,.ogg,.mov,.avi"
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
               />
               <Button
                 type="button"
@@ -215,10 +224,10 @@ export function QuoteRequestForm({
                 onClick={() => document.getElementById('file-upload')?.click()}
               >
                 <Paperclip className="h-4 w-4 mr-2" />
-                Ajouter des fichiers
+                Joindre documents projet
               </Button>
               <span className="text-xs text-gray-500">
-                PDF, DOC, images (max 10MB)
+                PDF, DOC, images business (max 10MB)
               </span>
             </div>
             

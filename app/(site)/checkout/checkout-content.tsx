@@ -70,7 +70,7 @@ export default function CheckoutContent() {
     phone: '',
     firstName: '',
     lastName: '',
-    password: '', // Pour création de compte seulement
+    // SUPPRIMÉ: password (déclenchait alerte Google Safe Browsing)
     
     // Adresse de facturation
     billingAddress: '',
@@ -89,9 +89,8 @@ export default function CheckoutContent() {
     // Notes seulement - paiement géré par PaymentMethodSelector
     notes: '',
     
-    // Options de compte
+    // Options de compte - SÉCURISÉ
     hasAccount: false, // Toggle connexion/création
-    createAccount: true, // Par défaut, créer un compte
     newsletter: false
   })
 
