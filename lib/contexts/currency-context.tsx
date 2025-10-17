@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSiteSettings } from '@/lib/hooks/use-site-settings'
 import { formatPrice, convertCurrency, defaultExchangeRates } from '@/lib/utils'
+import { ClientOnly } from '@/components/ui/client-only'
 
 interface CurrencyContextType {
   currency: string;
@@ -24,6 +25,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [targetCurrency, setTargetCurrency] = useState<string | null>(null)
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(defaultExchangeRates)
   const [isMounted, setIsMounted] = useState(false)
+  
   
   // Marquer le composant comme monté
   useEffect(() => {
@@ -164,9 +166,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }
   
   return (
-    <CurrencyContext.Provider value={value}>
-      {children}
-    </CurrencyContext.Provider>
+    <ClientOnly fallback={<div>{children}</div>}>
+      <CurrencyContext.Provider value={value}>
+        {children}
+      </CurrencyContext.Provider>
+    </ClientOnly>
   )
 }
 

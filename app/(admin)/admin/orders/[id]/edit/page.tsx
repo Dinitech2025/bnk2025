@@ -14,6 +14,7 @@ import { Eye, Pencil, ShoppingCart, ArrowLeft, Edit2 } from 'lucide-react'
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { InvoiceGeneratorButton } from '@/components/admin/orders/invoice-generator'
+import { OrderEditClient } from '@/components/admin/orders/order-edit-client'
 
 interface PageProps {
   params: {
@@ -21,11 +22,32 @@ interface PageProps {
   }
 }
 
-// Étendre l'interface Order pour inclure le champ orderNumber
+// Interface pour les paiements
+interface Payment {
+  id: string;
+  amount: any;
+  currency: string;
+  method: string;
+  provider: string | null;
+  transactionId: string | null;
+  reference: string | null;
+  status: string;
+  notes: string | null;
+  createdAt: Date;
+  processedByUser?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+}
+
+// Étendre l'interface Order pour inclure le champ orderNumber et les paiements
 interface OrderWithDetails {
   id: string;
   orderNumber?: string;
   status: string;
+  paymentStatus: string;
+  currency: string;
   total: any;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +59,7 @@ interface OrderWithDetails {
     phone?: string | null;
   };
   items: Array<any>;
+  payments: Payment[];
   subscriptions: Array<any>;
   shippingAddress?: any;
 }
@@ -91,6 +114,20 @@ async function getOrder(id: string): Promise<OrderWithDetails> {
           offer: true,
           product: true,
           service: true,
+        },
+      },
+      payments: {
+        include: {
+          processedByUser: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
         },
       },
       subscriptions: {
@@ -345,6 +382,28 @@ export default async function OrderPage({ params }: PageProps) {
           </div>
         </div>
       )}
+
+      {/* Section de gestion des paiements */}
+      <OrderEditClient 
+        order={{
+          id: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          currency: order.currency,
+          total: Number(order.total),
+          payments: order.payments.map(payment => ({
+            ...payment,
+            amount: Number(payment.amount),
+            createdAt: payment.createdAt.toISOString(),
+          })),
+          user: {
+            firstName: order.user.firstName,
+            lastName: order.user.lastName,
+            email: order.user.email || '',
+          },
+        }}
+      />
     </div>
   )
 } 

@@ -38,6 +38,19 @@ export async function GET() {
             },
           },
         },
+        payments: {
+          where: {
+            status: 'COMPLETED'
+          },
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            method: true,
+            provider: true,
+            createdAt: true
+          }
+        },
         subscriptions: {
           select: {
             id: true,

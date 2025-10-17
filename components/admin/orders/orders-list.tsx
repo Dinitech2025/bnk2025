@@ -2,12 +2,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { Edit2, Trash2, Eye, Search, ChevronUp, ChevronDown, Filter, X, Truck, Receipt, RefreshCw } from 'lucide-react';
+import { Edit2, Trash2, Eye, Search, ChevronUp, ChevronDown, Filter, X, Truck, Receipt, CreditCard } from 'lucide-react';
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge';
+import { PaymentModal } from '@/components/admin/orders/payment-modal';
+import { InvoiceModal } from '@/components/admin/orders/invoice-modal';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PriceDisplay } from '@/components/ui/price-display';
+import { CurrencySelector } from '@/components/ui/currency-selector';
 import {
   Table,
   TableBody,
@@ -43,6 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { InvoiceGeneratorButton } from '@/components/admin/orders/invoice-generator';
 import { toast } from '@/components/ui/use-toast';
 import {
@@ -89,44 +93,190 @@ type OrderWithRelations = {
 type SortField = "date" | "total" | "status" | "client";
 type SortOrder = "asc" | "desc";
 
-export default function OrdersList({ orders: initialOrders }: { orders: OrderWithRelations[] }) {
+export default function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
   const router = useRouter();
-  const [orders, setOrders] = useState(initialOrders);
   const [loading, setLoading] = useState<string | null>(null);
-  const [invoiceLoading, setInvoiceLoading] = useState<string | null>(null);
+  const [deliveryLoading, setDeliveryLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<{
+    isOpen: boolean;
+    orderId: string;
+    orderTotal: number;
+    currency: string;
+    orderNumber?: string;
+  }>({
+    isOpen: false,
+    orderId: '',
+    orderTotal: 0,
+    currency: 'Ar'
+  });
 
-  // Fonction pour extraire le mode de paiement des métadonnées
+  const [invoiceModal, setInvoiceModal] = useState<{
+    isOpen: boolean;
+    orderId: string;
+    orderNumber?: string;
+  }>({
+    isOpen: false,
+    orderId: '',
+    orderNumber: undefined
+  });
+
+
+  // Fonction pour traduire les statuts en français
+  const getStatusInFrench = (status: string): string => {
+    const statusTranslations: { [key: string]: string } = {
+      'QUOTE': 'Devis en attente de paiement',
+      'PENDING': 'En attente',
+      'PROCESSING': 'En traitement',
+      'SHIPPING': 'En livraison',
+      'DELIVERED': 'Livrée',
+      'CANCELLED': 'Annulée',
+      'FINISHED': 'Terminée',
+      'CONFIRMED': 'Commande payée',
+      'PAID': 'Commande payée'
+    };
+    return statusTranslations[status] || status;
+  };
+
+  // Fonction pour obtenir le mode de paiement (safe pour SSR)
   const getPaymentMethod = (order: OrderWithRelations): string => {
-    // Chercher dans les métadonnées du premier item
-    if (order.items && order.items.length > 0 && order.items[0].metadata) {
-      try {
-        const metadata = JSON.parse(order.items[0].metadata);
-        if (metadata.paymentMethod) {
-          const paymentMethods: { [key: string]: string } = {
-            'mobile_money': 'Mobile Money',
-            'bank_transfer': 'Virement bancaire',
-            'cash_on_delivery': 'Paiement à la livraison',
-            'credit_card': 'Carte bancaire',
-            'card': 'Carte bancaire'
-          };
-          return paymentMethods[metadata.paymentMethod] || metadata.paymentMethod;
+    try {
+      // Si il y a des paiements, lister toutes les méthodes utilisées
+      if (order.payments && order.payments.length > 0) {
+        const paymentMethods: { [key: string]: string } = {
+          'mobile_money': 'Mobile Money',
+          'bank_transfer': 'Virement bancaire',
+          'cash': 'Espèce',
+          'paypal': 'PayPal'
+        };
+
+        // Récupérer toutes les méthodes uniques utilisées
+        const uniqueMethods = [...new Set(order.payments.map(payment => payment.method))];
+        
+        // Convertir en libellés français
+        const methodLabels = uniqueMethods.map(method => 
+          paymentMethods[method] || method
+        );
+
+        // Si une seule méthode, l'afficher directement
+        if (methodLabels.length === 1) {
+          return methodLabels[0];
         }
-      } catch (error) {
-        console.error('Erreur lors du parsing des métadonnées:', error);
+        
+        // Si plusieurs méthodes, les joindre avec " + "
+        return methodLabels.join(' + ');
       }
+
+      // Sinon, chercher dans les métadonnées du premier item
+      if (order.items && order.items.length > 0 && order.items[0].metadata) {
+        try {
+          const metadata = JSON.parse(order.items[0].metadata);
+          if (metadata.paymentMethod) {
+            const paymentMethods: { [key: string]: string } = {
+              'mobile_money': 'Mobile Money',
+              'bank_transfer': 'Virement bancaire',
+              'cash_on_delivery': 'Paiement à la livraison',
+              'credit_card': 'Carte bancaire',
+              'card': 'Carte bancaire',
+              'paypal': 'PayPal'
+            };
+            return paymentMethods[metadata.paymentMethod] || metadata.paymentMethod;
+          }
+        } catch (error) {
+          // Silently handle JSON parsing errors
+        }
+      }
+      return 'Non spécifié';
+    } catch (error) {
+      return 'Non spécifié';
     }
-    return 'Non spécifié';
+  };
+
+  // Fonction pour afficher le statut de paiement (safe pour SSR)
+  const getPaymentStatus = (order: OrderWithRelations): string => {
+    try {
+      // Calculer le total payé à partir des paiements réels
+      const totalPaid = order.payments?.reduce((sum, payment) => {
+        const amount = Number(payment.amount);
+        return isNaN(amount) ? sum : sum + amount;
+      }, 0) || 0;
+      
+      const totalOrder = Number(order.total) || 0;
+      const remaining = Math.max(0, totalOrder - totalPaid);
+
+      // Afficher selon le statut de paiement
+      if (order.paymentStatus === 'PAID') {
+        return `✅ Entièrement payé`;
+      } else if (order.paymentStatus === 'PARTIALLY_PAID') {
+        return `⚠️ ${totalPaid.toLocaleString('fr-FR')} ${order.currency || 'Ar'} payé, ${remaining.toLocaleString('fr-FR')} ${order.currency || 'Ar'} restant`;
+      } else {
+        return `💳 ${totalOrder.toLocaleString('fr-FR')} ${order.currency || 'Ar'} à payer`;
+      }
+    } catch (error) {
+      return `💳 ${order.total} ${order.currency || 'Ar'} à payer`;
+    }
+  };
+
+  // Fonction pour ouvrir le modal de paiement
+  const openPaymentModal = (order: OrderWithRelations) => {
+    // Calculer le montant restant à payer
+    const totalPaid = order.payments?.reduce((sum, payment) => {
+      const amount = Number(payment.amount);
+      return isNaN(amount) ? sum : sum + amount;
+    }, 0) || 0;
+    
+    const totalOrder = Number(order.total) || 0;
+    const remainingAmount = Math.max(0, totalOrder - totalPaid);
+    
+    setPaymentModal({
+      isOpen: true,
+      orderId: order.id,
+      orderTotal: remainingAmount, // Utiliser le montant restant au lieu du total
+      currency: order.currency,
+      orderNumber: order.orderNumber || undefined
+    });
+  };
+
+  // Fonction pour fermer le modal de paiement
+  const closePaymentModal = () => {
+    setPaymentModal({
+      isOpen: false,
+      orderId: '',
+      orderTotal: 0,
+      currency: 'Ar'
+    });
+  };
+
+  // Fonction appelée après un paiement réussi
+  const handlePaymentSuccess = () => {
+    router.refresh();
   };
 
   // Fonction pour changer le statut d'une commande
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    // Si le statut est PAID, ouvrir le modal de paiement au lieu de changer directement le statut
+    if (newStatus === 'PAID') {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        // Vérifier si la commande est déjà entièrement payée
+        if (order.paymentStatus === 'PAID') {
+          toast({
+            title: "Commande déjà payée",
+            description: "Cette commande est déjà entièrement payée",
+            variant: "default"
+          });
+          return;
+        }
+        openPaymentModal(order);
+      }
+      return;
+    }
+
     setLoading(orderId);
     try {
       const response = await fetch(`/api/admin/orders/${orderId}/status`, {
@@ -139,11 +289,8 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
 
       if (!response.ok) throw new Error('Erreur de mise à jour');
       
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
+      // Rafraîchir la page pour obtenir les dernières données
+      router.refresh();
 
       toast({
         title: "Statut mis à jour",
@@ -161,41 +308,27 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
     }
   };
 
-  // Fonction pour générer la facture
-  const generateInvoice = async (orderId: string) => {
-    setInvoiceLoading(orderId);
-    try {
-      const response = await fetch(`/api/admin/orders/${orderId}/invoice`);
-      
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des données de la facture');
-      }
-      
-      const invoiceData = await response.json();
-      const { generateInvoicePDF } = await import('@/lib/invoice-generator');
-      const pdfDataUrl = generateInvoicePDF(invoiceData);
-      
-      const newWindow = window.open('');
-      if (newWindow) {
-        newWindow.document.write(`
-          <iframe width="100%" height="100%" src="${pdfDataUrl}"></iframe>
-        `);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de générer la facture",
-        variant: "destructive"
-      });
-    } finally {
-      setInvoiceLoading(null);
-    }
+  // Fonction pour ouvrir le modal de facture
+  const openInvoiceModal = (orderId: string, orderNumber?: string) => {
+    setInvoiceModal({
+      isOpen: true,
+      orderId,
+      orderNumber
+    });
+  };
+
+  // Fonction pour fermer le modal de facture
+  const closeInvoiceModal = () => {
+    setInvoiceModal({
+      isOpen: false,
+      orderId: '',
+      orderNumber: undefined
+    });
   };
 
   // Fonction pour générer le bon de livraison
   const generateDeliveryNote = async (orderId: string) => {
-    setInvoiceLoading(orderId);
+    setDeliveryLoading(orderId);
     try {
       const response = await fetch(`/api/admin/orders/${orderId}/delivery-note`);
       
@@ -233,50 +366,10 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
         variant: "destructive"
       });
     } finally {
-      setInvoiceLoading(null);
+      setDeliveryLoading(null);
     }
   };
 
-  // Optimisation du rafraîchissement des données
-  const refreshOrders = async () => {
-    if (isRefreshing) return;
-    
-    setIsRefreshing(true);
-    try {
-      const response = await fetch(`/api/admin/orders?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) throw new Error('Erreur de chargement');
-      
-      const newOrders = await response.json();
-      setOrders(newOrders);
-      toast({
-        title: "Liste mise à jour",
-        description: "Les commandes ont été actualisées",
-        duration: 2000
-      });
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de mettre à jour la liste",
-        variant: "destructive"
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Rafraîchissement automatique
-  useEffect(() => {
-    const interval = setInterval(refreshOrders, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Filtrage des commandes
   const filteredOrders = useMemo(() => {
@@ -400,15 +493,15 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                   <SelectItem value="FINISHED">Terminée</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Sélecteur de devise pour les factures */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Devise pour factures
+              </label>
+              <CurrencySelector className="w-[150px]" />
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={refreshOrders}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -451,6 +544,7 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                     Statut {renderSortIcon("status")}
                   </div>
                 </TableHead>
+                <TableHead>Mode de paiement</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -496,7 +590,13 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                               onClick={() => updateOrderStatus(order.id, 'PAID')}
                               disabled={loading === order.id}
                             >
-                            Payée
+                            Commande payée
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateOrderStatus(order.id, 'PENDING')}
+                              disabled={loading === order.id}
+                            >
+                            En attente
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
@@ -530,8 +630,22 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium">
+                            {getPaymentMethod(order)}
+                          </span>
+                          {order.payments && order.payments.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {order.payments.length} paiement{order.payments.length > 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
-                          {getPaymentMethod(order)}
+                          {getPaymentStatus(order)}
                         </div>
                       </div>
                     </TableCell>
@@ -545,7 +659,7 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                                   variant="ghost" 
                                   size="icon"
                                   onClick={() => generateDeliveryNote(order.id)}
-                                  disabled={invoiceLoading === order.id}
+                                  disabled={deliveryLoading === order.id}
                                 >
                                   <Truck className="h-4 w-4" />
                                 </Button>
@@ -557,14 +671,33 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
                           </TooltipProvider>
                         )}
 
+                        {/* Bouton paiement - seulement si pas entièrement payé */}
+                        {order.paymentStatus !== 'PAID' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => openPaymentModal(order)}
+                                >
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Enregistrer un paiement</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
                                 variant="ghost" 
                                 size="icon"
-                                onClick={() => generateInvoice(order.id)}
-                                disabled={invoiceLoading === order.id}
+                                onClick={() => openInvoiceModal(order.id, order.orderNumber || undefined)}
                               >
                                 <Receipt className="h-4 w-4" />
                               </Button>
@@ -693,6 +826,25 @@ export default function OrdersList({ orders: initialOrders }: { orders: OrderWit
           </PaginationContent>
         </Pagination>
       </div>
+
+      {/* Modal de paiement */}
+      <PaymentModal
+        isOpen={paymentModal.isOpen}
+        onClose={closePaymentModal}
+        orderId={paymentModal.orderId}
+        orderTotal={paymentModal.orderTotal}
+        currency={paymentModal.currency}
+        orderNumber={paymentModal.orderNumber}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      {/* Modal de facture */}
+      <InvoiceModal
+        isOpen={invoiceModal.isOpen}
+        onClose={closeInvoiceModal}
+        orderId={invoiceModal.orderId}
+        orderNumber={invoiceModal.orderNumber}
+      />
     </div>
   );
 } 

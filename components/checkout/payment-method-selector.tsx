@@ -476,9 +476,9 @@ export function PaymentMethodSelector({
                       </div>
                       <div className="text-sm text-gray-500">
                         {method.description}
-                      </div>
                     </div>
                   </div>
+                </div>
                 </Label>
               </div>
             ))}
@@ -502,7 +502,7 @@ export function PaymentMethodSelector({
                 )}
               </span>
           </div>
-          </div>
+        </div>
         )}
       </CardContent>
     </Card>

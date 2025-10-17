@@ -13,6 +13,10 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
         return 'bg-gray-100 text-gray-800';
       case 'PAID':
         return 'bg-emerald-100 text-emerald-800';
+      case 'CONFIRMED':
+        return 'bg-green-100 text-green-800';
+      case 'PENDING':
+        return 'bg-yellow-100 text-yellow-800';
       case 'PROCESSING':
         return 'bg-blue-100 text-blue-800';
       case 'SHIPPING':
@@ -32,24 +36,27 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
     }
   };
 
-  // Traduire le statut en français
+  // Traduire le statut en français (cohérent avec la liste déroulante)
   const getStatusText = () => {
     switch (status) {
       case 'QUOTE':
       case 'WAITING_PAYMENT':
         return 'Devis en attente de paiement';
       case 'PAID':
+      case 'CONFIRMED':
         return 'Commande payée';
+      case 'PENDING':
+        return 'En attente';
       case 'PROCESSING':
         return 'En traitement';
       case 'SHIPPING':
-        return 'En cours de livraison';
+        return 'En livraison';
       case 'DELIVERED':
-        return 'Commande livrée';
+        return 'Livrée';
       case 'CANCELLED':
-        return 'Commande annulée';
+        return 'Annulée';
       case 'FINISHED':
-        return 'Commande terminée';
+        return 'Terminée';
       case 'COMPLETED':
         return 'Terminée';
       case 'SHIPPED':

@@ -52,14 +52,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { status } = await request.json()
+    const { status, paymentData } = await request.json()
     const orderId = params.id
 
-    // Récupérer la commande existante avec ses abonnements
+    // Récupérer la commande existante avec ses abonnements et paiements
     const existingOrder = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        subscriptions: true
+        subscriptions: true,
+        payments: true
       }
     })
 
@@ -67,6 +68,17 @@ export async function PATCH(
       return NextResponse.json(
         { message: 'Commande non trouvée' },
         { status: 404 }
+      )
+    }
+
+    // Si le statut passe à PAID et qu'il y a des données de paiement, on doit enregistrer le paiement
+    if (status === 'PAID' && paymentData) {
+      return NextResponse.json(
+        { 
+          error: 'Pour marquer une commande comme payée, utilisez l\'API de paiement /api/admin/orders/[id]/payments',
+          redirectTo: `/api/admin/orders/${orderId}/payments`
+        },
+        { status: 400 }
       )
     }
 
@@ -80,15 +92,18 @@ export async function PATCH(
         where: { id: orderId },
         data: {
           status,
-          orderNumber
+          orderNumber,
+          // Mettre à jour le paymentStatus seulement si ce n'est pas déjà PAID
+          paymentStatus: status === 'CANCELLED' ? 'CANCELLED' : existingOrder.paymentStatus
         },
         include: {
-          subscriptions: true
+          subscriptions: true,
+          payments: true
         }
       })
 
-      // Si la commande passe à PAID et qu'il y a des abonnements en attente, les activer
-      if (status === 'PAID' && existingOrder.status === 'QUOTE') {
+      // Si la commande passe à CONFIRMED et qu'elle est entièrement payée, activer les abonnements
+      if (status === 'CONFIRMED' && existingOrder.paymentStatus === 'PAID') {
         for (const subscription of updatedOrder.subscriptions) {
           if (subscription.status === 'PENDING') {
             await tx.subscription.update({

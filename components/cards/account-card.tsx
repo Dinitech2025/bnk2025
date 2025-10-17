@@ -219,7 +219,7 @@ export function AccountCard({
             className="hover:bg-gray-100 h-7 w-7 p-0 sm:h-8 sm:w-8"
             title="Modifier"
           >
-            <Link href={`/admin/streaming/accounts/edit/${account.id}`}>
+            <Link href={`/admin/streaming/accounts/${account.id}/edit`}>
               <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
           </Button>

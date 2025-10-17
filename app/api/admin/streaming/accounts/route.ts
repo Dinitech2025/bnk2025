@@ -23,51 +23,112 @@ type AccountWithRelations = Account & {
   usedGiftCards: GiftCard[];
 }
 
-// GET - Récupérer tous les comptes
+// GET - Récupérer tous les comptes (avec filtre optionnel par plateforme)
 export async function GET(request: NextRequest) {
   try {
+    await requireStaff()
+    
     const { searchParams } = new URL(request.url)
     const platformId = searchParams.get('platformId')
 
-    if (!platformId) {
-      return NextResponse.json({ error: 'Platform ID is required' }, { status: 400 })
+    // Construire les conditions de filtrage
+    const whereConditions: any = {}
+    
+    // Si platformId est spécifié, filtrer par plateforme
+    if (platformId) {
+      whereConditions.platformId = platformId
     }
 
     const accounts = await prisma.account.findMany({
-      where: {
-        platformId: platformId,
-        status: 'ACTIVE'
-      },
+      where: whereConditions,
       include: {
         platform: {
           select: {
             id: true,
             name: true,
             slug: true,
-            logo: true
+            logo: true,
+            type: true,
+            hasProfiles: true,
+            hasGiftCards: true
           }
         },
-        accountProfiles: true
+        accountProfiles: {
+          select: {
+            id: true,
+            isAssigned: true,
+            profileSlot: true,
+            name: true
+          }
+        },
+        providerOffer: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            currency: true
+          }
+        },
+        subscriptionAccounts: {
+          where: {
+            subscription: {
+              status: 'ACTIVE',
+              endDate: {
+                gte: new Date()
+              }
+            }
+          },
+          include: {
+            subscription: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          },
+          take: 1
+        }
       },
-      orderBy: {
-        email: 'asc'
-      }
+      orderBy: [
+        { platform: { name: 'asc' } },
+        { username: 'asc' }
+      ]
     })
 
-    // Calculer le nombre de profils utilisés pour chaque compte
-    const accountsWithProfileCount = accounts.map((account) => {
+    // Traiter les données des comptes avec toutes les informations nécessaires
+    const accountsWithDetails = accounts.map((account) => {
       const usedProfiles = account.accountProfiles.filter(profile => profile.isAssigned).length
       const totalProfiles = account.accountProfiles.length
+      
+      // Récupérer l'abonnement actif s'il existe
+      const activeSubscription = account.subscriptionAccounts.length > 0 
+        ? account.subscriptionAccounts[0].subscription 
+        : null
 
       return {
-        ...account,
+        id: account.id,
+        username: account.username,
+        email: account.email,
+        status: account.status,
+        availability: account.availability,
+        expiresAt: account.expiresAt,
+        createdAt: account.createdAt,
+        platform: account.platform,
+        providerOffer: account.providerOffer,
+        accountProfiles: account.accountProfiles,
+        activeSubscription: activeSubscription,
         currentProfiles: usedProfiles,
         maxProfiles: totalProfiles,
         availableProfiles: totalProfiles - usedProfiles
       }
     })
 
-    return NextResponse.json(accountsWithProfileCount)
+    return NextResponse.json(accountsWithDetails)
   } catch (error) {
     console.error('[ACCOUNTS_GET]', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

@@ -76,7 +76,8 @@ export async function PUT(
       username: data.username,
       email: data.email || null,
       password: data.password,
-      status: data.status || 'AVAILABLE',
+      status: data.status || 'ACTIVE',
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
     } as any
 
     // Gérer la mise à jour de l'offre fournisseur
@@ -142,7 +143,7 @@ export async function PATCH(
 
     // Si on essaie de rendre le compte disponible alors que tous les profils sont assignés
     if (
-      data.status === 'AVAILABLE' &&
+      data.availability === true &&
       existingAccount.accountProfiles.length > 0 &&
       existingAccount.accountProfiles.every(profile => profile.isAssigned)
     ) {

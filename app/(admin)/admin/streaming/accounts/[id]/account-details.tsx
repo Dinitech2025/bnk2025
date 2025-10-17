@@ -9,9 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/use-toast'
-import { ArrowLeft, Calendar, Check, Edit, Globe, Key, Loader2, User, X as XIcon } from 'lucide-react'
+import { ArrowLeft, Calendar, Check, Edit, Globe, Key, Loader2, User, X as XIcon, Eye, EyeOff } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { ProfilesManager } from './profiles-manager'
+import ProfilesManager from '@/components/streaming/ProfilesManager'
 
 interface AccountDetailsProps {
   id: string
@@ -26,6 +26,7 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
   const [account, setAccount] = useState(initialData)
   const [deleteProfileId, setDeleteProfileId] = useState<string | null>(null)
   const [isDeletingProfile, setIsDeletingProfile] = useState(false)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 
   const fetchAccountDetails = async () => {
     try {
@@ -49,7 +50,7 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: account.status === 'AVAILABLE' ? 'UNAVAILABLE' : 'AVAILABLE'
+          availability: !account.availability
         })
       })
 
@@ -99,6 +100,10 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
     }
   }
 
+  const togglePasswordVisibility = () => {
+    setIsPasswordVisible(prev => !prev)
+  }
+
   if (error) {
     return (
       <Card className="mt-6">
@@ -145,8 +150,8 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
           <div>
             <h1 className="text-2xl font-bold flex items-center">
               {account.username}
-              <Badge variant={account.status === 'AVAILABLE' ? "default" : "secondary"} className="ml-3">
-                {account.status === 'AVAILABLE' ? "Disponible" : "Indisponible"}
+              <Badge variant={account.status === 'ACTIVE' ? "success" : account.status === 'SUSPENDED' ? "destructive" : "secondary"} className="ml-3">
+                {account.status === 'ACTIVE' ? 'Actif' : account.status === 'INACTIVE' ? 'Inactif' : account.status === 'SUSPENDED' ? 'Suspendu' : account.status}
               </Badge>
             </h1>
             {account.email && <p className="text-muted-foreground">{account.email}</p>}
@@ -156,12 +161,12 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
           <Button variant="outline" size="sm" onClick={handleToggleStatus} disabled={isUpdating}>
             {isUpdating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : account.status === 'AVAILABLE' ? (
+            ) : account.availability ? (
               <XIcon className="h-4 w-4 mr-2" />
             ) : (
               <Check className="h-4 w-4 mr-2" />
             )}
-            {account.status === 'AVAILABLE' ? "Rendre indisponible" : "Rendre disponible"}
+            {account.availability ? "Rendre indisponible" : "Rendre disponible"}
           </Button>
           <Link href={`/admin/streaming/accounts/${id}/edit`}>
             <Button>
@@ -213,8 +218,22 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
                   <Key className="mr-2 h-4 w-4 text-gray-400" />
                   <span className="font-medium">Mot de passe</span>
                 </div>
-                <div className="flex items-center">
-                  <span>••••••••</span>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={togglePasswordVisibility}
+                    className="h-auto p-1 hover:bg-gray-100"
+                  >
+                    {isPasswordVisible ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </Button>
+                  <span className="font-mono">
+                    {isPasswordVisible ? account.password : "••••••••"}
+                  </span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -225,7 +244,7 @@ export function AccountDetails({ id, initialData }: AccountDetailsProps) {
                         description: 'Le mot de passe a été copié dans le presse-papier.'
                       })
                     }}
-                    className="ml-2 h-6"
+                    className="h-6"
                   >
                     Copier
                   </Button>

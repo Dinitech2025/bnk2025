@@ -34,6 +34,19 @@ function generateOrderNumber(order: any): string {
   return `${prefix}-${year}-0001`;
 }
 
+/**
+ * Récupère le symbole de la devise
+ */
+function getCurrencySymbol(currency: string): string {
+  const symbols: { [key: string]: string } = {
+    'EUR': '€',
+    'USD': '$',
+    'Ar': 'Ar',
+    'MGA': 'Ar'
+  };
+  return symbols[currency] || currency;
+}
+
 async function handleInvoiceGeneration(orderId: string, conversionData?: { targetCurrency: string; exchangeRate: number }) {
   try {
     // Vérifier que la commande existe et récupérer les détails nécessaires pour la facture
@@ -48,6 +61,17 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
             offer: true,
           },
         },
+        payments: {
+          where: {
+            status: 'COMPLETED'
+          },
+          select: {
+            method: true,
+            amount: true,
+            provider: true,
+            createdAt: true
+          }
+        }
       },
     });
 
@@ -99,6 +123,12 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
       const tva = orderTotal - totalHT;
       convertedPrices[`${totalHT}`] = convertPrice(totalHT);
       convertedPrices[`${tva}`] = convertPrice(tva);
+      
+      // Convertir les montants des paiements
+      order.payments?.forEach(payment => {
+        const paymentAmount = Number(payment.amount);
+        convertedPrices[`${paymentAmount}`] = convertPrice(paymentAmount);
+      });
     }
 
     // Structurer les données de la commande pour la facture
@@ -108,14 +138,37 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
       createdAt: order.createdAt.toISOString(),
       status: order.status,
       total: orderTotal,
-      currency: conversionData?.targetCurrency || 'EUR',
-      currencySymbol: conversionData?.targetCurrency || '€',
+      currency: conversionData?.targetCurrency || order.currency || 'Ar',
+      currencySymbol: getCurrencySymbol(conversionData?.targetCurrency || order.currency || 'Ar'),
       exchangeRate: conversionData?.exchangeRate,
       customer: {
         id: order.user.id,
         name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
         email: order.user.email || "",
+        phone: order.user.phone || undefined
       },
+      billingAddress: order.billingAddress && (order.billingAddress.address || order.billingAddress.city) ? {
+        name: order.billingAddress.name || '',
+        address: order.billingAddress.address || '',
+        city: order.billingAddress.city || '',
+        postalCode: order.billingAddress.postalCode || '',
+        country: order.billingAddress.country || '',
+        phone: order.billingAddress.phone || undefined
+      } : undefined,
+      shippingAddress: order.shippingAddress && (order.shippingAddress.address || order.shippingAddress.city) ? {
+        name: order.shippingAddress.name || '',
+        address: order.shippingAddress.address || '',
+        city: order.shippingAddress.city || '',
+        postalCode: order.shippingAddress.postalCode || '',
+        country: order.shippingAddress.country || '',
+        phone: order.shippingAddress.phone || undefined
+      } : undefined,
+      payments: order.payments?.map(payment => ({
+        method: payment.method,
+        amount: Number(payment.amount),
+        provider: payment.provider || undefined,
+        createdAt: payment.createdAt
+      })) || [],
       items: order.items.map(item => ({
         id: item.id,
         name: item.product?.name || item.service?.name || item.offer?.name || 'Article inconnu',

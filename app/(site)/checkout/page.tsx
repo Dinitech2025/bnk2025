@@ -3,21 +3,21 @@ import CheckoutContent from './checkout-content'
 import { SecurityBadgeRow } from '@/components/ui/security-badge'
 
 function CheckoutLoading() {
-  return (
-    <div className="container mx-auto px-4 py-8">
+    return (
+      <div className="container mx-auto px-4 py-8">
       <div className="text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <p className="mt-2 text-gray-600">Chargement du checkout sécurisé...</p>
         <SecurityBadgeRow className="justify-center mt-4" />
+        </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
 export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -29,8 +29,8 @@ export default function CheckoutPage() {
             
             {/* Badges de sécurité pour rassurer Google Safe Browsing */}
             <SecurityBadgeRow className="justify-center mb-6" />
-          </div>
-          
+              </div>
+
           <Suspense fallback={<CheckoutLoading />}>
             <CheckoutContent />
           </Suspense>
@@ -38,4 +38,4 @@ export default function CheckoutPage() {
       </div>
     </div>
   )
-}
+} 

@@ -6,6 +6,8 @@ export interface Order {
   userId: string;
   total: number;
   status: string;
+  paymentStatus: string;
+  currency: string;
   createdAt: string;
   updatedAt: string;
   user?: {
@@ -15,6 +17,16 @@ export interface Order {
     email: string;
   };
   items?: OrderItem[];
+  payments?: Payment[];
+}
+
+export interface Payment {
+  id: string;
+  amount: number;
+  currency: string;
+  method: string;
+  provider: string | null;
+  createdAt: string;
 }
 
 export interface OrderItem {

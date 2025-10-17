@@ -55,6 +55,29 @@ export function generateOrderNumber(lastOrderNumber?: string | null, status?: st
 }
 
 /**
+ * Convertit un numéro de commande DEV en CMD (quand il y a un paiement)
+ * @param orderNumber Le numéro de commande actuel
+ * @returns Le numéro de commande converti ou le même si déjà CMD
+ */
+export function convertDevToCmdOrderNumber(orderNumber: string | null): string {
+  if (!orderNumber) {
+    return orderNumber || '';
+  }
+  
+  // Si c'est déjà un numéro CMD, ne rien changer
+  if (orderNumber.startsWith('CMD-')) {
+    return orderNumber;
+  }
+  
+  // Convertir DEV en CMD
+  if (orderNumber.startsWith('DEV-')) {
+    return orderNumber.replace('DEV-', 'CMD-');
+  }
+  
+  return orderNumber;
+}
+
+/**
  * Formate une date en utilisant la localisation française
  */
 export function formatDate(date: string | Date | null | undefined, formatStr: string = "d MMMM yyyy 'à' HH:mm") {

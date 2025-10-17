@@ -50,11 +50,11 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.sandbox.paypal.com https://js.paypal.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://rsms.me",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https: blob:",
-              "connect-src 'self' https://api.paypal.com https://api.sandbox.paypal.com",
-              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com",
+              "connect-src 'self' https://api.paypal.com https://api.sandbox.paypal.com http://localhost:* ws://localhost:*",
+              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'"

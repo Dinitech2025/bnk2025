@@ -24,6 +24,13 @@ async function getAccount(id: string) {
         },
       },
       accountProfiles: {
+        include: {
+          subscription: {
+            include: {
+              user: true
+            }
+          }
+        },
         orderBy: {
           profileSlot: 'asc',
         },

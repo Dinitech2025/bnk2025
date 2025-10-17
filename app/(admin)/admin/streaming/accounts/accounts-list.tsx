@@ -811,7 +811,7 @@ export function AccountsList() {
                             className="hover:bg-gray-100"
                         title="Modifier"
                       >
-                            <Link href={`/admin/streaming/accounts/edit/${account.id}`}>
+                            <Link href={`/admin/streaming/accounts/${account.id}/edit`}>
                               <Pencil className="h-4 w-4 text-gray-700" />
                       </Link>
                           </Button>

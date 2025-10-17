@@ -8,6 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import {
@@ -18,13 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import ProfilesManager from '@/components/streaming/ProfilesManager'
 import { Badge } from "@/components/ui/badge"
@@ -106,6 +106,7 @@ interface FormData {
   status: string
   platformId: string
   providerOfferId: string | null
+  expiresAt: string | null
 }
 
 export default function EditAccountPage() {
@@ -118,9 +119,10 @@ export default function EditAccountPage() {
     username: '',
     email: null,
     password: '',
-    status: 'AVAILABLE',
+    status: 'ACTIVE',
     platformId: '',
-    providerOfferId: null
+    providerOfferId: null,
+    expiresAt: null
   })
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -148,7 +150,8 @@ export default function EditAccountPage() {
         password: data.password,
         status: data.status,
         platformId: data.platformId,
-        providerOfferId: data.providerOfferId
+        providerOfferId: data.providerOfferId,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString().split('T')[0] : null
       })
       
       // S'assurer que les offres fournisseur sont disponibles
@@ -222,12 +225,18 @@ export default function EditAccountPage() {
     
     setIsSubmitting(true)
     try {
+      // Préparer les données à envoyer
+      const dataToSend = {
+        ...formData,
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null
+      }
+      
       const response = await fetch(`/api/admin/streaming/accounts/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       })
       
       if (!response.ok) {
@@ -406,21 +415,37 @@ export default function EditAccountPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Statut</Label>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={formData.status === 'AVAILABLE'}
-                    onCheckedChange={(checked) =>
-                      setFormData(prev => ({
-                        ...prev,
-                        status: checked ? 'AVAILABLE' : 'UNAVAILABLE'
-                      }))
-                    }
-                  />
-                  <span>
-                    {formData.status === 'AVAILABLE' ? 'Disponible' : 'Indisponible'}
-                  </span>
-                </div>
+                <Label>Statut du compte</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) =>
+                    setFormData(prev => ({ ...prev, status: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner le statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Actif</SelectItem>
+                    <SelectItem value="INACTIVE">Inactif</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspendu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expiresAt">Date d'expiration</Label>
+                <Input
+                  id="expiresAt"
+                  name="expiresAt"
+                  type="date"
+                  value={formData.expiresAt || ''}
+                  onChange={handleChange}
+                  placeholder="Sélectionner une date d'expiration"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Laissez vide si le compte n'expire pas
+                </p>
               </div>
               </div>
             </CardContent>

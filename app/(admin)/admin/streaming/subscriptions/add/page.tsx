@@ -114,7 +114,7 @@ async function getFormData() {
     features: offer.features ? JSON.parse(offer.features as string) : [],
     platformOffers: offer.platformOffers.map((po: any) => ({
       ...po,
-      profileCount: po.platform.maxProfilesPerAccount || 1
+      profileCount: po.profileCount || 1
     }))
   }))
 

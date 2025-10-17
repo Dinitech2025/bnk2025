@@ -4,6 +4,7 @@ import { addDays, addMonths, addWeeks, addYears, differenceInDays } from 'date-f
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { generateOrderNumber } from '@/lib/utils'
 
 interface RouteParams {
   params: {
@@ -83,6 +84,23 @@ export async function POST(
 
     // Créer le nouvel abonnement et mettre à jour l'ancien
     const newSubscription = await prisma.$transaction(async (tx) => {
+      // Générer le numéro de commande pour le renouvellement
+      const lastOrder = await tx.order.findFirst({
+        where: {
+          orderNumber: {
+            not: null
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        select: {
+          orderNumber: true
+        }
+      })
+
+      const orderNumber = generateOrderNumber(lastOrder?.orderNumber, 'QUOTE')
+
       // Créer le nouvel abonnement
       const subscription = await tx.subscription.create({
         data: {
@@ -97,10 +115,11 @@ export async function POST(
         }
       })
 
-      // Créer la commande associée
+      // Créer la commande associée avec le numéro de commande généré
       const order = await tx.order.create({
         data: {
           userId: existingSubscription.userId,
+          orderNumber: orderNumber,
           status: 'QUOTE',
           total: existingSubscription.offer.price,
           subscriptions: {
@@ -119,6 +138,8 @@ export async function POST(
           }
         }
       })
+
+      console.log(`✅ Renouvellement créé - Commande: ${orderNumber}, Abonnement: ${subscription.id}`)
 
       // Copier les comptes de plateforme et leurs profils
       for (const subscriptionAccount of existingSubscription.subscriptionAccounts) {

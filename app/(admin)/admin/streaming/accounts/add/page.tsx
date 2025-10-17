@@ -236,7 +236,7 @@ export default function AddAccountPage() {
           body: JSON.stringify({
             ...formData,
             status: 'INACTIVE',
-            availability: 'UNAVAILABLE'
+            availability: false
           }),
         })
         
@@ -258,13 +258,13 @@ export default function AddAccountPage() {
     try {
       // Déterminer le statut et la disponibilité en fonction de la date d'expiration
       let status = 'INACTIVE'
-      let availability = 'UNAVAILABLE'
+      let availability = false
 
       if (!selectedPlatform?.hasGiftCards && formData.expiresAt) {
         const expirationDate = new Date(formData.expiresAt)
         if (expirationDate > new Date()) {
           status = 'ACTIVE'
-          availability = 'AVAILABLE'
+          availability = true
         }
       }
 

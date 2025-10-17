@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Key, Pencil, Loader2, Trash, User } from 'lucide-react'
+import { Key, Pencil, Loader2, Trash, User, Eye, EyeOff } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -83,6 +83,7 @@ export default function ProfilesManager({
   const [isEditing, setIsEditing] = useState(false)
   const [deleteProfileId, setDeleteProfileId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [visiblePins, setVisiblePins] = useState<Set<string>>(new Set())
   const [formData, setFormData] = useState({
     name: '',
     pin: '',
@@ -169,14 +170,20 @@ export default function ProfilesManager({
     }
   }
 
+  const togglePinVisibility = (profileId: string) => {
+    setVisiblePins(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(profileId)) {
+        newSet.delete(profileId)
+      } else {
+        newSet.add(profileId)
+      }
+      return newSet
+    })
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">
-          Profils ({profiles.length}/{maxProfiles})
-        </h3>
-      </div>
-
       <Table>
         <TableHeader>
           <TableRow>
@@ -255,8 +262,24 @@ export default function ProfilesManager({
               </TableCell>
               <TableCell>
                 <div className="flex items-center space-x-2">
-                  <Key className="h-4 w-4 text-gray-400" />
-                  <span>{profile.pin || "••••"}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => togglePinVisibility(profile.id)}
+                    className="h-auto p-1 hover:bg-gray-100"
+                  >
+                    {visiblePins.has(profile.id) ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </Button>
+                  <span className="font-mono">
+                    {visiblePins.has(profile.id) 
+                      ? (profile.pin || "Non défini") 
+                      : "••••"
+                    }
+                  </span>
                 </div>
               </TableCell>
               <TableCell className="text-right">

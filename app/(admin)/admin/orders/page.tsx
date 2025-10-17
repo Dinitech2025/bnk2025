@@ -54,6 +54,16 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
         };
       };
     };
+    payments: {
+      select: {
+        id: true;
+        amount: true;
+        currency: true;
+        method: true;
+        provider: true;
+        createdAt: true;
+      };
+    };
   };
 }>;
 
@@ -91,6 +101,19 @@ async function getOrders(): Promise<OrderWithConvertedPrices[]> {
               },
             },
           },
+        },
+        payments: {
+          where: {
+            status: 'COMPLETED'
+          },
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            method: true,
+            provider: true,
+            createdAt: true
+          }
         },
       },
       orderBy: {

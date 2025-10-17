@@ -378,7 +378,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'login' }: AuthModalP
                     </div>
                     <div className="relative flex justify-center text-xs">
                       <span className="px-2 bg-white text-gray-500">
-                        Développement
+                        Développement - Connexion rapide
                       </span>
                     </div>
                   </div>
@@ -389,27 +389,33 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'login' }: AuthModalP
                       variant="outline"
                       onClick={() => loginAsUser('admin')}
                       disabled={isLoading}
-                      className="text-xs p-2"
+                      className="text-xs p-2 flex flex-col items-center gap-1"
+                      title="Connexion Admin (admin@test.com)"
                     >
                       <UserCircle2 className="h-4 w-4" />
+                      <span className="text-[10px]">Admin</span>
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => loginAsUser('staff')}
                       disabled={isLoading}
-                      className="text-xs p-2"
+                      className="text-xs p-2 flex flex-col items-center gap-1"
+                      title="Connexion Staff (staff@test.com)"
                     >
                       <Users className="h-4 w-4" />
+                      <span className="text-[10px]">Staff</span>
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => loginAsUser('client')}
                       disabled={isLoading}
-                      className="text-xs p-2"
+                      className="text-xs p-2 flex flex-col items-center gap-1"
+                      title="Connexion Client (client@test.com)"
                     >
                       <UserCheck className="h-4 w-4" />
+                      <span className="text-[10px]">Client</span>
                     </Button>
                   </div>
                 </>
