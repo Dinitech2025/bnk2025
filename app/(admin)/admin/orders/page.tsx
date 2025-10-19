@@ -22,14 +22,17 @@ type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'us
     lastName: string | null;
     email: string;
   };
-  items: Array<Omit<OrderWithRelations['items'][0], 'unitPrice' | 'totalPrice' | 'metadata'> & {
+  items: Array<Omit<OrderWithRelations['items'][0], 'unitPrice' | 'totalPrice' | 'metadata' | 'discountValue' | 'discountAmount'> & {
     unitPrice: number;
     totalPrice: number;
     metadata: string | null;
+    discountValue: number | null;
+    discountAmount: number | null;
   }>;
   payments: Array<Omit<OrderWithRelations['payments'][0], 'amount' | 'createdAt'> & {
     amount: number;
     createdAt: string;
+    status: string;
   }>;
 };
 
@@ -189,10 +192,7 @@ async function getOrders(page: number = 1, limit: number = 20): Promise<{
               method: true,
               provider: true,
               createdAt: true,
-              status: true,
-              paymentExchangeRate: true,
-              paymentDisplayCurrency: true,
-              paymentBaseCurrency: true
+              status: true
             }
           },
           billingAddress: true,
@@ -223,9 +223,6 @@ async function getOrders(page: number = 1, limit: number = 20): Promise<{
       total: Number(order.total),
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
-      // Conversion des champs de taux de change
-      exchangeRate: order.exchangeRate ? Number(order.exchangeRate) : null,
-      originalTotal: order.originalTotal ? Number(order.originalTotal) : null,
       user: {
         ...order.user,
         email: order.user.email || ""
@@ -241,8 +238,7 @@ async function getOrders(page: number = 1, limit: number = 20): Promise<{
       payments: order.payments.map(payment => ({
         ...payment,
         amount: Number(payment.amount),
-        createdAt: payment.createdAt.toISOString(),
-        paymentExchangeRate: payment.paymentExchangeRate ? Number(payment.paymentExchangeRate) : null
+        createdAt: payment.createdAt.toISOString()
       }))
     }));
 

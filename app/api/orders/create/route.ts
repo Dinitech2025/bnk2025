@@ -279,12 +279,7 @@ export async function POST(request: NextRequest) {
         status: 'CONFIRMED',
         notes: notes || '',
         
-        // Taux de change au moment de la commande
-        exchangeRates: exchangeRates ? JSON.stringify(exchangeRates) : null,
-        baseCurrency: baseCurrency || 'MGA',
-        displayCurrency: displayCurrency || currency || 'MGA',
-        exchangeRate: exchangeRates && displayCurrency ? exchangeRates[displayCurrency] : null,
-        originalTotal: baseCurrency === (displayCurrency || currency) ? total : total, // À ajuster selon la logique
+        // Note: Exchange rate fields removed as they don't exist in Order model
         
         // Articles de la commande
         items: {
@@ -334,7 +329,7 @@ export async function POST(request: NextRequest) {
       id: order.id,
       orderNumber: order.orderNumber,
       total: order.total,
-      itemsCount: order.items.length
+      itemsCount: (order as any).items?.length || 0
     })
 
     // Créer l'enregistrement de paiement si le paiement est complété
@@ -353,11 +348,7 @@ export async function POST(request: NextRequest) {
             notes: `Paiement automatique pour commande ${order.orderNumber}`,
             processedBy: userId,
             
-            // Taux de change au moment du paiement
-            paymentExchangeRate: exchangeRates && displayCurrency ? exchangeRates[displayCurrency] : null,
-            paymentBaseCurrency: baseCurrency || 'MGA',
-            paymentDisplayCurrency: displayCurrency || currency || 'MGA',
-            originalAmount: baseCurrency === (displayCurrency || currency) ? total : total
+            // Note: Exchange rate fields removed as they don't exist in Payment model
           }
         });
 
@@ -374,7 +365,7 @@ export async function POST(request: NextRequest) {
     console.log(`   User: ${order.userId || 'Guest'} (${order.email})`)
     console.log(`   Total: ${order.total} ${order.currency}`)
     console.log(`   Payment: ${order.paymentMethod} - ${order.transactionId}`)
-    console.log(`   Items: ${order.items.length} articles`)
+    console.log(`   Items: ${(order as any).items?.length || 0} articles`)
 
     return NextResponse.json({
       success: true,
@@ -382,11 +373,10 @@ export async function POST(request: NextRequest) {
         id: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
-        total: order.total,
+        total: Number(order.total),
         currency: order.currency,
         paymentStatus: order.paymentStatus,
         transactionId: order.transactionId,
-        items: order.items,
         createdAt: order.createdAt
       }
     })

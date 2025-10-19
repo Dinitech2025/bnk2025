@@ -1,16 +1,57 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { CreditCard, Smartphone, DollarSign, Truck } from 'lucide-react'
+import { CreditCard, Smartphone, DollarSign, Truck, Building, Banknote, Loader } from 'lucide-react'
 import { PayPalUnified } from './paypal-unified'
-import { PayPalPopup } from './paypal-popup'
-import { PayPalNewTab } from './paypal-new-tab'
-import { PayPalWindow } from './paypal-window'
-import { PayPalRedirect } from './paypal-redirect'
+import { toast } from '@/components/ui/use-toast'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+
+interface PaymentProvider {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  logo: string | null
+  isActive: boolean
+  order: number
+  feeType: string | null
+  feeValue: string | null
+  minAmount: string | null
+  maxAmount: string | null
+  dailyLimit: string | null
+  settings: any
+}
+
+interface PaymentMethod {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  icon: string | null | React.ReactNode
+  isActive: boolean
+  enabled?: boolean // Propriété calculée pour compatibilité
+  order: number
+  type: string
+  minAmount: string | null
+  maxAmount: string | null
+  feeType: string | null
+  feeValue: string | null
+  processingTime: string | null
+  requiresReference: boolean
+  requiresTransactionId: boolean
+  allowPartialPayments: boolean
+  apiEnabled: boolean
+  apiEndpoint: string | null
+  publicKey: string | null
+  settings: any
+  providers: PaymentProvider[]
+  calculatedFee?: number | null
+}
 
 interface PaymentMethodSelectorProps {
   total: number
@@ -27,220 +68,96 @@ export function PaymentMethodSelector({
   onPaymentSuccess,
   onPaymentError
 }: PaymentMethodSelectorProps) {
-  const [selectedMethod, setSelectedMethod] = useState<string>('')
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null)
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [usePopupMode, setUsePopupMode] = useState(false)
-  const [useNewTabMode, setUseNewTabMode] = useState(false)
-  const [useWindowMode, setUseWindowMode] = useState(false)
-  const [useRedirectMode, setUseRedirectMode] = useState(false)
 
-  const paymentMethods = [
-    {
-      id: 'paypal',
-      name: 'PayPal',
-      description: 'Paiement via votre compte PayPal',
-      icon: <DollarSign className="h-5 w-5" />,
-      enabled: true
-    },
-    {
-      id: 'credit_card',
-      name: 'Carte bancaire',
-      description: 'Visa, Mastercard, American Express',
-      icon: <CreditCard className="h-5 w-5" />,
-      enabled: true
-    },
-    {
-      id: 'digital_wallet',
-      name: 'Portefeuille digital',
-      description: 'Apple Pay, Google Pay',
-      icon: <Smartphone className="h-5 w-5" />,
-      enabled: true
-    },
-    {
-      id: 'mobile_money',
-      name: 'Mobile Money',
-      description: 'MVola, Orange Money',
-      icon: <Smartphone className="h-5 w-5" />,
-      enabled: false // Pas encore implémenté
-    },
-    {
-      id: 'cash_on_delivery',
-      name: 'Paiement à la livraison',
-      description: 'Payez en espèces ou carte lors de la livraison',
-      icon: <Truck className="h-5 w-5" />,
-      enabled: true
+  // Charger les méthodes de paiement depuis l'API
+  useEffect(() => {
+    loadPaymentMethods()
+  }, [total, currency])
+
+  const loadPaymentMethods = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch(`/api/payment-methods?amount=${total}&currency=${currency}`)
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des méthodes de paiement')
+      }
+
+      const data = await response.json()
+      
+      // Transformer les données pour le composant
+      const transformedMethods = (data.paymentMethods || []).map(method => ({
+        ...method,
+        enabled: method.isActive, // Compatibilité avec l'ancien format
+        icon: getMethodIcon(method.icon, method.type) // Générer l'icône
+      }))
+      
+      setPaymentMethods(transformedMethods)
+      console.log('Méthodes de paiement chargées:', transformedMethods.length)
+    } catch (error) {
+      console.error('Erreur chargement méthodes paiement:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les méthodes de paiement",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
     }
-  ]
+  }
+
+  const getMethodIcon = (iconName: string | null, type: string) => {
+    switch (iconName || type) {
+      case 'CreditCard':
+      case 'DIRECT':
+        return <CreditCard className="h-5 w-5" />
+      case 'Smartphone':
+      case 'PROVIDERS':
+        return <Smartphone className="h-5 w-5" />
+      case 'Building':
+        return <Building className="h-5 w-5" />
+      case 'Banknote':
+      case 'MANUAL':
+        return <Banknote className="h-5 w-5" />
+      case 'DollarSign':
+        return <DollarSign className="h-5 w-5" />
+      case 'Truck':
+        return <Truck className="h-5 w-5" />
+      default:
+        return <CreditCard className="h-5 w-5" />
+    }
+  }
 
   const renderPaymentForm = () => {
     if (!selectedMethod) return null
 
-    switch (selectedMethod) {
+    switch (selectedMethod.code) {
       case 'paypal':
         return (
           <div className="space-y-4 pt-4">
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                💳 Payez avec votre compte PayPal ou toute carte bancaire via PayPal sécurisé.
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💳 Paiement sécurisé avec PayPal - Restez sur cette page
               </p>
             </div>
             
-            {useRedirectMode ? (
-              <div className="space-y-3">
-                <PayPalRedirect
-                  paymentType="paypal"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <Button 
-                  onClick={() => {
-                    setUseRedirectMode(false)
-                    setUseWindowMode(false)
-                    setUseNewTabMode(false)
-                    setUsePopupMode(false)
-                  }}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🔄 Retour au mode normal
-                </Button>
-              </div>
-            ) : useWindowMode ? (
-              <div className="space-y-3">
-                <PayPalWindow
-                  paymentType="paypal"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <Button 
-                  onClick={() => {
-                    setUseWindowMode(false)
-                    setUseNewTabMode(false)
-                    setUsePopupMode(false)
-                  }}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🔄 Retour au mode normal
-                </Button>
-              </div>
-            ) : useNewTabMode ? (
-              <div className="space-y-3">
-                <PayPalNewTab
-                  paymentType="paypal"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button 
-                    onClick={() => {
-                      setUseNewTabMode(false)
-                      setUseWindowMode(true)
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🪟 Fenêtre
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setUseNewTabMode(false)
-                      setUsePopupMode(false)
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🔄 Mode normal
-                  </Button>
-                </div>
-              </div>
-            ) : usePopupMode ? (
-              <div className="space-y-3">
-                <PayPalPopup
-                  paymentType="paypal"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button 
-                    onClick={() => {
-                      setUsePopupMode(false)
-                      setUseNewTabMode(true)
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🗂️ Nouvel onglet
-                  </Button>
-                  <Button 
-                    onClick={() => setUsePopupMode(false)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🔄 Mode normal
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <PayPalUnified
-                  paymentType="paypal"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={(error) => {
-                    console.log('🔄 PayPal SDK échoué, proposition du mode redirection')
-                    // En cas d'erreur, proposer directement le mode redirection
-                    setUseRedirectMode(true)
-                  }}
-                />
-                <div className="grid grid-cols-4 gap-1">
-                  <Button 
-                    onClick={() => setUseRedirectMode(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🌐 Redirection
-                  </Button>
-                  <Button 
-                    onClick={() => setUseWindowMode(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🪟 Fenêtre
-                  </Button>
-                  <Button 
-                    onClick={() => setUseNewTabMode(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    🗂️ Onglet
-                  </Button>
-                  <Button 
-                    onClick={() => setUsePopupMode(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    📋 Popup
-                  </Button>
-                </div>
-              </div>
-            )}
+            <PayPalUnified
+              paymentType="paypal"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={(error) => {
+                console.error('Erreur PayPal:', error)
+                onPaymentError('Erreur lors du paiement PayPal. Veuillez réessayer.')
+              }}
+            />
           </div>
         )
 
@@ -253,67 +170,14 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-            {useRedirectMode ? (
-              <div className="space-y-3">
-                <PayPalRedirect
-                  paymentType="credit_card"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <Button 
-                  onClick={() => setUseRedirectMode(false)}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🔄 Retour au mode normal
-                </Button>
-              </div>
-            ) : useWindowMode ? (
-              <div className="space-y-3">
-                <PayPalWindow
-                  paymentType="credit_card"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={onPaymentError}
-                />
-                <Button 
-                  onClick={() => setUseWindowMode(false)}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🔄 Retour au mode normal
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <PayPalUnified
-                  paymentType="credit_card"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={(error) => {
-                    console.log('🔄 Cartes SDK échoué, proposition du mode redirection')
-                    setUseRedirectMode(true)
-                  }}
-                />
-                <Button 
-                  onClick={() => setUseRedirectMode(true)}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🌐 Problème de chargement ? Essayez la redirection
-                </Button>
-              </div>
-            )}
+            <PayPalUnified
+              paymentType="credit_card"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={onPaymentError}
+            />
           </div>
         )
 
@@ -326,83 +190,63 @@ export function PaymentMethodSelector({
               </p>
             </div>
             
-                        {useWindowMode ? (
-              <div className="space-y-3">
-                <PayPalWindow
-                  paymentType="digital_wallet"
-            amount={total}
-            currency={currency}
-            orderData={orderData}
-            onSuccess={onPaymentSuccess}
-            onError={onPaymentError}
-          />
-                <Button 
-                  onClick={() => setUseWindowMode(false)}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🔄 Retour au mode normal
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <PayPalUnified
-                  paymentType="digital_wallet"
-                  amount={total}
-                  currency={currency}
-                  orderData={orderData}
-                  onSuccess={onPaymentSuccess}
-                  onError={(error) => {
-                    console.log('🔄 Portefeuilles SDK échoué, proposition du mode fenêtre')
-                    setUseWindowMode(true)
-                  }}
-                />
-                <Button 
-                  onClick={() => setUseWindowMode(true)}
-                  variant="outline"
-                  className="w-full"
-                  size="sm"
-                >
-                  🪟 Problème de chargement ? Essayez la fenêtre
-                </Button>
-              </div>
-            )}
+            <PayPalUnified
+              paymentType="digital_wallet"
+              amount={total}
+              currency={currency}
+              orderData={orderData}
+              onSuccess={onPaymentSuccess}
+              onError={onPaymentError}
+            />
           </div>
         )
       
       case 'mobile_money':
-      case 'cash_on_delivery':
+      case 'cash':
+      case 'bank_transfer':
         return (
           <div className="space-y-4 pt-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                {selectedMethod === 'mobile_money' 
+                {selectedMethod.code === 'mobile_money' 
                   ? '📱 Paiement via Mobile Money. Fonctionnalité bientôt disponible.'
-                  : '🚚 Vous payerez en espèces ou par carte lors de la livraison.'
+                  : selectedMethod.code === 'cash'
+                  ? '🚚 Vous payerez en espèces lors de la livraison.'
+                  : '🏦 Effectuez un virement bancaire avec les coordonnées qui vous seront communiquées.'
                 }
               </p>
             </div>
             
-            {selectedMethod === 'cash_on_delivery' && (
+            {(selectedMethod.code === 'cash' || selectedMethod.code === 'bank_transfer') && (
             <Button 
                 onClick={() => {
                   onPaymentSuccess({
-                    method: 'cash_on_delivery',
+                    method: selectedMethod.code,
                     status: 'pending',
-                    message: 'Commande confirmée - Paiement à la livraison'
+                    message: selectedMethod.code === 'cash' 
+                      ? 'Commande confirmée - Paiement à la livraison'
+                      : 'Commande confirmée - Paiement par virement bancaire'
                   })
                 }}
                 className="w-full bg-green-600 hover:bg-green-700"
                 size="lg"
               disabled={isProcessing}
             >
-                <Truck className="h-4 w-4 mr-2" />
-                Confirmer la commande
+                {selectedMethod.code === 'cash' ? (
+                  <>
+                    <Truck className="h-4 w-4 mr-2" />
+                    Confirmer la commande
+                  </>
+                ) : (
+                  <>
+                    <Building className="h-4 w-4 mr-2" />
+                    Confirmer la commande
+                  </>
+                )}
             </Button>
             )}
 
-            {selectedMethod === 'mobile_money' && (
+            {selectedMethod.code === 'mobile_money' && (
               <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
                 <p className="text-sm text-gray-600">
                   🚧 Fonctionnalité en développement
@@ -421,23 +265,26 @@ export function PaymentMethodSelector({
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <CreditCard className="h-5 w-5" />
-          <span>Méthode de paiement</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="space-y-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader className="h-6 w-6 animate-spin mr-2" />
+            <span>Chargement des méthodes de paiement...</span>
+          </div>
+        ) : paymentMethods.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>Aucune méthode de paiement disponible</p>
+          </div>
+        ) : (
         <RadioGroup 
-          value={selectedMethod} 
+          value={selectedMethodId || ''} 
           onValueChange={(value) => {
-            setSelectedMethod(value)
+            setSelectedMethodId(value)
+            const method = paymentMethods.find(m => m.id === value)
+            setSelectedMethod(method || null)
+            setSelectedProvider(null) // Reset provider when changing method
             setIsProcessing(false)
-            setUsePopupMode(false) // Reset popup mode when changing payment method
-            setUseNewTabMode(false) // Reset new tab mode when changing payment method
-            setUseWindowMode(false) // Reset window mode when changing payment method
-            setUseRedirectMode(false) // Reset redirect mode when changing payment method
           }}
         >
           <div className="grid grid-cols-1 gap-3">
@@ -445,7 +292,7 @@ export function PaymentMethodSelector({
               <div
                 key={method.id}
                 className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
-                  selectedMethod === method.id
+                  selectedMethodId === method.id
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 } ${!method.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -484,6 +331,7 @@ export function PaymentMethodSelector({
             ))}
           </div>
         </RadioGroup>
+        )}
 
         {/* Affichage du formulaire de paiement */}
         {renderPaymentForm()}
@@ -501,10 +349,9 @@ export function PaymentMethodSelector({
                   </span>
                 )}
               </span>
+            </div>
           </div>
-        </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   )
 } 
