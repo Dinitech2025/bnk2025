@@ -49,3 +49,4 @@ console.log('✅ AVANTAGES :');
 console.log('   • Cohérence avec le système de conversion');
 console.log('   • Taux centralisé et configurable');
 console.log('   • Évite les écarts de change');
+

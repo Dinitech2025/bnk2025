@@ -168,3 +168,4 @@ async function simulateFrontendCheckout() {
 }
 
 simulateFrontendCheckout();
+

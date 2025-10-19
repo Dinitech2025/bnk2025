@@ -29,3 +29,4 @@ console.log('')
 console.log('💡 CAUSE PROBABLE:')
 console.log('   Session NextAuth ne se met pas à jour correctement')
 console.log('   ou problème de cookies de session')
+

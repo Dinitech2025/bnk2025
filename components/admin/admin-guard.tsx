@@ -86,3 +86,4 @@ export function AdminGuard({ children }: AdminGuardProps) {
   // Accès autorisé
   return <>{children}</>
 }
+

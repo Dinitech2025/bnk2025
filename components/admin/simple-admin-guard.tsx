@@ -61,3 +61,4 @@ export function SimpleAdminGuard({ children }: SimpleAdminGuardProps) {
   // Tout est OK, afficher le contenu
   return <>{children}</>
 }
+

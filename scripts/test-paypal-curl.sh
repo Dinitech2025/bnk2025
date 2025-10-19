@@ -158,3 +158,4 @@ echo ""
 echo "🎯 CONCLUSION:"
 echo "La configuration PayPal en base de données est utilisée par les APIs !"
 echo "Les paiements PayPal utilisent maintenant la config BDD au lieu des variables ENV."
+

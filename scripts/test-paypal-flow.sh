@@ -130,3 +130,4 @@ echo "3. Après paiement → redirection vers /paypal-return"
 echo "4. Page /paypal-return envoie message à la fenêtre parent"
 echo "5. Fenêtre parent capture le paiement et ferme la popup"
 echo "6. Confirmation s'affiche dans la fenêtre principale"
+

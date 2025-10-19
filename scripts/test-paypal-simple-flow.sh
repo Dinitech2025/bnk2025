@@ -78,3 +78,4 @@ echo "3. Choisissez PayPal"
 echo "4. La popup s'ouvrira"
 echo "5. Après paiement, fermez la popup manuellement"
 echo "6. La page devrait se mettre à jour automatiquement"
+

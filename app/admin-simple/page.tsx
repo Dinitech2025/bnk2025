@@ -48,3 +48,4 @@ function StatCard({ title, value, change, icon }: StatCardProps) {
     </div>
   )
 }
+

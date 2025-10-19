@@ -296,3 +296,4 @@ export function PayPalConfig({ paymentMethodId, providerId, initialConfig, onCon
     </div>
   );
 }
+
