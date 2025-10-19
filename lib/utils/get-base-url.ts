@@ -2,9 +2,21 @@
 // Évite les URLs HTTP en dur qui causent les alertes de sécurité
 
 export function getBaseUrl(): string {
-  // En production, toujours HTTPS
+  // En production, priorité aux variables d'environnement
   if (process.env.NODE_ENV === 'production') {
-    return process.env.NEXT_PUBLIC_BASE_URL || 'https://boutik-naka.com'
+    // Netlify fournit automatiquement ces variables
+    if (process.env.URL) {
+      return process.env.URL // URL principale du site Netlify
+    }
+    if (process.env.DEPLOY_URL) {
+      return process.env.DEPLOY_URL // URL de déploiement Netlify
+    }
+    // Fallback vers la variable configurée manuellement
+    if (process.env.NEXT_PUBLIC_BASE_URL) {
+      return process.env.NEXT_PUBLIC_BASE_URL
+    }
+    // Dernier fallback pour la production
+    return 'https://boutik-naka.com'
   }
   
   // En développement, priorité à la variable d'environnement

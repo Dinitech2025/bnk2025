@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPayPalReturnUrls } from '@/lib/utils/get-base-url'
+import { getPayPalReturnUrls, getSecureBaseUrl } from '@/lib/utils/get-base-url'
 import { getPayPalConfig, getPayPalBaseUrl } from '@/lib/paypal-config'
 
 // Fonction pour obtenir un token d'accès PayPal
@@ -83,8 +83,18 @@ export async function POST(request: NextRequest) {
     const order = await response.json()
 
     if (response.ok) {
-      // Obtenir les URLs de retour avec l'orderID réel
-      const { returnUrl, cancelUrl } = getPayPalReturnUrls(order.id)
+    // Obtenir les URLs de retour avec l'orderID réel
+    const { returnUrl, cancelUrl } = getPayPalReturnUrls(order.id)
+    
+    // Debug: Log des URLs utilisées
+    console.log('🔗 PayPal URLs générées:', {
+      environment: process.env.NODE_ENV,
+      netlifyUrl: process.env.URL,
+      deployUrl: process.env.DEPLOY_URL,
+      baseUrl: getSecureBaseUrl(),
+      returnUrl,
+      cancelUrl
+    })
       
       return NextResponse.json({
         id: order.id,
