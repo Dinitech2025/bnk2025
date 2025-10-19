@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { preventPayPalDeletion } from '@/lib/ensure-paypal'
 
 /**
  * Récupérer une méthode de paiement spécifique
@@ -159,6 +160,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Méthode de paiement non trouvée' },
         { status: 404 }
+      )
+    }
+
+    // Empêcher la suppression de PayPal "Paiement en ligne"
+    if (existingMethod.code === 'online_payment') {
+      return NextResponse.json(
+        { error: 'La méthode "Paiement en ligne" ne peut pas être supprimée car elle est essentielle au système' },
+        { status: 403 }
       )
     }
 

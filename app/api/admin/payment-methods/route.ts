@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ensurePayPalExists } from '@/lib/ensure-paypal'
 
 /**
  * Récupérer toutes les méthodes de paiement
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
     if (!session?.user || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 401 })
     }
+
+    // S'assurer que PayPal existe toujours
+    await ensurePayPalExists()
 
     const paymentMethods = await prisma.paymentMethod.findMany({
       include: {
