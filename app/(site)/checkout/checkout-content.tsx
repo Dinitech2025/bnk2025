@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession, signIn, signOut } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -11,12 +11,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, CreditCard, Phone, Mail, MapPin, Users, Clock, CheckCircle, Truck, User, Plus, Edit3 } from 'lucide-react'
+import { ArrowLeft, CreditCard, Phone, Mail, MapPin, Users, Clock, CheckCircle, Truck, User, Plus, Edit3, Building } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from '@/components/ui/use-toast'
-import { PaymentMethodSelector } from '@/components/checkout/payment-method-selector'
+import { PaymentMethodSelector } from '@/components/checkout/payment-method-selector-simple'
+import { AuthModal } from '@/components/auth/auth-modal'
+import { useCurrency } from '@/lib/contexts/currency-context'
 
 interface OrderItem {
   id: string
@@ -48,10 +50,12 @@ interface UserAddress {
   zipCode: string
   country: string
   isDefault: boolean
+  phoneNumber?: string | null
 }
 
 export default function CheckoutContent() {
   const { data: session, status } = useSession()
+  const { currency, targetCurrency, formatWithTargetCurrency, exchangeRates } = useCurrency()
   const [orderData, setOrderData] = useState<OrderData | null>(null)
   const [userAddresses, setUserAddresses] = useState<UserAddress[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,8 +64,19 @@ export default function CheckoutContent() {
   const [isMounted, setIsMounted] = useState(false)
   const [sessionInitialized, setSessionInitialized] = useState(false)
   const [isProcessingPayPalReturn, setIsProcessingPayPalReturn] = useState(false)
+  const [showAuthRequired, setShowAuthRequired] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Helper pour convertir les prix (utilise les taux du système)
+  const convertPrice = (price: number, targetCurrency?: string) => {
+    if (!targetCurrency || targetCurrency === currency) return price
+    
+    // Utiliser les taux du système (exchangeRates du contexte)
+    const rate = exchangeRates[targetCurrency]
+    return rate ? price * rate : price
+  }
 
   // Données du formulaire étendues
   const [formData, setFormData] = useState({
@@ -266,13 +281,799 @@ export default function CheckoutContent() {
     )
   }
 
-  // Simple loading for now - you can add the rest of your checkout logic here
+  // Charger les données du panier
+  useEffect(() => {
+    if (!isMounted) return
+    loadOrderData()
+  }, [isMounted])
+
+  // Charger les adresses utilisateur et préremplir les données si connecté
+  useEffect(() => {
+    if (session?.user?.id && !sessionInitialized) {
+      // Préremplir immédiatement les données utilisateur
+      setFormData(prev => ({
+        ...prev,
+        email: session.user.email || prev.email,
+        firstName: session.user.firstName || prev.firstName,
+        lastName: session.user.lastName || prev.lastName,
+        phone: session.user.phone || prev.phone
+      }))
+      
+      loadUserAddresses()
+      setSessionInitialized(true)
+    }
+  }, [session, sessionInitialized])
+
+  const loadOrderData = async () => {
+    try {
+      // Récupérer les données du panier depuis l'API (base de données)
+      const response = await fetch('/api/cart')
+      if (response.ok) {
+        const data = await response.json()
+        console.log('📦 Données panier depuis API:', data)
+        
+        // Transformer les données pour le format attendu par le checkout
+        const transformedData = {
+          items: data.items || [],
+          total: data.cart?.total || 0,
+          currency: 'MGA' // Devise de base
+        }
+        
+        setOrderData(transformedData)
+        
+        // Vérifier si l'utilisateur doit être connecté
+        if (!session?.user && status !== 'loading') {
+          setShowAuthRequired(true)
+          return
+        }
+        
+        // Préremplir les données utilisateur si connecté
+        if (session?.user) {
+          setFormData(prev => ({
+            ...prev,
+            email: session.user.email || '',
+            firstName: session.user.firstName || '',
+            lastName: session.user.lastName || '',
+            phone: session.user.phone || ''
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du panier:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger votre panier",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadUserAddresses = async () => {
+    try {
+      const response = await fetch('/api/profile/addresses')
+      if (response.ok) {
+        const addresses = await response.json()
+        setUserAddresses(addresses)
+        
+        // Sélectionner l'adresse par défaut
+        const defaultAddress = addresses.find((addr: UserAddress) => addr.isDefault)
+        if (defaultAddress) {
+          setFormData(prev => ({
+            ...prev,
+            selectedBillingAddressId: defaultAddress.id,
+            selectedShippingAddressId: defaultAddress.id
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des adresses:', error)
+    }
+  }
+
+  const handlePaymentSuccess = async (paymentData: any) => {
+    console.log('✅ Paiement réussi:', paymentData)
+    
+    try {
+      // Calculer le total côté client
+      const calculatedTotal = (orderData.items || []).reduce((sum, item) => 
+        sum + ((item.price || 0) * (item.quantity || 0)), 0
+      )
+
+      // Créer la commande en base de données
+      const orderResponse = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: orderData.items,
+          total: calculatedTotal || orderData.total,
+          currency: targetCurrency || currency || orderData.currency || 'MGA',
+          shippingAddress: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            address: formData.shippingAddress,
+            city: formData.shippingCity,
+            postalCode: formData.shippingZipCode,
+            country: formData.shippingCountry,
+            phone: formData.phone
+          },
+          billingAddress: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            address: formData.billingAddress,
+            city: formData.billingCity,
+            postalCode: formData.billingZipCode,
+            country: formData.billingCountry,
+            phone: formData.phone
+          },
+          email: session?.user?.email || formData.email,
+          phone: formData.phone,
+          firstName: session?.user?.firstName || formData.firstName,
+          lastName: session?.user?.lastName || formData.lastName,
+          paymentData: {
+            method: paymentData.method,
+            status: paymentData.status,
+            transactionId: paymentData.transactionId,
+            paypalOrderId: paymentData.paypalOrderId,
+            details: paymentData
+          },
+          notes: formData.notes,
+          
+          // Taux de change au moment de la commande
+          exchangeRates: exchangeRates,
+          baseCurrency: currency, // MGA
+          displayCurrency: targetCurrency || currency
+        })
+      })
+
+      const orderResult = await orderResponse.json()
+
+      if (!orderResponse.ok) {
+        throw new Error(orderResult.error || 'Erreur lors de la création de la commande')
+      }
+
+      console.log('✅ Commande créée en base:', orderResult.order)
+
+      // Vider le panier après création de commande
+      try {
+        await fetch('/api/cart/clear', { method: 'POST' })
+        localStorage.removeItem('cart')
+        localStorage.removeItem('pendingOrder')
+        console.log('✅ Panier vidé avec succès')
+        
+        // Déclencher l'événement de mise à jour du panier
+        window.dispatchEvent(new Event('cartUpdated'))
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du vidage du panier:', error)
+      }
+
+      // Rediriger vers la page de succès avec les vraies données
+      const successParams = new URLSearchParams({
+        orderId: orderResult.order.id,
+        orderNumber: orderResult.order.orderNumber,
+        total: orderResult.order.total.toString(),
+        currency: orderResult.order.currency,
+        email: orderResult.order.email,
+        paymentMethod: orderResult.order.paymentMethod
+      })
+      
+      toast({
+        title: "Commande confirmée !",
+        description: `Commande ${orderResult.order.orderNumber} créée avec succès`,
+      })
+      
+      router.push(`/order-success?${successParams.toString()}`)
+
+    } catch (error) {
+      console.error('❌ Erreur création commande:', error)
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la création de la commande. Contactez le support.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handlePaymentError = (error: string) => {
+    toast({
+      title: "Erreur de paiement",
+      description: error,
+      variant: "destructive"
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl">🛒</span>
+            </div>
+          </div>
+          <p className="mt-4 text-lg font-medium text-gray-700">Chargement de votre commande...</p>
+          <p className="text-sm text-gray-500">Préparation de votre checkout sécurisé</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Écran d'authentification requis
+  if (showAuthRequired) {
+    return (
+      <div className="flex items-center justify-center min-h-[500px]">
+        <div className="text-center max-w-md mx-auto">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <User className="text-4xl text-blue-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Connexion requise</h2>
+          <p className="text-gray-600 mb-8 text-lg">
+            Vous devez être connecté pour finaliser votre commande
+          </p>
+          <div className="space-y-4">
+            <Button 
+              size="lg" 
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              onClick={() => setAuthModalOpen(true)}
+            >
+              <User className="mr-2 h-5 w-5" />
+              Se connecter
+            </Button>
+            <p className="text-sm text-gray-500">
+              Pas encore de compte ? 
+              <button 
+                onClick={() => setAuthModalOpen(true)}
+                className="ml-1 text-blue-600 hover:text-blue-700 underline"
+              >
+                Créer un compte
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!orderData || !orderData.items || orderData.items.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[500px]">
+        <div className="text-center max-w-md mx-auto">
+          <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">🛒</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Votre panier est vide</h2>
+          <p className="text-gray-600 mb-8 text-lg">
+            Découvrez nos produits et services pour commencer vos achats
+          </p>
+          <Link href="/products">
+            <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <ArrowLeft className="mr-2 h-5 w-5" />
+              Découvrir nos produits
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Checkout</h1>
-        <p>Checkout content will be loaded here...</p>
+    <>
+    <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+      {/* Colonne gauche - Formulaires (2/3 de l'espace) */}
+      <div className="lg:col-span-2 space-y-6">
+        {/* Informations client */}
+        {session?.user ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Connecté en tant que {session.user.firstName || session.user.name || 'Utilisateur'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Informations de compte utilisées</span>
+                </div>
+                <div className="text-sm text-green-700 space-y-1">
+                  <p><strong>Email :</strong> {session.user.email}</p>
+                  {session.user.firstName && <p><strong>Nom :</strong> {session.user.firstName} {session.user.lastName}</p>}
+                  {session.user.phone && <p><strong>Téléphone :</strong> {session.user.phone}</p>}
+                </div>
+                <button 
+                  onClick={() => signOut()}
+                  className="mt-2 text-xs text-green-600 hover:text-green-700 underline"
+                >
+                  Se déconnecter et saisir d'autres informations
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Informations de contact
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 mb-2">
+                  Vous avez déjà un compte ? 
+                  <button 
+                    onClick={() => setAuthModalOpen(true)}
+                    className="ml-1 underline hover:no-underline"
+                  >
+                    Connectez-vous
+                  </button>
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="firstName">Prénom *</Label>
+                  <Input
+                    id="firstName"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData(prev => ({...prev, firstName: e.target.value}))}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">Nom *</Label>
+                  <Input
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData(prev => ({...prev, lastName: e.target.value}))}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="phone">Téléphone *</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({...prev, phone: e.target.value}))}
+                  required
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Adresse de facturation */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              Adresse de facturation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {userAddresses.length > 0 && (
+              <div>
+                <Label>Adresses enregistrées</Label>
+                <Select
+                  value={formData.selectedBillingAddressId}
+                  onValueChange={(value) => setFormData(prev => ({...prev, selectedBillingAddressId: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une adresse" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Nouvelle adresse</SelectItem>
+                    {userAddresses.map((addr) => (
+                      <SelectItem key={addr.id} value={addr.id}>
+                        {addr.street}, {addr.city} {addr.zipCode}
+                        {addr.isDefault && <Badge className="ml-2">Par défaut</Badge>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {(!formData.selectedBillingAddressId || formData.selectedBillingAddressId === 'new') && (
+              <>
+                <div>
+                  <Label htmlFor="billingAddress">Adresse *</Label>
+                  <Input
+                    id="billingAddress"
+                    value={formData.billingAddress}
+                    onChange={(e) => setFormData(prev => ({...prev, billingAddress: e.target.value}))}
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="billingCity">Ville *</Label>
+                    <Input
+                      id="billingCity"
+                      value={formData.billingCity}
+                      onChange={(e) => setFormData(prev => ({...prev, billingCity: e.target.value}))}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingZipCode">Code postal *</Label>
+                    <Input
+                      id="billingZipCode"
+                      value={formData.billingZipCode}
+                      onChange={(e) => setFormData(prev => ({...prev, billingZipCode: e.target.value}))}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="billingCountry">Pays *</Label>
+                  <Select
+                    value={formData.billingCountry}
+                    onValueChange={(value) => setFormData(prev => ({...prev, billingCountry: value}))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Madagascar">Madagascar</SelectItem>
+                      <SelectItem value="France">France</SelectItem>
+                      <SelectItem value="Maurice">Maurice</SelectItem>
+                      <SelectItem value="Réunion">Réunion</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notes de commande */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes de commande (optionnel)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="Instructions spéciales pour la livraison ou autres notes..."
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({...prev, notes: e.target.value}))}
+              rows={3}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Adresse de livraison */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Adresse de livraison
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="sameAsShipping"
+                checked={sameAsbilling}
+                onCheckedChange={(checked) => setSameAsBinding(checked as boolean)}
+              />
+              <Label htmlFor="sameAsShipping">
+                Utiliser l'adresse de facturation pour la livraison
+              </Label>
+            </div>
+
+            {!sameAsbilling && (
+              <>
+                {userAddresses.length > 0 && (
+                  <div>
+                    <Label>Adresses enregistrées</Label>
+                    <Select
+                      value={formData.selectedShippingAddressId}
+                      onValueChange={(value) => setFormData(prev => ({...prev, selectedShippingAddressId: value}))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir une adresse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">Nouvelle adresse</SelectItem>
+                        {userAddresses.map((addr) => (
+                          <SelectItem key={addr.id} value={addr.id}>
+                            {addr.street}, {addr.city} {addr.zipCode}
+                            {addr.isDefault && <Badge className="ml-2">Par défaut</Badge>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {(!formData.selectedShippingAddressId || formData.selectedShippingAddressId === 'new') && (
+                  <>
+                    <div>
+                      <Label htmlFor="shippingAddress">Adresse *</Label>
+                      <Input
+                        id="shippingAddress"
+                        value={formData.shippingAddress}
+                        onChange={(e) => setFormData(prev => ({...prev, shippingAddress: e.target.value}))}
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="shippingCity">Ville *</Label>
+                        <Input
+                          id="shippingCity"
+                          value={formData.shippingCity}
+                          onChange={(e) => setFormData(prev => ({...prev, shippingCity: e.target.value}))}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="shippingZipCode">Code postal</Label>
+                        <Input
+                          id="shippingZipCode"
+                          value={formData.shippingZipCode}
+                          onChange={(e) => setFormData(prev => ({...prev, shippingZipCode: e.target.value}))}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="shippingCountry">Pays</Label>
+                      <Select
+                        value={formData.shippingCountry}
+                        onValueChange={(value) => setFormData(prev => ({...prev, shippingCountry: value}))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Madagascar">Madagascar</SelectItem>
+                          <SelectItem value="France">France</SelectItem>
+                          <SelectItem value="Maurice">Maurice</SelectItem>
+                          <SelectItem value="Réunion">Réunion</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mode de paiement */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Mode de paiement
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaymentMethodSelector
+              total={(() => {
+                const calculatedTotal = (orderData.items || []).reduce((sum, item) => 
+                  sum + ((item.price || 0) * (item.quantity || 0)), 0
+                )
+                return orderData.total || calculatedTotal
+              })()}
+              currency={orderData.currency || 'Ar'}
+              orderData={{
+                items: orderData.items || [],
+                customerInfo: {
+                  email: formData.email,
+                  firstName: formData.firstName,
+                  lastName: formData.lastName,
+                  phone: formData.phone
+                },
+                shippingAddress: (() => {
+                  console.log('🔍 CHECKOUT DEBUG - Construction shippingAddress:', {
+                    sameAsbilling,
+                    selectedBillingAddressId: formData.selectedBillingAddressId,
+                    selectedShippingAddressId: formData.selectedShippingAddressId
+                  });
+                  
+                  // Si case cochée et adresse de facturation sélectionnée, utiliser celle-ci pour la livraison
+                  if (sameAsbilling && formData.selectedBillingAddressId && formData.selectedBillingAddressId !== 'new') {
+                    const selectedAddr = userAddresses.find(addr => addr.id === formData.selectedBillingAddressId);
+                    console.log('✅ CAS 1: Copie depuis adresse de facturation sélectionnée', selectedAddr);
+                    if (selectedAddr) {
+                      const result = {
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        address: selectedAddr.street,
+                        city: selectedAddr.city,
+                        postalCode: selectedAddr.zipCode,
+                        country: selectedAddr.country,
+                        phone: selectedAddr.phoneNumber || formData.phone
+                      };
+                      console.log('📦 SHIPPING RESULT (cas 1):', result);
+                      return result;
+                    }
+                  }
+                  
+                  // Si case cochée mais pas d'adresse de facturation sélectionnée, utiliser les champs manuels de facturation
+                  if (sameAsbilling) {
+                    console.log('⚠️  CAS 2: Copie depuis champs manuels de facturation');
+                    const result = {
+                      firstName: formData.firstName,
+                      lastName: formData.lastName,
+                      address: formData.billingAddress,
+                      city: formData.billingCity,
+                      postalCode: formData.billingZipCode,
+                      country: formData.billingCountry,
+                      phone: formData.phone
+                    };
+                    console.log('📦 SHIPPING RESULT (cas 2):', result);
+                    return result;
+                  }
+                  
+                  // Sinon, logique normale pour l'adresse de livraison
+                  if (formData.selectedShippingAddressId && formData.selectedShippingAddressId !== 'new') {
+                    const selectedAddr = userAddresses.find(addr => addr.id === formData.selectedShippingAddressId);
+                    return selectedAddr ? {
+                      firstName: formData.firstName,
+                      lastName: formData.lastName,
+                      address: selectedAddr.street,
+                      city: selectedAddr.city,
+                      postalCode: selectedAddr.zipCode,
+                      country: selectedAddr.country,
+                      phone: selectedAddr.phoneNumber || formData.phone
+                    } : null;
+                  }
+                  
+                  // Adresse manuelle de livraison
+                  return {
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    address: formData.shippingAddress,
+                    city: formData.shippingCity,
+                    postalCode: formData.shippingZipCode,
+                    country: formData.shippingCountry,
+                    phone: formData.phone
+                  };
+                })(),
+                billingAddress: (() => {
+                  // Logique normale pour l'adresse de facturation (indépendante de la case cochée)
+                  if (formData.selectedBillingAddressId && formData.selectedBillingAddressId !== 'new') {
+                    const selectedAddr = userAddresses.find(addr => addr.id === formData.selectedBillingAddressId);
+                    return selectedAddr ? {
+                      firstName: formData.firstName,
+                      lastName: formData.lastName,
+                      address: selectedAddr.street,
+                      city: selectedAddr.city,
+                      postalCode: selectedAddr.zipCode,
+                      country: selectedAddr.country,
+                      phone: selectedAddr.phoneNumber || formData.phone
+                    } : null;
+                  }
+                  
+                  // Adresse manuelle de facturation
+                  return {
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    address: formData.billingAddress,
+                    city: formData.billingCity,
+                    postalCode: formData.billingZipCode,
+                    country: formData.billingCountry,
+                    phone: formData.phone
+                  };
+                })(),
+                notes: formData.notes
+              }}
+              onPaymentSuccess={handlePaymentSuccess}
+              onPaymentError={handlePaymentError}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Colonne droite - Résumé et paiement */}
+      <div className="space-y-6">
+        {/* Résumé de commande */}
+        <Card className="sticky top-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Résumé de votre commande
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {(orderData.items || []).map((item, index) => (
+                <div key={index} className="flex justify-between items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                        Qty: {item.quantity}
+                      </span>
+                      {item.duration && (
+                        <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {item.duration}
+                        </span>
+                      )}
+                      {item.maxProfiles && (
+                        <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                          <Users className="w-3 h-3 mr-1" />
+                          {item.maxProfiles} profils
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <p className="font-bold text-lg text-gray-900">
+                      {convertPrice(((item.price || 0) * (item.quantity || 0)), targetCurrency || currency).toLocaleString()} {targetCurrency || currency}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {convertPrice(item.price || 0, targetCurrency || currency).toLocaleString()} {targetCurrency || currency} × {item.quantity}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              
+              <Separator className="my-6" />
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold text-gray-700">Total à payer</span>
+                  <div className="text-right">
+                    {(() => {
+                      // Calculer le total côté client pour vérification
+                      const calculatedTotal = (orderData.items || []).reduce((sum, item) => 
+                        sum + ((item.price || 0) * (item.quantity || 0)), 0
+                      )
+                      const displayTotal = orderData.total || calculatedTotal
+                      const convertedTotal = convertPrice(displayTotal, targetCurrency || currency)
+                      
+                      return (
+                        <>
+                          <span className="text-2xl font-bold text-blue-600">
+                            {convertedTotal.toLocaleString()} {targetCurrency || currency}
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
+    
+    {/* Modal d'authentification */}
+    <AuthModal
+      isOpen={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      defaultMode="login"
+    />
+    </>
   )
 }
