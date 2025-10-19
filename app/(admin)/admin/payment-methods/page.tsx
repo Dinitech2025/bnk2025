@@ -86,6 +86,14 @@ interface PaymentProvider {
   _count?: { payments: number }
 }
 
+interface PaymentProviderWithMethod extends PaymentProvider {
+  paymentMethod?: {
+    id: string
+    name: string
+    code: string
+  }
+}
+
 const iconMap: Record<string, any> = {
   CreditCard,
   Smartphone,
@@ -98,8 +106,7 @@ const iconMap: Record<string, any> = {
 export default function PaymentMethodsPageOptimized() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
+  const [activeTab, setActiveTab] = useState<string>('methods')
   const [showMethodForm, setShowMethodForm] = useState(false)
   const [showProviderForm, setShowProviderForm] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
@@ -193,20 +200,6 @@ export default function PaymentMethodsPageOptimized() {
     }
   }
 
-  const filteredMethods = paymentMethods.filter(method => {
-    const matchesSearch = method.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      method.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      method.providers.some(provider => 
-        provider.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    
-    const matchesFilter = filterType === 'all' || 
-      (filterType === 'active' && method.isActive) ||
-      (filterType === 'inactive' && !method.isActive) ||
-      (filterType === method.type.toLowerCase())
-    
-    return matchesSearch && matchesFilter
-  })
 
   const formatAmount = (amount: number | null) => {
     if (!amount) return '-'
@@ -225,13 +218,24 @@ export default function PaymentMethodsPageOptimized() {
     return iconMap[iconName]
   }
 
+  const getAllProviders = (): PaymentProviderWithMethod[] => {
+    return paymentMethods.reduce((acc: PaymentProviderWithMethod[], method) => {
+      const providersWithMethod = method.providers.map(provider => ({
+        ...provider,
+        paymentMethod: { id: method.id, name: method.name, code: method.code }
+      }))
+      return [...acc, ...providersWithMethod]
+    }, [])
+  }
+
   const getStats = () => {
     const total = paymentMethods.length
     const active = paymentMethods.filter(m => m.isActive).length
     const totalProviders = paymentMethods.reduce((acc, m) => acc + m.providers.length, 0)
+    const activeProviders = getAllProviders().filter(p => p.isActive).length
     const totalPayments = paymentMethods.reduce((acc, m) => acc + (m._count?.payments || 0), 0)
     
-    return { total, active, totalProviders, totalPayments }
+    return { total, active, totalProviders, activeProviders, totalPayments }
   }
 
   const stats = getStats()
@@ -249,380 +253,218 @@ export default function PaymentMethodsPageOptimized() {
 
   return (
     <div className="space-y-8 p-6">
-      {/* En-tête avec statistiques */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Configuration des Paiements
-            </h1>
-            <p className="text-gray-600 text-lg">
-              Gérez vos méthodes de paiement et optimisez vos conversions
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Exporter
-            </Button>
-            <Button 
-              onClick={() => setShowMethodForm(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              <Plus className="h-4 w-4" />
-              Nouvelle méthode
-            </Button>
-          </div>
-        </div>
-
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Méthodes</p>
-                  <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
-                </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <CreditCard className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Méthodes Actives</p>
-                  <p className="text-3xl font-bold text-green-600">{stats.active}</p>
-                </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Fournisseurs</p>
-                  <p className="text-3xl font-bold text-purple-600">{stats.totalProviders}</p>
-                </div>
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <Users className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Paiements Traités</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.totalPayments}</p>
-                </div>
-                <div className="p-3 bg-orange-100 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* En-tête simple */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Configuration des Paiements</h1>
+          <p className="text-gray-600 mt-1">
+            Gérez les méthodes de paiement et leurs fournisseurs
+          </p>
         </div>
       </div>
 
-      {/* Filtres et recherche */}
-      <Card className="shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher une méthode, fournisseur ou code..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-11"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      {/* Onglets */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex items-center justify-between">
+          <TabsList className="grid w-fit grid-cols-2">
+            <TabsTrigger value="methods" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Méthodes de Paiement
+            </TabsTrigger>
+            <TabsTrigger value="providers" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Fournisseurs
+            </TabsTrigger>
+          </TabsList>
+          
+          <div className="flex items-center gap-2">
+            {activeTab === 'methods' && (
+              <Button 
+                onClick={() => setShowMethodForm(true)}
+                className="flex items-center gap-2"
               >
-                <option value="all">Toutes les méthodes</option>
-                <option value="active">Actives uniquement</option>
-                <option value="inactive">Inactives uniquement</option>
-                <option value="direct">API Directe</option>
-                <option value="providers">Avec Fournisseurs</option>
-                <option value="manual">Manuelles</option>
-              </select>
-            </div>
+                <Plus className="h-4 w-4" />
+                Nouvelle méthode
+              </Button>
+            )}
+            {activeTab === 'providers' && (
+              <Button 
+                onClick={() => setShowProviderForm(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Nouveau fournisseur
+              </Button>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Liste des méthodes */}
-      <div className="space-y-6">
-        {filteredMethods.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
-                  <Search className="h-8 w-8 text-gray-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">Aucune méthode trouvée</h3>
-                  <p className="text-gray-600">
-                    {searchTerm ? 'Essayez de modifier vos critères de recherche' : 'Commencez par créer votre première méthode de paiement'}
-                  </p>
-                </div>
-                {!searchTerm && (
-                  <Button 
-                    onClick={() => setShowMethodForm(true)}
-                    className="mt-4"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Créer une méthode
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredMethods.map((method) => {
+        {/* Onglet Méthodes de Paiement */}
+        <TabsContent value="methods" className="space-y-4">
+          {paymentMethods.map((method) => {
             const IconComponent = getIcon(method.icon)
             const isEssential = method.code === 'online_payment'
             
             return (
-              <Card key={method.id} className={`transition-all hover:shadow-lg ${isEssential ? 'ring-2 ring-blue-200 bg-blue-50/30' : ''}`}>
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className={`p-3 rounded-xl ${
+              <Card key={method.id} className={`transition-all hover:shadow-md ${isEssential ? 'ring-2 ring-blue-200 bg-blue-50/30' : ''}`}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
                         method.isActive 
-                          ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' 
+                          ? 'bg-blue-100 text-blue-600' 
                           : 'bg-gray-100 text-gray-400'
                       }`}>
-                        <IconComponent className="h-6 w-6" />
+                        <IconComponent className="h-5 w-5" />
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <CardTitle className="text-xl">{method.name}</CardTitle>
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          {method.name}
                           {isEssential && (
-                            <Badge className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                            <Badge className="bg-blue-600 text-white">
                               <Shield className="h-3 w-3 mr-1" />
                               Essentiel
                             </Badge>
                           )}
-                          <Badge variant={method.isActive ? "default" : "secondary"} className="font-medium">
-                            {method.isActive ? (
-                              <>
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Actif
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Inactif
-                              </>
-                            )}
+                          <Badge variant={method.isActive ? "default" : "secondary"}>
+                            {method.isActive ? 'Actif' : 'Inactif'}
                           </Badge>
                           {method._count?.payments && method._count.payments > 0 && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              <Activity className="h-3 w-3 mr-1" />
-                              {method._count.payments} transaction{method._count.payments > 1 ? 's' : ''}
+                            <Badge variant="outline">
+                              {method._count.payments} paiement(s)
+                            </Badge>
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="bg-gray-100 px-1 rounded text-xs">{method.code}</code>
+                          <Badge variant="outline" className="text-xs">
+                            {method.type === 'DIRECT' ? '🔗 API Directe' : 
+                             method.type === 'PROVIDERS' ? '👥 Fournisseurs' : 
+                             '✋ Manuel'}
+                          </Badge>
+                          {method.apiEnabled && (
+                            <Badge variant="outline" className="text-xs bg-green-50">
+                              ✅ API Configurée
                             </Badge>
                           )}
                         </div>
-                        
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{method.code}</code>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {method.type === 'DIRECT' && <Zap className="h-3 w-3 text-blue-500" />}
-                            {method.type === 'PROVIDERS' && <Users className="h-3 w-3 text-purple-500" />}
-                            {method.type === 'MANUAL' && <Clock className="h-3 w-3 text-orange-500" />}
-                            <span className="font-medium">
-                              {method.type === 'DIRECT' ? 'API Directe' : 
-                               method.type === 'PROVIDERS' ? 'Multi-fournisseurs' : 
-                               'Traitement Manuel'}
-                            </span>
-                          </div>
-                          {method.apiEnabled && (
-                            <div className="flex items-center gap-1 text-green-600">
-                              <CheckCircle className="h-3 w-3" />
-                              <span className="text-xs font-medium">API Configurée</span>
-                            </div>
-                          )}
-                          {method.processingTime && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              <span className="text-xs">{method.processingTime}</span>
-                            </div>
-                          )}
-                        </div>
-                        
                         {method.description && (
-                          <p className="text-gray-600 text-sm leading-relaxed max-w-2xl">{method.description}</p>
-                        )}
-
-                        {/* Informations sur les frais et limites */}
-                        {(method.feeType !== 'NONE' || method.minAmount || method.maxAmount) && (
-                          <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                            {method.feeType !== 'NONE' && (
-                              <span>Frais: {formatFee(method.feeType, method.feeValue)}</span>
-                            )}
-                            {method.minAmount && <span>Min: {formatAmount(method.minAmount)}</span>}
-                            {method.maxAmount && <span>Max: {formatAmount(method.maxAmount)}</span>}
-                          </div>
+                          <p className="text-sm text-gray-600 mt-1">{method.description}</p>
                         )}
                       </div>
                     </div>
-                    
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => toggleMethodStatus(method.id, method.isActive)}
-                        className="hover:bg-gray-50"
                       >
                         {method.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
-                      
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedMethod(method)
-                            setShowMethodForm(true)
-                          }}>
-                            <Edit2 className="h-4 w-4 mr-2" />
-                            Modifier
-                          </DropdownMenuItem>
-                          {method.type === 'PROVIDERS' && (
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedMethodForProvider(method.id)
-                              setShowProviderForm(true)
-                            }}>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Ajouter un fournisseur
-                            </DropdownMenuItem>
-                          )}
-                          {!isEssential && (
-                            <DropdownMenuItem 
-                              onClick={() => setDeleteConfirm({ type: 'method', id: method.id })}
-                              disabled={method._count?.payments && method._count.payments > 0}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Supprimer
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMethod(method)
+                          setShowMethodForm(true)
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      {!isEssential && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteConfirm({ type: 'method', id: method.id })}
+                          disabled={method._count?.payments && method._count.payments > 0}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
-                
-                {method.providers.length > 0 && (
-                  <CardContent className="pt-0">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          Fournisseurs ({method.providers.length})
-                        </h4>
-                      </div>
-                      
-                      <div className="grid gap-3">
-                        {method.providers.map((provider) => (
-                          <div key={provider.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
-                            <div className="flex items-center gap-4">
-                              {provider.logo ? (
-                                <img 
-                                  src={provider.logo} 
-                                  alt={provider.name}
-                                  className="h-8 w-8 object-contain rounded"
-                                />
-                              ) : (
-                                <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
-                                  <Building className="h-4 w-4 text-gray-400" />
-                                </div>
-                              )}
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                  <span className="font-medium text-gray-900">{provider.name}</span>
-                                  <Badge variant={provider.isActive ? "default" : "secondary"} className="text-xs">
-                                    {provider.isActive ? 'Actif' : 'Inactif'}
-                                  </Badge>
-                                  {provider._count?.payments && provider._count.payments > 0 && (
-                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                                      <Activity className="h-3 w-3 mr-1" />
-                                      {provider._count.payments}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-4 text-xs text-gray-500">
-                                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">{provider.code}</span>
-                                  <span>Frais: {formatFee(provider.feeType, provider.feeValue)}</span>
-                                  {provider.minAmount && <span>Min: {formatAmount(provider.minAmount)}</span>}
-                                  {provider.maxAmount && <span>Max: {formatAmount(provider.maxAmount)}</span>}
-                                  {provider.dailyLimit && <span>Limite/jour: {formatAmount(provider.dailyLimit)}</span>}
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleProviderStatus(provider.id, provider.isActive)}
-                              >
-                                {provider.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedProvider(provider)
-                                  setSelectedMethodForProvider(method.id)
-                                  setShowProviderForm(true)
-                                }}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteConfirm({ type: 'provider', id: provider.id })}
-                                disabled={provider._count?.payments && provider._count.payments > 0}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                )}
               </Card>
             )
-          })
-        )}
-      </div>
+          })}
+        </TabsContent>
+
+        {/* Onglet Fournisseurs */}
+        <TabsContent value="providers" className="space-y-4">
+          {getAllProviders().map((provider) => (
+            <Card key={provider.id} className="transition-all hover:shadow-md">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {provider.logo ? (
+                      <img 
+                        src={provider.logo} 
+                        alt={provider.name}
+                        className="h-10 w-10 object-contain rounded"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 bg-gray-100 rounded flex items-center justify-center">
+                        <Building className="h-5 w-5 text-gray-400" />
+                      </div>
+                    )}
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        {provider.name}
+                        <Badge variant={provider.isActive ? "default" : "secondary"}>
+                          {provider.isActive ? 'Actif' : 'Inactif'}
+                        </Badge>
+                        {provider._count?.payments && provider._count.payments > 0 && (
+                          <Badge variant="outline">
+                            {provider._count.payments} paiement(s)
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                        <code className="bg-gray-100 px-1 rounded text-xs">{provider.code}</code>
+                        <span>Méthode: {provider.paymentMethod?.name}</span>
+                        <span>Frais: {formatFee(provider.feeType, provider.feeValue)}</span>
+                        {provider.minAmount && <span>Min: {formatAmount(provider.minAmount)}</span>}
+                        {provider.maxAmount && <span>Max: {formatAmount(provider.maxAmount)}</span>}
+                      </div>
+                      {provider.description && (
+                        <p className="text-sm text-gray-600 mt-1">{provider.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleProviderStatus(provider.id, provider.isActive)}
+                    >
+                      {provider.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProvider(provider)
+                        setSelectedMethodForProvider(provider.paymentMethod?.id || null)
+                        setShowProviderForm(true)
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDeleteConfirm({ type: 'provider', id: provider.id })}
+                      disabled={provider._count?.payments && provider._count.payments > 0}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </TabsContent>
+      </Tabs>
 
       {/* Formulaires modaux */}
       <PaymentMethodForm
