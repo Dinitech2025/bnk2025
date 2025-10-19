@@ -9,6 +9,9 @@ interface InvoiceItem {
   unitPrice: number;
   totalPrice: number;
   type: string;
+  discountType?: string;
+  discountValue?: number;
+  discountAmount?: number;
 }
 
 interface Customer {
@@ -54,6 +57,11 @@ interface InvoiceData {
     createdAt: string;
   }>;
   items: InvoiceItem[];
+  globalDiscount?: {
+    type: string;
+    value: number;
+    amount: number;
+  };
   convertedPrices?: {
     [key: string]: number;
   };
@@ -206,25 +214,42 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
     });
     doc.setFont('helvetica', 'normal');
     
-    // Adresse de livraison (droite)
-    const rightCol = pageWidth / 2 + 10;
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Adresse de livraison', rightCol, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    // Vérifier s'il y a des produits physiques dans la commande
+    const hasPhysicalProducts = invoiceData.items.some(item => item.type === 'PRODUCT');
     
-    const shippingLines = formatAddress(invoiceData.shippingAddress, invoiceData.customer);
-    shippingLines.forEach((line, index) => {
-      // Mettre le nom en gras s'il s'agit de la première ligne et que c'est le nom du client
-      if (index === 0 && line === invoiceData.customer.name) {
-        doc.setFont('helvetica', 'bold');
-      } else {
+    // Adresse de livraison (droite) - seulement si il y a des produits
+    const rightCol = pageWidth / 2 + 10;
+    
+    if (hasPhysicalProducts) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      
+      if (invoiceData.shippingAddress) {
+        // Il y a une adresse de livraison (livraison à domicile)
+        doc.text('Adresse de livraison', rightCol, currentY);
         doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        
+        const shippingLines = formatAddress(invoiceData.shippingAddress, invoiceData.customer);
+        shippingLines.forEach((line, index) => {
+          // Mettre le nom en gras s'il s'agit de la première ligne et que c'est le nom du client
+          if (index === 0 && line === invoiceData.customer.name) {
+            doc.setFont('helvetica', 'bold');
+          } else {
+            doc.setFont('helvetica', 'normal');
+          }
+          doc.text(line, rightCol, currentY + 8 + (index * 4));
+        });
+      } else {
+        // Pas d'adresse de livraison (retrait au magasin)
+        doc.text('Mode de livraison', rightCol, currentY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text('Retrait au magasin', rightCol, currentY + 8);
       }
-      doc.text(line, rightCol, currentY + 8 + (index * 4));
-    });
-    doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', 'normal');
+    }
+    // Si pas de produits physiques, on n'affiche rien à droite
     
     // === INFORMATIONS DE COMMANDE ===
     currentY += 35;
@@ -266,12 +291,32 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
     currentY = (doc as any).lastAutoTable.finalY + 8;
     
     // === TABLEAU DES ARTICLES ===
-    const articlesData = invoiceData.items.map(item => [
+    const articlesData = invoiceData.items.map(item => {
+      const convertedUnitPrice = getConvertedPrice(item.unitPrice, invoiceData);
+      const convertedTotalPrice = getConvertedPrice(item.totalPrice, invoiceData);
+      
+      // Calculer le prix original avant réduction pour affichage
+      const originalPrice = convertedUnitPrice * item.quantity;
+      
+      // Préparer l'affichage du prix avec réduction si applicable
+      let priceDisplay = formatPrice(convertedTotalPrice, invoiceData.currencySymbol);
+      
+      if (item.discountAmount && item.discountAmount > 0) {
+        const convertedDiscountAmount = getConvertedPrice(item.discountAmount, invoiceData);
+        const discountLabel = item.discountType === 'PERCENTAGE' 
+          ? `${item.discountValue}%` 
+          : formatPrice(convertedDiscountAmount, invoiceData.currencySymbol);
+        
+        priceDisplay = `${formatPrice(originalPrice, invoiceData.currencySymbol)}\n-${discountLabel}\n= ${formatPrice(convertedTotalPrice, invoiceData.currencySymbol)}`;
+      }
+      
+      return [
       item.name,
-      formatPrice(getConvertedPrice(item.unitPrice, invoiceData), invoiceData.currencySymbol),
+        formatPrice(convertedUnitPrice, invoiceData.currencySymbol),
       item.quantity.toString(),
-      formatPrice(getConvertedPrice(item.totalPrice, invoiceData), invoiceData.currencySymbol)
-    ]);
+        priceDisplay
+      ];
+    });
     
     autoTable(doc, {
       startY: currentY,
@@ -287,27 +332,56 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
         halign: 'center' as const
       },
       bodyStyles: {
-        fontSize: 8, // Taille augmentée pour meilleure lisibilité
+        fontSize: 7, // Taille réduite pour accommoder les réductions
         cellPadding: 2, // Padding légèrement augmenté
-        textColor: [0, 0, 0] as [number, number, number] // Texte noir
+        textColor: [0, 0, 0] as [number, number, number], // Texte noir
+        valign: 'middle' as const
       },
       columnStyles: {
-        0: { cellWidth: availableWidth * 0.6 }, // 60% pour Article (plus d'espace)
-        1: { cellWidth: availableWidth * 0.15, halign: 'right' }, // 15% pour Prix unitaire (réduit)
+        0: { cellWidth: availableWidth * 0.5 }, // 50% pour Article
+        1: { cellWidth: availableWidth * 0.15, halign: 'right' }, // 15% pour Prix unitaire
         2: { cellWidth: availableWidth * 0.1, halign: 'center' }, // 10% pour Qté
-        3: { cellWidth: availableWidth * 0.15, halign: 'right' } // 15% pour Total (réduit)
+        3: { cellWidth: availableWidth * 0.25, halign: 'right' } // 25% pour Total avec réductions
       },
       tableWidth: availableWidth, // Forcer la largeur complète
-      margin: { left: margin, right: margin }
+      margin: { left: margin, right: margin },
+      didParseCell: function(data) {
+        // Colorer les cellules avec réductions
+        if (data.column.index === 3 && data.cell.text.join('').includes('-')) {
+          data.cell.styles.textColor = [0, 100, 0]; // Vert pour les réductions
+          data.cell.styles.fontSize = 6;
+        }
+      }
     });
     
     // === TABLEAU DES TOTAUX ===
     const convertedTotal = getConvertedPrice(invoiceData.total, invoiceData);
-    const totalsData = [
-      ['Total Articles', formatPrice(convertedTotal, invoiceData.currencySymbol)],
-      ['Frais de livraison', 'Gratuit'],
-      ['TOTAL', formatPrice(convertedTotal, invoiceData.currencySymbol)]
-    ];
+    
+    // Calculer le sous-total des articles (avant réduction globale)
+    const itemsSubtotal = invoiceData.items.reduce((sum, item) => {
+      return sum + getConvertedPrice(item.totalPrice, invoiceData);
+    }, 0);
+    
+    const totalsData = [];
+    
+    // Sous-total articles
+    totalsData.push(['Sous-total Articles', formatPrice(itemsSubtotal, invoiceData.currencySymbol)]);
+    
+    // Réduction globale si elle existe
+    if (invoiceData.globalDiscount && invoiceData.globalDiscount.amount > 0) {
+      const convertedDiscountAmount = getConvertedPrice(invoiceData.globalDiscount.amount, invoiceData);
+      const discountLabel = invoiceData.globalDiscount.type === 'PERCENTAGE' 
+        ? `Réduction globale (${invoiceData.globalDiscount.value}%)`
+        : `Réduction globale`;
+      
+      totalsData.push([discountLabel, `-${formatPrice(convertedDiscountAmount, invoiceData.currencySymbol)}`]);
+    }
+    
+    // Frais de livraison
+    totalsData.push(['Frais de livraison', 'Gratuit']);
+    
+    // Total final
+    totalsData.push(['TOTAL', formatPrice(convertedTotal, invoiceData.currencySymbol)]);
     
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY,
@@ -331,6 +405,16 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
           data.cell.styles.fillColor = [240, 240, 240];
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fontSize = 9;
+        }
+        // Lignes de réduction en vert
+        else if (data.cell.text[0] && data.cell.text[0].includes('Réduction')) {
+          data.cell.styles.textColor = [0, 120, 0]; // Vert foncé
+          data.cell.styles.fontStyle = 'bold';
+        }
+        // Montants de réduction en vert
+        else if (data.column.index === 1 && data.cell.text[0] && data.cell.text[0].startsWith('-')) {
+          data.cell.styles.textColor = [0, 120, 0]; // Vert foncé
+          data.cell.styles.fontStyle = 'bold';
         }
       }
     });
@@ -358,26 +442,28 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
       textColor: [0, 0, 0] as [number, number, number] // Texte noir
     };
     
-    // === TABLEAU MODE DE LIVRAISON (GAUCHE) ===
-    const deliveryData = [
-      ['Retrait au magasin']
-    ];
-    
-    autoTable(doc, {
-      startY: finalY,
-      head: [['Mode de livraison']],
-      body: deliveryData,
-      theme: 'grid',
-      headStyles: uniformHeaderStyles,
-      bodyStyles: uniformBodyStyles,
-      columnStyles: {
-        0: { cellWidth: tableWidth } // Largeur exacte
-      },
-      margin: { left: margin },
-      tableWidth: tableWidth, // Forcer la largeur du tableau
-      tableLineColor: [0, 0, 0], // Bordures noires
-      tableLineWidth: 0.1
-    });
+    // === TABLEAU MODE DE LIVRAISON (GAUCHE) - seulement si produits physiques ===
+    if (hasPhysicalProducts) {
+      const deliveryData = [
+        ['Retrait au magasin']
+      ];
+      
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Mode de livraison']],
+        body: deliveryData,
+        theme: 'grid',
+        headStyles: uniformHeaderStyles,
+        bodyStyles: uniformBodyStyles,
+        columnStyles: {
+          0: { cellWidth: tableWidth } // Largeur exacte
+        },
+        margin: { left: margin },
+        tableWidth: tableWidth, // Forcer la largeur du tableau
+        tableLineColor: [0, 0, 0], // Bordures noires
+        tableLineWidth: 0.1
+      });
+    }
     
     // === TABLEAU MOYEN DE PAIEMENT (DROITE) ===
     // Préparer les données des paiements avec dates
@@ -394,7 +480,7 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
         ]);
       });
     } else {
-      paymentData.push(['Non spécifié', '', '']);
+      paymentData.push(['Aucun paiement n\'a été effectué', '', '']);
     }
     
     autoTable(doc, {
@@ -409,7 +495,9 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
         1: { cellWidth: tableWidth * 0.3, halign: 'right' }, // 30% pour montant
         2: { cellWidth: tableWidth * 0.2, halign: 'center' } // 20% pour date
       },
-      margin: { left: margin + tableWidth + spacing }, // Avec espace entre les tableaux
+      margin: { 
+        left: hasPhysicalProducts ? margin + tableWidth + spacing : margin // Si pas de tableau livraison, commencer à gauche
+      },
       tableWidth: tableWidth, // Forcer la largeur du tableau
       tableLineColor: [0, 0, 0], // Bordures noires
       tableLineWidth: 0.1

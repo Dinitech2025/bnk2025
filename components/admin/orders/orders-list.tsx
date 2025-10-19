@@ -651,7 +651,7 @@ export default function OrdersList({ orders }: { orders: OrderWithRelations[] })
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
-                        {(order.status === 'DELIVERED' || order.status === 'FINISHED') && (
+                        {(['DELIVERED', 'FINISHED', 'SHIPPING', 'PAID', 'CONFIRMED'].includes(order.status)) && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>

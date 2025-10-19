@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayPalReturnUrls } from '@/lib/utils/get-base-url'
-
-// Configuration PayPal
-const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET
-const PAYPAL_BASE_URL = process.env.PAYPAL_MODE === 'live' 
-  ? 'https://api-m.paypal.com' 
-  : 'https://api-m.sandbox.paypal.com'
+import { getPayPalConfig, getPayPalBaseUrl } from '@/lib/paypal-config'
 
 // Fonction pour obtenir un token d'accès PayPal
 async function getPayPalAccessToken() {
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64')
+  const config = await getPayPalConfig()
+  const baseUrl = getPayPalBaseUrl(config.environment)
   
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+  const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')
+  
+  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
@@ -27,10 +24,14 @@ async function getPayPalAccessToken() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Récupérer la configuration PayPal
+    const config = await getPayPalConfig()
+    const baseUrl = getPayPalBaseUrl(config.environment)
+    
     // Vérifier que PayPal est configuré
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    if (!config.clientId || !config.clientSecret) {
       return NextResponse.json(
-        { error: 'PayPal non configuré. Veuillez définir PAYPAL_CLIENT_ID et PAYPAL_CLIENT_SECRET.' },
+        { error: 'PayPal non configuré. Veuillez configurer les clés API dans les paramètres.' },
         { status: 500 }
       )
     }
@@ -48,10 +49,7 @@ export async function POST(request: NextRequest) {
     // Obtenir le token d'accès
     const accessToken = await getPayPalAccessToken()
 
-    // Obtenir les URLs de retour sécurisées
-    const { returnUrl, cancelUrl } = getPayPalReturnUrls()
-
-    // Créer la commande PayPal
+    // Créer la commande PayPal d'abord pour obtenir l'ID
     const paypalOrder = {
       intent: 'CAPTURE',
       purchase_units: [{
@@ -67,12 +65,13 @@ export async function POST(request: NextRequest) {
         brand_name: 'BNK E-commerce',
         landing_page: 'BILLING',
         user_action: 'PAY_NOW',
-        return_url: returnUrl,
-        cancel_url: cancelUrl
+        // URLs temporaires, seront mises à jour après création
+        return_url: `${getPayPalReturnUrls().returnUrl}`,
+        cancel_url: `${getPayPalReturnUrls().cancelUrl}`
       }
     }
 
-    const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
+    const response = await fetch(`${baseUrl}/v2/checkout/orders`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -84,9 +83,15 @@ export async function POST(request: NextRequest) {
     const order = await response.json()
 
     if (response.ok) {
+      // Obtenir les URLs de retour avec l'orderID réel
+      const { returnUrl, cancelUrl } = getPayPalReturnUrls(order.id)
+      
       return NextResponse.json({
         id: order.id,
-        status: order.status
+        status: order.status,
+        links: order.links,
+        returnUrl,
+        cancelUrl
       })
     } else {
       console.error('Erreur PayPal:', order)

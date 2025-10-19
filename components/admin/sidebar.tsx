@@ -134,6 +134,7 @@ const adminNavItems: NavItem[] = [
       { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
       { title: 'Conversion de devises', href: '/admin/settings/currency' },
       { title: 'Calcul d\'Importation', href: '/admin/settings/import-calculation' },
+      { title: 'Méthodes de paiement', href: '/admin/payment-methods' },
     ]
   },
 ]
@@ -145,7 +146,7 @@ function AdminSidebar() {
     // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
     pathname.startsWith('/admin/streaming') 
       ? 'Gestion des abonnements' 
-      : pathname.startsWith('/admin/settings')
+      : pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/payment-methods')
         ? 'Paramètres'
         : pathname.startsWith('/admin/products')
           ? 'Gestion des produits'
@@ -213,7 +214,7 @@ function AdminSidebar() {
                         (pathname.startsWith(`/admin/streaming`) && item.title === 'Gestion des abonnements') ||
                         (pathname.startsWith(`/admin/products`) && item.title === 'Gestion des produits') ||
                         (pathname.startsWith(`/admin/services`) && item.title === 'Gestion des services') ||
-                        (pathname.startsWith(`/admin/settings`) && item.title === 'Paramètres')
+                        ((pathname.startsWith(`/admin/settings`) || pathname.startsWith(`/admin/payment-methods`)) && item.title === 'Paramètres')
                           ? 'bg-slate-800 text-white'
                           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       )}

@@ -40,12 +40,12 @@ export function getSecureBaseUrl(): string {
 }
 
 // Utilitaire pour les URLs de retour PayPal
-export function getPayPalReturnUrls() {
+export function getPayPalReturnUrls(orderID?: string) {
   const baseUrl = getSecureBaseUrl()
   
   return {
-    returnUrl: `${baseUrl}/order-success`,
-    cancelUrl: `${baseUrl}/checkout`
+    returnUrl: `${baseUrl}/paypal-return?orderID=${orderID || 'ORDER_ID'}&success=true`,
+    cancelUrl: `${baseUrl}/paypal-return?orderID=${orderID || 'ORDER_ID'}&success=false`
   }
 }
 

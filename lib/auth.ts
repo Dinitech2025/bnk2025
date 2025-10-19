@@ -180,10 +180,11 @@ export const authOptions: NextAuthOptions = {
       return url
     },
   },
-  pages: {
-    signIn: '/auth/login',
-    error: '/auth/error',
-  },
+  // Pas de pages personnalisées - utilisation du modal AuthModal
+  // pages: {
+  //   signIn: '/auth/login',
+  //   error: '/auth/error',
+  // },
   events: {
     async signIn({ user, account, profile, isNewUser }) {
       console.log('🎉 Connexion réussie:', {
@@ -203,6 +204,10 @@ export async function getSession() {
 
 export async function getCurrentUser() {
   const session = await getSession()
+  console.log('🔍 getCurrentUser - Session:', session ? 'Trouvée' : 'Aucune')
+  if (session?.user) {
+    console.log('👤 getCurrentUser - Utilisateur:', session.user.email, 'Rôle:', session.user.role)
+  }
   return session?.user
 }
 

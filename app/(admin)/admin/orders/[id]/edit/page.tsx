@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link'
 import { Separator } from '@/components/ui/separator'
 import { PriceDisplay } from '@/components/ui/price-display'
-import { Eye, Pencil, ShoppingCart, ArrowLeft, Edit2 } from 'lucide-react'
+import { Eye, Pencil, ShoppingCart, ArrowLeft, Edit2, User, Package, CreditCard } from 'lucide-react'
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { InvoiceGeneratorButton } from '@/components/admin/orders/invoice-generator'
@@ -141,6 +141,7 @@ async function getOrder(id: string): Promise<OrderWithDetails> {
         },
       },
       shippingAddress: true,
+      billingAddress: true,
     }
   });
 
@@ -148,8 +149,30 @@ async function getOrder(id: string): Promise<OrderWithDetails> {
     notFound();
   }
 
-  // Utiliser l'assertion de type
-  return orderData as unknown as OrderWithDetails;
+  // Convertir les Decimal en nombres et formater les dates
+  return {
+    ...orderData,
+    total: Number(orderData.total),
+    createdAt: orderData.createdAt.toISOString(),
+    updatedAt: orderData.updatedAt.toISOString(),
+    items: orderData.items.map((item: any) => ({
+      ...item,
+      unitPrice: Number(item.unitPrice),
+      totalPrice: Number(item.totalPrice),
+      discountValue: item.discountValue ? Number(item.discountValue) : null,
+      discountAmount: item.discountAmount ? Number(item.discountAmount) : null,
+    })),
+    payments: orderData.payments.map((payment: any) => ({
+      ...payment,
+      amount: Number(payment.amount),
+      createdAt: payment.createdAt.toISOString(),
+    })),
+    subscriptions: orderData.subscriptions.map((sub: any) => ({
+      ...sub,
+      startDate: sub.startDate.toISOString(),
+      endDate: sub.endDate.toISOString(),
+    })),
+  } as unknown as OrderWithDetails;
 }
 
 function getStatusBadge(status: string) {
@@ -189,8 +212,9 @@ export default async function OrderPage({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gray-50/30">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
           <Link href="/admin/orders" className="text-gray-500 hover:text-gray-700">
             <ArrowLeft size={20} />
@@ -210,9 +234,12 @@ export default async function OrderPage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white shadow-md rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">Information du client</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Information du client
+          </h2>
           <div className="space-y-3">
             <p className="text-gray-600">
               <span className="font-medium">Nom: </span>
@@ -222,11 +249,20 @@ export default async function OrderPage({ params }: PageProps) {
               <span className="font-medium">Email: </span>
               {order.user.email}
             </p>
+            {order.user.phone && (
+              <p className="text-gray-600">
+                <span className="font-medium">Téléphone: </span>
+                {order.user.phone}
+              </p>
+            )}
           </div>
         </div>
 
         <div className="bg-white shadow-md rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">Détails de la commande</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Détails de la commande
+          </h2>
           <div className="space-y-3">
             {order.orderNumber && (
               <p className="text-gray-600">
@@ -239,6 +275,13 @@ export default async function OrderPage({ params }: PageProps) {
               <OrderStatusBadge status={order.status} />
             </p>
             <p className="text-gray-600">
+              <span className="font-medium">Paiement: </span>
+              <Badge variant={order.paymentStatus === 'PAID' ? 'default' : 'secondary'} className="text-xs">
+                {order.paymentStatus === 'PAID' ? 'Payé' : 
+                 order.paymentStatus === 'PARTIALLY_PAID' ? 'Partiel' : 'En attente'}
+              </Badge>
+            </p>
+            <p className="text-gray-600">
               <span className="font-medium">Date: </span>
               {new Date(order.createdAt).toLocaleDateString('fr-FR', { 
                 day: 'numeric', 
@@ -248,30 +291,61 @@ export default async function OrderPage({ params }: PageProps) {
                 minute: '2-digit'
               })}
             </p>
+          </div>
+        </div>
+
+        <div className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Récapitulatif
+          </h2>
+          <div className="space-y-3">
+            <p className="text-gray-600">
+              <span className="font-medium">Articles: </span>
+              {order.items.length}
+            </p>
+            <p className="text-gray-600">
+              <span className="font-medium">Produits: </span>
+              {order.items.filter(item => item.itemType === 'PRODUCT').length}
+            </p>
+            <p className="text-gray-600">
+              <span className="font-medium">Abonnements: </span>
+              {order.subscriptions?.length || 0}
+            </p>
+            <p className="text-gray-600">
+              <span className="font-medium">Paiements: </span>
+              {order.payments?.length || 0}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Financier
+          </h2>
+          <div className="space-y-3">
             <p className="text-gray-600">
               <span className="font-medium">Total: </span>
               <span className="text-lg font-semibold text-green-600">
                 <PriceDisplay price={Number(order.total)} size="large" />
               </span>
             </p>
-          </div>
-        </div>
-
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">Récapitulatif</h2>
-          <div className="space-y-3">
-            <p className="text-gray-600">
-              <span className="font-medium">Nombre d'articles: </span>
-              {order.items.length}
-            </p>
-            <p className="text-gray-600">
-              <span className="font-medium">Nombre de produits: </span>
-              {order.items.filter(item => item.itemType === 'PRODUCT').length}
-            </p>
-            <p className="text-gray-600">
-              <span className="font-medium">Nombre d'abonnements: </span>
-              {order.subscriptions?.length || 0}
-            </p>
+            {(order as any).globalDiscountAmount && Number((order as any).globalDiscountAmount) > 0 && (
+              <p className="text-green-600">
+                <span className="font-medium">Réduction globale: </span>
+                -{Number((order as any).globalDiscountAmount).toLocaleString('fr-FR')} Ar
+              </p>
+            )}
+            {order.payments && order.payments.length > 0 && (
+              <p className="text-blue-600">
+                <span className="font-medium">Payé: </span>
+                {order.payments
+                  .filter(p => p.status === 'COMPLETED')
+                  .reduce((sum, p) => sum + Number(p.amount), 0)
+                  .toLocaleString('fr-FR')} Ar
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -294,6 +368,9 @@ export default async function OrderPage({ params }: PageProps) {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Quantité
                 </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Réduction
+                </th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
                 </th>
@@ -306,13 +383,20 @@ export default async function OrderPage({ params }: PageProps) {
                 if (item.service) itemName = item.service.name;
                 if (item.offer) itemName = item.offer.name;
 
+                const hasDiscount = (item as any).discountAmount && Number((item as any).discountAmount) > 0;
+                const originalPrice = Number(item.unitPrice) * item.quantity;
+                
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {itemName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {item.itemType}
+                      <Badge variant="secondary" className="text-xs">
+                        {item.itemType === 'PRODUCT' && 'Produit'}
+                        {item.itemType === 'SERVICE' && 'Service'}
+                        {item.itemType === 'OFFER' && 'Abonnement'}
+                      </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <PriceWithConversion price={Number(item.unitPrice)} />
@@ -320,20 +404,64 @@ export default async function OrderPage({ params }: PageProps) {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.quantity}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {hasDiscount ? (
+                        <div className="space-y-1">
+                          <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                            {(item as any).discountType === 'PERCENTAGE' 
+                              ? `${(item as any).discountValue}%` 
+                              : `${Number((item as any).discountValue).toLocaleString('fr-FR')} Ar`
+                            }
+                          </Badge>
+                          <p className="text-xs text-green-600">
+                            -{Number((item as any).discountAmount).toLocaleString('fr-FR')} Ar
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Aucune</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                      <PriceWithConversion price={Number(item.totalPrice)} />
+                      {hasDiscount ? (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-400 line-through">
+                            {originalPrice.toLocaleString('fr-FR')} Ar
+                          </p>
+                          <p className="text-green-600 font-semibold">
+                            <PriceWithConversion price={Number(item.totalPrice)} />
+                          </p>
+                        </div>
+                      ) : (
+                        <PriceWithConversion price={Number(item.totalPrice)} />
+                      )}
                     </td>
                   </tr>
                 );
               })}
               <tr className="bg-gray-50">
-                <td colSpan={4} className="px-6 py-4 text-right text-sm font-semibold">
+                <td colSpan={5} className="px-6 py-4 text-right text-sm font-semibold">
                   Total de la commande:
                 </td>
                 <td className="px-6 py-4 text-right text-sm font-bold text-green-600">
                   <PriceWithConversion price={Number(order.total)} />
                 </td>
               </tr>
+              
+              {/* Ligne pour la réduction globale si elle existe */}
+              {(order as any).globalDiscountAmount && Number((order as any).globalDiscountAmount) > 0 && (
+                <tr className="bg-green-50">
+                  <td colSpan={5} className="px-6 py-4 text-right text-sm font-semibold text-green-700">
+                    Réduction globale 
+                    {(order as any).globalDiscountType === 'PERCENTAGE' 
+                      ? ` (${(order as any).globalDiscountValue}%)` 
+                      : ` (${Number((order as any).globalDiscountValue).toLocaleString('fr-FR')} Ar)`
+                    }:
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm font-bold text-green-600">
+                    -{Number((order as any).globalDiscountAmount).toLocaleString('fr-FR')} Ar
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -404,6 +532,7 @@ export default async function OrderPage({ params }: PageProps) {
           },
         }}
       />
+      </div>
     </div>
   )
 } 

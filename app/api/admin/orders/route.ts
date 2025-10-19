@@ -16,6 +16,8 @@ export async function GET() {
             email: true,
           },
         },
+        billingAddress: true,
+        shippingAddress: true,
         items: {
           include: {
             offer: {
@@ -96,8 +98,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    console.log('=== DÉBUT CRÉATION COMMANDE ===');
     const data = await request.json()
-    console.log('Received data:', JSON.stringify(data, null, 2))
+    console.log('Données reçues:', JSON.stringify(data, null, 2));
 
     // Validation des données minimales requises
     if (!data.userId || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
@@ -109,29 +112,56 @@ export async function POST(request: Request) {
     }
     
     // Vérifier si l'utilisateur existe
+    console.log('👤 Vérification de l\'utilisateur:', data.userId);
     const userExists = await prisma.user.findUnique({
       where: { id: data.userId },
     })
     
     if (!userExists) {
-      console.error('User not found:', data.userId);
+      console.error('❌ Utilisateur non trouvé:', data.userId);
       return NextResponse.json(
-        { message: 'Utilisateur non trouvé' },
+        { message: `Utilisateur non trouvé: ${data.userId}` },
         { status: 404 }
       )
     }
+    
+    console.log('✅ Utilisateur trouvé:', userExists.email);
 
-    // Calcul du total
-    let total = 0
+    console.log('✅ Validation des données de base réussie');
+    
+    // Calcul du total avec réductions
+    console.log('📊 Début du calcul des totaux avec réductions');
+    let itemsSubtotal = 0
     const orderItems = data.items.map((item: any) => {
-      const totalPrice = Number(item.unitPrice) * item.quantity
-      total += totalPrice
+      // Calculer le prix total de l'article (avec réduction par article)
+      const basePrice = Number(item.unitPrice) * item.quantity
+      let itemTotalPrice = basePrice
+      let itemDiscountAmount = 0
+      
+      // Appliquer la réduction par article si elle existe
+      if (item.discountType && item.discountValue) {
+        if (item.discountType === 'PERCENTAGE') {
+          itemDiscountAmount = (basePrice * Number(item.discountValue)) / 100
+        } else if (item.discountType === 'FIXED') {
+          itemDiscountAmount = Math.min(Number(item.discountValue), basePrice)
+        }
+        itemTotalPrice = Math.max(0, basePrice - itemDiscountAmount)
+      }
+      
+      itemsSubtotal += itemTotalPrice
       
       const orderItem: any = {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        totalPrice,
+        totalPrice: itemTotalPrice,
         itemType: item.itemType,
+      }
+
+      // Ajouter les champs de réduction seulement s'ils existent
+      if (item.discountType && item.discountType !== 'NONE') {
+        orderItem.discountType = item.discountType;
+        orderItem.discountValue = item.discountValue ? Number(item.discountValue) : null;
+        orderItem.discountAmount = itemDiscountAmount > 0 ? itemDiscountAmount : null;
       }
       
       // Ajouter les IDs spécifiques selon le type d'item
@@ -148,7 +178,24 @@ export async function POST(request: Request) {
       return orderItem;
     })
 
-    console.log('Order items prepared:', JSON.stringify(orderItems, null, 2));
+    // Calculer la réduction globale
+    let globalDiscountAmount = 0
+    if (data.globalDiscount && data.globalDiscount.type && data.globalDiscount.value) {
+      if (data.globalDiscount.type === 'PERCENTAGE') {
+        globalDiscountAmount = (itemsSubtotal * Number(data.globalDiscount.value)) / 100
+      } else if (data.globalDiscount.type === 'FIXED') {
+        globalDiscountAmount = Math.min(Number(data.globalDiscount.value), itemsSubtotal)
+      }
+    }
+
+    // Total final après réduction globale
+    const total = Math.max(0, itemsSubtotal - globalDiscountAmount)
+
+    console.log('📊 Calculs terminés:');
+    console.log('   - Sous-total articles:', itemsSubtotal);
+    console.log('   - Réduction globale:', globalDiscountAmount);
+    console.log('   - Total final:', total);
+    console.log('📦 Articles préparés:', JSON.stringify(orderItems, null, 2));
     
     // Récupérer le dernier numéro de commande pour générer le suivant
     const currentYear = new Date().getFullYear();
@@ -193,14 +240,75 @@ export async function POST(request: Request) {
     // Création de la commande avec transaction pour gérer les abonnements
     const result = await prisma.$transaction(async (prismaClient) => {
       try {
+        // Créer les adresses si fournies
+        let billingAddressId = null;
+        let shippingAddressId = null;
+
+        if (data.billingAddress) {
+          const billingAddr = await prismaClient.address.create({
+            data: {
+              userId: data.userId,
+              type: 'BILLING',
+              street: data.billingAddress.address,
+              city: data.billingAddress.city,
+              state: data.billingAddress.state || null,
+              zipCode: data.billingAddress.postalCode || '',
+              country: data.billingAddress.country || 'Madagascar',
+              phoneNumber: data.billingAddress.phone || null,
+              isDefault: false
+            }
+          });
+          billingAddressId = billingAddr.id;
+        }
+
+        if (data.shippingAddress) {
+          const shippingAddr = await prismaClient.address.create({
+            data: {
+              userId: data.userId,
+              type: 'SHIPPING',
+              street: data.shippingAddress.address,
+              city: data.shippingAddress.city,
+              state: data.shippingAddress.state || null,
+              zipCode: data.shippingAddress.postalCode || '',
+              country: data.shippingAddress.country || 'Madagascar',
+              phoneNumber: data.shippingAddress.phone || null,
+              isDefault: false
+            }
+          });
+          shippingAddressId = shippingAddr.id;
+        }
+
         // Création de la commande de base
+        console.log('🗄️ Création de la commande dans la base de données...');
+        console.log('📋 Données pour Prisma:', {
+          userId: data.userId,
+          orderNumber: orderNumber,
+          status: data.status || 'PENDING',
+          total,
+          addressId: shippingAddressId || data.addressId,
+          billingAddressId: billingAddressId,
+          hasGlobalDiscount: !!(data.globalDiscount && data.globalDiscount.type && data.globalDiscount.type !== 'NONE' && globalDiscountAmount > 0),
+          itemsCount: orderItems.length
+        });
+        
         const order = await prismaClient.order.create({
           data: {
             userId: data.userId,
             orderNumber: orderNumber,
             status: data.status || 'PENDING',
             total,
-            addressId: data.addressId,
+            addressId: shippingAddressId || data.addressId,
+            billingAddressId: billingAddressId,
+            // Réduction globale (seulement si elle existe)
+            ...(data.globalDiscount && data.globalDiscount.type && data.globalDiscount.type !== 'NONE' && globalDiscountAmount > 0 ? {
+              globalDiscountType: data.globalDiscount.type,
+              globalDiscountValue: Number(data.globalDiscount.value),
+              globalDiscountAmount: globalDiscountAmount,
+            } : {}),
+            // Sauvegarder le mode de livraison dans les notes pour traçabilité
+            notes: data.notes ? 
+              `Mode de livraison: ${data.shippingAddress ? 'Livraison à domicile' : 'Retrait au magasin'}\n\n${data.notes}` :
+              `Mode de livraison: ${data.shippingAddress ? 'Livraison à domicile' : 'Retrait au magasin'}`,
             items: {
               create: orderItems,
             },
@@ -377,8 +485,18 @@ export async function POST(request: Request) {
     return NextResponse.json(result)
   } catch (error) {
     console.error('Error creating order:', error)
+    
+    // Gestion spécifique des erreurs Prisma
+    if (error instanceof Error) {
+      console.error('Error details:', error.message, error.stack)
+      return NextResponse.json(
+        { message: `Erreur lors de la création de la commande: ${error.message}` },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
-      { message: 'Une erreur est survenue lors de la création de la commande.' },
+      { message: 'Une erreur inconnue est survenue lors de la création de la commande.' },
       { status: 500 }
     )
   }

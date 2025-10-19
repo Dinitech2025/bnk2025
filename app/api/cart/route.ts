@@ -4,8 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
-// Durée de vie du panier pour les invités : 7 jours
-const GUEST_CART_EXPIRY_DAYS = 7
+// Durée de vie du panier pour les invités : 3 jours
+const GUEST_CART_EXPIRY_DAYS = 3
 
 // Schéma de validation pour l'ajout d'un item au panier
 const addCartItemSchema = z.object({
@@ -27,15 +27,34 @@ const updateQuantitySchema = z.object({
 // Fonction pour nettoyer les paniers expirés
 async function cleanExpiredCarts() {
   try {
-    await prisma.cart.deleteMany({
+    const now = new Date()
+    
+    // Compter les paniers expirés avant suppression
+    const expiredCartsCount = await prisma.cart.count({
       where: {
         expiresAt: {
-          lt: new Date()
+          lt: now
         }
       }
     })
+    
+    if (expiredCartsCount > 0) {
+      // Supprimer les paniers expirés (les items seront supprimés en cascade)
+      const result = await prisma.cart.deleteMany({
+        where: {
+          expiresAt: {
+            lt: now
+          }
+        }
+      })
+      
+      console.log(`🧹 Nettoyage automatique: ${result.count} paniers expirés supprimés`)
+    }
+    
+    return expiredCartsCount
   } catch (error) {
-    console.error('Erreur lors du nettoyage des paniers expirés:', error)
+    console.error('❌ Erreur lors du nettoyage des paniers expirés:', error)
+    return 0
   }
 }
 

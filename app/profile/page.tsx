@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Pencil, MapPin, ShoppingBag, Calendar, User, Mail, Phone, CreditCard, Briefcase } from 'lucide-react'
+import { translateOrderStatus, getOrderStatusColor } from '@/lib/utils/status-translations'
+import { useCurrency } from '@/lib/contexts/currency-context'
 
 interface Address {
   id: string
@@ -52,11 +54,27 @@ interface UserProfile {
 
 export default function ProfilePage() {
   const { data: session, status } = useSession()
+  const { currency, targetCurrency, exchangeRates } = useCurrency()
   const router = useRouter()
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('info')
+
+  // Helper pour convertir les prix (utilise les taux du système)
+  const convertPrice = (price: number, targetCurrency?: string) => {
+    if (!targetCurrency || targetCurrency === currency) return price
+    
+    // Utiliser les taux du système (exchangeRates du contexte)
+    const rate = exchangeRates[targetCurrency]
+    return rate ? price * rate : price
+  }
+
+  // Helper pour formater les prix avec conversion
+  const formatPrice = (price: number) => {
+    const convertedPrice = convertPrice(price, targetCurrency || currency)
+    return `${convertedPrice.toLocaleString()} ${targetCurrency || currency}`
+  }
 
   useEffect(() => {
     // Gérer le paramètre tab dans l'URL
@@ -398,20 +416,12 @@ export default function ProfilePage() {
                               </td>
                               <td className="px-4 py-3">
                                 <span
-                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    order.status === 'COMPLETED'
-                                      ? 'bg-green-100 text-green-800'
-                                      : order.status === 'PENDING'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : order.status === 'CANCELLED'
-                                      ? 'bg-red-100 text-red-800'
-                                      : 'bg-blue-100 text-blue-800'
-                                  }`}
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getOrderStatusColor(order.status)}`}
                                 >
-                                  {order.status}
+                                  {translateOrderStatus(order.status)}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm">{Number(order.total).toFixed(0)} Ar</td>
+                              <td className="px-4 py-3 text-sm">{formatPrice(Number(order.total))}</td>
                               <td className="px-4 py-3 text-sm">
                                 <Link href={`/profile/orders/${order.id}`} className="text-primary hover:underline">
                                   Détails

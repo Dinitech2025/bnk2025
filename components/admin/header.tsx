@@ -14,48 +14,51 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { CurrencySelector } from '@/components/ui/currency-selector'
 
-interface AdminHeaderProps {
-  user: {
-    name?: string | null
-    email?: string | null
-    image?: string | null
-    role: string
-  }
-}
-
-export default function AdminHeader({ user }: AdminHeaderProps) {
+export default function AdminHeader() {
   const { data: session, update } = useSession()
-  const [userData, setUserData] = useState(user)
+  const [userData, setUserData] = useState({
+    name: '',
+    email: '',
+    image: '',
+    role: ''
+  })
+
+  // Mettre à jour userData quand la session change
+  useEffect(() => {
+    if (session?.user) {
+      setUserData({
+        name: session.user.name || '',
+        email: session.user.email || '',
+        image: session.user.image || '',
+        role: session.user.role || ''
+      })
+    }
+  }, [session])
   
-  // Récupérer les données à jour de l'utilisateur
+  // Récupérer les données à jour de l'utilisateur (simplifié pour éviter les boucles)
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        if (!session?.user?.email) return
+        
         const response = await fetch('/api/profile')
         if (response.ok) {
           const data = await response.json()
-          setUserData({
-            ...user,
-            name: data.name || user.name,
-            image: data.image || user.image
-          })
-          // Mettre à jour la session
-          await update({
-            ...session,
-            user: {
-              ...session?.user,
-              name: data.name,
-              image: data.image
-            }
-          })
+          setUserData(prev => ({
+            ...prev,
+            name: data.name || session.user.name || '',
+            image: data.image || session.user.image || ''
+          }))
         }
       } catch (error) {
         console.error('Erreur lors de la récupération du profil:', error)
       }
     }
     
-    fetchUserData()
-  }, [user.email])
+    if (session?.user?.email) {
+      fetchUserData()
+    }
+  }, [session?.user?.email]) // Dépendances minimales
   
   const initials = userData.name
     ? userData.name.split(' ').map((n) => n[0]).join('')

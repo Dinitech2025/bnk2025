@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url)
     const platformId = searchParams.get('platformId')
+    const userId = searchParams.get('userId')
 
     // Construire les conditions de filtrage
     const whereConditions: any = {}
@@ -37,6 +38,11 @@ export async function GET(request: NextRequest) {
     // Si platformId est spécifié, filtrer par plateforme
     if (platformId) {
       whereConditions.platformId = platformId
+    }
+
+    // Si userId est spécifié, filtrer par utilisateur (comptes appartenant à cet utilisateur)
+    if (userId) {
+      whereConditions.userId = userId
     }
 
     const accounts = await prisma.account.findMany({
@@ -50,7 +56,8 @@ export async function GET(request: NextRequest) {
             logo: true,
             type: true,
             hasProfiles: true,
-            hasGiftCards: true
+            hasGiftCards: true,
+            maxProfilesPerAccount: true
           }
         },
         accountProfiles: {
@@ -122,8 +129,8 @@ export async function GET(request: NextRequest) {
         providerOffer: account.providerOffer,
         accountProfiles: account.accountProfiles,
         activeSubscription: activeSubscription,
-        currentProfiles: usedProfiles,
-        maxProfiles: totalProfiles,
+        profilesUsed: usedProfiles,
+        maxProfiles: account.platform.maxProfilesPerAccount || totalProfiles,
         availableProfiles: totalProfiles - usedProfiles
       }
     })

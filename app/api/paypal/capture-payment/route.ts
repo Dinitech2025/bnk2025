@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Configuration PayPal
-const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET
-const PAYPAL_BASE_URL = process.env.PAYPAL_MODE === 'live' 
-  ? 'https://api-m.paypal.com' 
-  : 'https://api-m.sandbox.paypal.com'
+import { getPayPalConfig, getPayPalBaseUrl } from '@/lib/paypal-config'
 
 // Fonction pour obtenir un token d'accès PayPal
 async function getPayPalAccessToken() {
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64')
+  const config = await getPayPalConfig()
+  const baseUrl = getPayPalBaseUrl(config.environment)
   
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+  const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')
+  
+  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
@@ -26,10 +23,14 @@ async function getPayPalAccessToken() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Récupérer la configuration PayPal
+    const config = await getPayPalConfig()
+    const baseUrl = getPayPalBaseUrl(config.environment)
+    
     // Vérifier que PayPal est configuré
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    if (!config.clientId || !config.clientSecret) {
       return NextResponse.json(
-        { error: 'PayPal non configuré. Veuillez définir PAYPAL_CLIENT_ID et PAYPAL_CLIENT_SECRET.' },
+        { error: 'PayPal non configuré. Veuillez configurer les clés API dans les paramètres.' },
         { status: 500 }
       )
     }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     const accessToken = await getPayPalAccessToken()
 
     // Capturer le paiement
-    const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
+    const response = await fetch(`${baseUrl}/v2/checkout/orders/${orderID}/capture`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,

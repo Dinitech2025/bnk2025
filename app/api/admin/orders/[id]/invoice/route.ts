@@ -54,6 +54,8 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
       where: { id: orderId },
       include: {
         user: true,
+        billingAddress: true,
+        shippingAddress: true,
         items: {
           include: {
             product: true,
@@ -129,6 +131,20 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
         const paymentAmount = Number(payment.amount);
         convertedPrices[`${paymentAmount}`] = convertPrice(paymentAmount);
       });
+
+      // Convertir les montants de réduction
+      order.items.forEach(item => {
+        if (item.discountAmount) {
+          const discountAmount = Number(item.discountAmount);
+          convertedPrices[`${discountAmount}`] = convertPrice(discountAmount);
+        }
+      });
+
+      // Convertir la réduction globale
+      if (order.globalDiscountAmount) {
+        const globalDiscountAmount = Number(order.globalDiscountAmount);
+        convertedPrices[`${globalDiscountAmount}`] = convertPrice(globalDiscountAmount);
+      }
     }
 
     // Structurer les données de la commande pour la facture
@@ -147,21 +163,21 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
         email: order.user.email || "",
         phone: order.user.phone || undefined
       },
-      billingAddress: order.billingAddress && (order.billingAddress.address || order.billingAddress.city) ? {
-        name: order.billingAddress.name || '',
-        address: order.billingAddress.address || '',
+      billingAddress: order.billingAddress && (order.billingAddress.street || order.billingAddress.city) ? {
+        name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
+        address: order.billingAddress.street || '',
         city: order.billingAddress.city || '',
-        postalCode: order.billingAddress.postalCode || '',
+        postalCode: order.billingAddress.zipCode || '',
         country: order.billingAddress.country || '',
-        phone: order.billingAddress.phone || undefined
+        phone: order.billingAddress.phoneNumber || undefined
       } : undefined,
-      shippingAddress: order.shippingAddress && (order.shippingAddress.address || order.shippingAddress.city) ? {
-        name: order.shippingAddress.name || '',
-        address: order.shippingAddress.address || '',
+      shippingAddress: order.shippingAddress && (order.shippingAddress.street || order.shippingAddress.city) ? {
+        name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
+        address: order.shippingAddress.street || '',
         city: order.shippingAddress.city || '',
-        postalCode: order.shippingAddress.postalCode || '',
+        postalCode: order.shippingAddress.zipCode || '',
         country: order.shippingAddress.country || '',
-        phone: order.shippingAddress.phone || undefined
+        phone: order.shippingAddress.phoneNumber || undefined
       } : undefined,
       payments: order.payments?.map(payment => ({
         method: payment.method,
@@ -169,14 +185,37 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
         provider: payment.provider || undefined,
         createdAt: payment.createdAt
       })) || [],
-      items: order.items.map(item => ({
-        id: item.id,
-        name: item.product?.name || item.service?.name || item.offer?.name || 'Article inconnu',
-        quantity: item.quantity,
-        unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice),
-        type: item.itemType,
-      })),
+      items: order.items.map(item => {
+        // Récupérer le nom depuis les relations ou les métadonnées
+        let itemName = item.product?.name || item.service?.name || item.offer?.name;
+        
+        // Si pas de nom trouvé, vérifier les métadonnées
+        if (!itemName && item.metadata) {
+          try {
+            const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+            itemName = metadata.name;
+          } catch (e) {
+            // Ignorer les erreurs de parsing
+          }
+        }
+        
+        return {
+          id: item.id,
+          name: itemName || 'Article inconnu',
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+          type: item.itemType,
+          discountType: item.discountType || undefined,
+          discountValue: item.discountValue ? Number(item.discountValue) : undefined,
+          discountAmount: item.discountAmount ? Number(item.discountAmount) : undefined,
+        };
+      }),
+      globalDiscount: (order.globalDiscountType && order.globalDiscountValue && order.globalDiscountAmount) ? {
+        type: order.globalDiscountType,
+        value: Number(order.globalDiscountValue),
+        amount: Number(order.globalDiscountAmount)
+      } : undefined,
       convertedPrices: Object.keys(convertedPrices).length > 0 ? convertedPrices : undefined
     };
 

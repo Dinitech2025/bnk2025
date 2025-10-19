@@ -6,45 +6,48 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
-    console.log('🗑️ Vidage du panier pour:', session?.user?.id || 'utilisateur anonyme')
-
-    if (session?.user?.id) {
-      // Utilisateur connecté - vider le panier en base
-      const deletedItems = await prisma.cartItem.deleteMany({
-        where: {
-          cart: {
-            userId: session.user.id
-          }
-        }
-      })
-
-      console.log(`✅ ${deletedItems.count} articles supprimés du panier en base`)
-
-      return NextResponse.json({
-        success: true,
-        message: 'Panier vidé avec succès',
-        deletedItems: deletedItems.count
-      })
-    } else {
-      // Utilisateur anonyme - le panier sera vidé côté client via localStorage
-      console.log('ℹ️ Utilisateur anonyme - vidage côté client')
-      
-      return NextResponse.json({
-        success: true,
-        message: 'Panier vidé (côté client)',
-        deletedItems: 0
-      })
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
+    console.log('🧹 Vidage du panier pour utilisateur:', session.user.id)
+
+    // Supprimer tous les articles du panier de l'utilisateur
+    const deletedItems = await prisma.cartItem.deleteMany({
+      where: {
+        cart: {
+          userId: session.user.id
+        }
+      }
+    })
+
+    // Supprimer le panier lui-même
+    const deletedCart = await prisma.cart.deleteMany({
+      where: {
+        userId: session.user.id
+      }
+    })
+
+    console.log('✅ Panier vidé:', {
+      itemsDeleted: deletedItems.count,
+      cartsDeleted: deletedCart.count
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Panier vidé avec succès',
+      itemsDeleted: deletedItems.count,
+      cartsDeleted: deletedCart.count
+    })
+
   } catch (error) {
-    console.error('❌ Erreur vidage panier:', error)
-    
+    console.error('❌ Erreur lors du vidage du panier:', error)
     return NextResponse.json(
-      { 
-        error: 'Erreur lors du vidage du panier',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
-      },
+      { error: 'Erreur interne du serveur' },
       { status: 500 }
     )
   }

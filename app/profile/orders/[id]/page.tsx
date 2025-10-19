@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Package, MapPin, CreditCard, Calendar, User, Phone, Mail, FileText } from 'lucide-react'
+import { translateOrderStatus, getOrderStatusColor } from '@/lib/utils/status-translations'
+import { useCurrency } from '@/lib/contexts/currency-context'
 
 interface OrderItem {
   id: string
@@ -61,6 +63,7 @@ interface OrderDetail {
 
 export default function OrderDetailPage() {
   const { data: session, status } = useSession()
+  const { currency, targetCurrency, exchangeRates } = useCurrency()
   const router = useRouter()
   const params = useParams()
   const orderId = params.id as string
@@ -68,6 +71,21 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Helper pour convertir les prix (utilise les taux du système)
+  const convertPrice = (price: number, targetCurrency?: string) => {
+    if (!targetCurrency || targetCurrency === currency) return price
+    
+    // Utiliser les taux du système (exchangeRates du contexte)
+    const rate = exchangeRates[targetCurrency]
+    return rate ? price * rate : price
+  }
+
+  // Helper pour formater les prix avec conversion
+  const formatPrice = (price: number) => {
+    const convertedPrice = convertPrice(price, targetCurrency || currency)
+    return `${convertedPrice.toLocaleString()} ${targetCurrency || currency}`
+  }
 
   useEffect(() => {
     // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
@@ -146,27 +164,23 @@ export default function OrderDetailPage() {
     })
   }
 
-  // Déterminer la couleur du statut
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Payée':
-        return 'bg-green-100 text-green-800'
-      case 'Devis en attente de paiement':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'Annulée':
-        return 'bg-red-100 text-red-800'
-      case 'En cours':
-        return 'bg-blue-100 text-blue-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
 
   // Obtenir le nom de l'article
   const getItemName = (item: OrderItem) => {
     if (item.product) return item.product.name
     if (item.service) return item.service.name
     if (item.offer) return item.offer.name
+    
+    // Vérifier les métadonnées pour les produits sans relation
+    if (item.metadata) {
+      try {
+        const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata
+        if (metadata.name) return metadata.name
+      } catch (e) {
+        // Ignorer les erreurs de parsing
+      }
+    }
+    
     return 'Article inconnu'
   }
 
@@ -204,8 +218,8 @@ export default function OrderDetailPage() {
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
-            <Badge className={`px-3 py-1 text-sm ${getStatusColor(order.status)}`}>
-              {order.status}
+            <Badge className={`px-3 py-1 text-sm ${getOrderStatusColor(order.status)}`}>
+              {translateOrderStatus(order.status)}
             </Badge>
           </div>
         </div>
@@ -232,7 +246,7 @@ export default function OrderDetailPage() {
                         {getItemType(item)} • Quantité: {item.quantity}
                       </p>
                       <p className="text-sm text-gray-600">
-                        Prix unitaire: {Number(item.unitPrice).toFixed(0)} Ar
+                        Prix unitaire: {formatPrice(Number(item.unitPrice))}
                       </p>
                       
                       {/* Métadonnées spécifiques */}
@@ -251,7 +265,7 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{Number(item.totalPrice).toFixed(0)} Ar</p>
+                      <p className="font-medium">{formatPrice(Number(item.totalPrice))}</p>
                     </div>
                   </div>
                 ))}
@@ -262,7 +276,7 @@ export default function OrderDetailPage() {
               {/* Total */}
               <div className="flex justify-between items-center">
                 <span className="text-lg font-medium">Total</span>
-                <span className="text-xl font-bold">{Number(order.total).toFixed(0)} Ar</span>
+                <span className="text-xl font-bold">{formatPrice(Number(order.total))}</span>
               </div>
             </CardContent>
           </Card>
@@ -363,8 +377,8 @@ export default function OrderDetailPage() {
               </div>
               <div>
                 <p className="text-sm font-medium">Statut</p>
-                <Badge className={`px-2 py-1 text-xs ${getStatusColor(order.status)}`}>
-                  {order.status}
+                <Badge className={`px-2 py-1 text-xs ${getOrderStatusColor(order.status)}`}>
+                  {translateOrderStatus(order.status)}
                 </Badge>
               </div>
             </CardContent>

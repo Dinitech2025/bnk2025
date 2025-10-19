@@ -10,9 +10,12 @@ interface DeliveryNoteData {
     firstName: string | null;
     lastName: string | null;
     email: string;
+    phone?: string | null;
   };
   items: Array<{
     quantity: number;
+    unitPrice?: number;
+    totalPrice?: number;
     product?: {
       name: string;
     };
@@ -29,131 +32,222 @@ interface DeliveryNoteData {
     zipCode: string;
     country: string;
   };
+  billingAddress?: {
+    street: string;
+    city: string;
+    zipCode: string;
+    country: string;
+  };
+  total?: number;
+  currency?: string;
+}
+
+// Fonction utilitaire pour formater les prix
+function formatPrice(price: number): string {
+  return price.toLocaleString('fr-FR').replace(/,/g, ' ')
+}
+
+// Fonction utilitaire pour formater les adresses
+function formatAddress(address: any, customerInfo?: any): string[] {
+  if (!address || (!address.street && !address.city)) {
+    if (customerInfo) {
+      return [
+        customerInfo.name || '',
+        customerInfo.email || '',
+        customerInfo.phone || ''
+      ].filter(Boolean)
+    }
+    return ['Adresse non spécifiée']
+  }
+  
+  return [
+    address.street || '',
+    `${address.zipCode || ''} ${address.city || ''}`.trim(),
+    address.country || ''
+  ].filter(Boolean)
 }
 
 export function generateDeliveryNotePDF(data: DeliveryNoteData): string {
   try {
-    // Créer un nouveau document PDF en français, format A4
+    // Créer un nouveau document PDF
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4'
-    });
+    })
     
     // Ajouter autoTable au document
-    autoTable(doc, {});
+    autoTable(doc, {})
     
-    // Configuration de l'entreprise
-    const companyName = 'Boutik Naka';
-    const companyAddress = '123 Rue du Commerce, 75001 Paris';
-    const companyPhone = '+33 1 23 45 67 89';
-    const companyEmail = 'contact@boutiknaka.com';
-    const companyWebsite = 'www.boutiknaka.com';
+    // Dimensions et marges
+    const pageWidth = doc.internal.pageSize.width
+    const margin = 15
+    let currentY = margin
     
-    // Dimensions de la page
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
-    const margin = 20;
-    
-    // Formater la date
-    const deliveryDate = format(new Date(data.createdAt), 'dd MMMM yyyy', { locale: fr });
-    
-    // Ajouter l'en-tête
-    doc.setFontSize(24);
-    doc.text('BON DE LIVRAISON', pageWidth / 2, margin, { align: 'center' });
-    
-    // Informations de l'entreprise
-    doc.setFontSize(10);
-    doc.text(companyName, margin, margin + 10);
-    doc.text(companyAddress, margin, margin + 15);
-    doc.text(`Tél: ${companyPhone}`, margin, margin + 20);
-    doc.text(`Email: ${companyEmail}`, margin, margin + 25);
-    doc.text(`Site: ${companyWebsite}`, margin, margin + 30);
-    
-    // Informations du bon de livraison
-    doc.setFontSize(12);
-    doc.text(`N° Commande: ${data.orderNumber}`, pageWidth - margin, margin + 10, { align: 'right' });
-    doc.text(`Date: ${deliveryDate}`, pageWidth - margin, margin + 20, { align: 'right' });
-    
-    // Informations du client
-    doc.setFontSize(12);
-    doc.text('DESTINATAIRE:', margin, margin + 50);
-    doc.setFontSize(10);
-    const clientName = `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim();
-    doc.text(clientName || 'N/A', margin, margin + 60);
-    doc.text(data.user.email, margin, margin + 65);
-
-    // Adresse de livraison
-    if (data.address) {
-      doc.text('Adresse de livraison:', margin, margin + 75);
-      doc.text(data.address.street, margin, margin + 80);
-      doc.text(`${data.address.zipCode} ${data.address.city}`, margin, margin + 85);
-      doc.text(data.address.country, margin, margin + 90);
+    // Fonction pour ajouter l'en-tête de l'entreprise
+    const addCompanyHeader = () => {
+      // Logo ou nom de l'entreprise
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.text("Boutik'nakà", margin, currentY)
+      
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text('Service proposé par Dinitech', margin, currentY + 5)
+      
+      currentY += 15
     }
     
-    // Préparer les données pour le tableau
-    const tableData = data.items.map(item => [
-      item.quantity.toString(),
-      item.product?.name || item.service?.name || item.offer?.name || 'N/A',
-      'À vérifier',
-      ''
-    ]);
+    // Ajouter l'en-tête
+    addCompanyHeader()
     
-    let finalY = margin + 100;
+    // Titre du document
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text('BON DE LIVRAISON', pageWidth / 2, currentY, { align: 'center' })
     
-    // Ajouter le tableau des articles
+    // Numéro de commande
+    doc.setFontSize(12)
+    doc.text(`N° ${data.orderNumber}`, pageWidth - margin, currentY, { align: 'right' })
+    
+    currentY += 15
+    
+    // Informations client et adresses
+    const customerInfo = {
+      name: `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim(),
+      email: data.user.email,
+      phone: data.user.phone || ''
+    }
+    
+    // Informations client et adresse de livraison
+    const shippingAddress = formatAddress(data.address, customerInfo)
+    
+    // Informations client
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('DESTINATAIRE :', margin, currentY)
+    
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    currentY += 6
+    doc.text(customerInfo.name || 'Client', margin, currentY)
+    currentY += 4
+    doc.text(customerInfo.email, margin, currentY)
+    if (customerInfo.phone) {
+      currentY += 4
+      doc.text(customerInfo.phone, margin, currentY)
+    }
+    
+    currentY += 10
+    
+    // Adresse de livraison
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('ADRESSE DE LIVRAISON :', margin, currentY)
+    
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    currentY += 6
+    shippingAddress.forEach(line => {
+      if (line) {
+        doc.text(line, margin, currentY)
+        currentY += 4
+      }
+    })
+    
+    currentY += 15
+    
+    // Date de livraison
+    const deliveryDate = format(new Date(), 'dd/MM/yyyy', { locale: fr })
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text(`DATE DE LIVRAISON : ${deliveryDate}`, margin, currentY)
+    
+    currentY += 15
+    
+    // Tableau des articles à livrer (sans prix)
+    const articlesData = data.items.map(item => {
+      const itemName = item.product?.name || item.service?.name || item.offer?.name || 'Article'
+      
+      return [
+        itemName,
+        item.quantity.toString(),
+        '☐ Conforme',
+        ''
+      ]
+    })
+    
     autoTable(doc, {
-      startY: finalY,
-      head: [['Quantité', 'Article', 'État', 'Remarques']],
-      body: tableData,
+      head: [['Article à livrer', 'Quantité', 'État', 'Remarques']],
+      body: articlesData,
+      startY: currentY,
       theme: 'grid',
       styles: {
         fontSize: 10,
-        cellPadding: 5
+        cellPadding: 4,
+        textColor: [0, 0, 0]
       },
       headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: 255,
-        fontStyle: 'bold',
-        halign: 'center'
+        fillColor: [128, 128, 128],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
       },
       columnStyles: {
-        0: { cellWidth: 20, halign: 'center' },
-        1: { cellWidth: 80 },
+        0: { cellWidth: 80 },
+        1: { cellWidth: 25, halign: 'center' },
         2: { cellWidth: 30, halign: 'center' },
-        3: { cellWidth: 50 }
-      },
-      didDrawPage: function(data) {
-        if (data.cursor) {
-          finalY = data.cursor.y;
-        }
+        3: { cellWidth: 35 }
       }
-    });
-
-    // Ajouter la zone de signature
-    finalY += 20;
-    doc.setFontSize(10);
-    doc.text('Signature du livreur:', margin, finalY);
-    doc.text('Date et signature du client:', pageWidth - margin - 60, finalY);
-
-    // Ligne pour la signature du livreur
-    doc.line(margin, finalY + 20, margin + 60, finalY + 20);
+    })
     
-    // Ligne pour la signature du client
-    doc.line(pageWidth - margin - 60, finalY + 20, pageWidth - margin, finalY + 20);
-
-    // Mentions légales
-    doc.setFontSize(8);
-    doc.text('Ce document doit être signé par le client à la réception de la marchandise.', margin, pageHeight - margin);
+    currentY = (doc as any).lastAutoTable.finalY + 15
     
-    // Retourner le PDF en base64
-    return doc.output('datauristring');
+    // Instructions de livraison
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('INSTRUCTIONS DE LIVRAISON :', margin, currentY)
+    
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    currentY += 6
+    const instructions = [
+      '• Vérifiez la conformité des articles à la réception',
+      '• Cochez la case "Conforme" pour chaque article vérifié',
+      '• Notez toute remarque dans la colonne prévue à cet effet',
+      '• Signez le bon de livraison après vérification complète'
+    ]
+    
+    instructions.forEach(instruction => {
+      doc.text(instruction, margin, currentY)
+      currentY += 5
+    })
+    
+    // Signatures
+    currentY += 15
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    
+    // Signature livreur
+    doc.text('Signature du livreur :', margin, currentY)
+    doc.rect(margin, currentY + 5, 70, 20)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text('Date et heure :', margin, currentY + 30)
+    doc.line(margin + 25, currentY + 30, margin + 70, currentY + 30)
+    
+    // Signature destinataire
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('Signature du destinataire :', pageWidth - margin - 70, currentY)
+    doc.rect(pageWidth - margin - 70, currentY + 5, 70, 20)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text('Date et heure :', pageWidth - margin - 70, currentY + 30)
+    doc.line(pageWidth - margin - 45, currentY + 30, pageWidth - margin, currentY + 30)
+    
+    return doc.output('datauristring')
   } catch (error) {
-    console.error('Erreur lors de la génération du PDF:', error);
-    if (error instanceof Error) {
-      throw new Error(`Erreur de génération du PDF: ${error.message}`);
-    } else {
-      throw new Error('Une erreur inattendue est survenue lors de la génération du PDF');
-    }
+    console.error('Erreur lors de la génération du bon de commande:', error)
+    throw new Error('Erreur lors de la génération du PDF')
   }
 }

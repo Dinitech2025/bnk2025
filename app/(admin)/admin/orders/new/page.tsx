@@ -1,6 +1,6 @@
 import React from 'react';
 import { prisma } from '@/lib/prisma';
-import { OrderForm } from '@/components/admin/orders/order-form';
+import { EnhancedOrderForm } from '@/components/admin/orders/enhanced-order-form';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -12,11 +12,31 @@ export default async function NewOrderPage() {
   // Récupérer les données nécessaires
   const [users, products, services, offers] = await Promise.all([
     prisma.user.findMany({
+      where: {
+        role: 'CLIENT'
+      },
       select: {
         id: true,
         firstName: true,
         lastName: true,
-        email: true
+        email: true,
+        phone: true,
+        addresses: {
+          select: {
+            id: true,
+            type: true,
+            street: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
+            phoneNumber: true,
+            isDefault: true
+          },
+          orderBy: {
+            isDefault: 'desc' // Adresse par défaut en premier
+          }
+        }
       }
     }),
     prisma.product.findMany({
@@ -108,9 +128,10 @@ export default async function NewOrderPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold tracking-tight mb-6">Nouvelle commande</h1>
-      <OrderForm {...formattedData} />
+    <div className="min-h-screen bg-gray-50/30">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
+        <EnhancedOrderForm {...formattedData} />
+      </div>
     </div>
   );
 } 

@@ -102,14 +102,74 @@ export async function PATCH(
         }
       })
 
-      // Si la commande passe à CONFIRMED et qu'elle est entièrement payée, activer les abonnements
-      if (status === 'CONFIRMED' && existingOrder.paymentStatus === 'PAID') {
+      // Si la commande passe à CONFIRMED/PAID et qu'elle est entièrement payée, gérer les abonnements
+      if ((status === 'CONFIRMED' || status === 'PAID') && existingOrder.paymentStatus === 'PAID') {
+        // 1. Activer les abonnements existants
         for (const subscription of updatedOrder.subscriptions) {
           if (subscription.status === 'PENDING') {
             await tx.subscription.update({
               where: { id: subscription.id },
               data: { status: 'ACTIVE' }
             })
+          }
+        }
+
+        // 2. Créer automatiquement des abonnements pour les offres d'abonnement si aucun n'existe
+        if (updatedOrder.subscriptions.length === 0) {
+          // Récupérer les items de la commande avec les détails des offres
+          const orderWithItems = await tx.order.findUnique({
+            where: { id: orderId },
+            include: {
+              items: {
+                include: {
+                  offer: {
+                    include: {
+                      platformOffers: {
+                        include: {
+                          platform: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          });
+
+          if (orderWithItems) {
+            // Identifier les items qui sont des offres d'abonnement
+            const subscriptionOffers = orderWithItems.items.filter(item => 
+              (item.itemType === 'OFFER' || item.itemType === 'SUBSCRIPTION') && 
+              item.offer && 
+              item.offer.platformOffers.length > 0
+            );
+
+            console.log(`🔍 Offres d'abonnement trouvées lors du changement de statut: ${subscriptionOffers.length}`);
+
+            // Créer un abonnement pour chaque offre d'abonnement
+            for (const item of subscriptionOffers) {
+              if (!item.offer) continue;
+
+              // Calculer les dates de début et fin
+              const startDate = new Date();
+              const endDate = new Date();
+              endDate.setMonth(endDate.getMonth() + item.offer.duration);
+
+              // Créer l'abonnement
+              const newSubscription = await tx.subscription.create({
+                data: {
+                  userId: orderWithItems.userId,
+                  offerId: item.offer.id,
+                  orderId: orderId,
+                  status: 'ACTIVE',
+                  startDate: startDate,
+                  endDate: endDate,
+                  autoRenew: false
+                }
+              });
+
+              console.log(`✅ Abonnement créé automatiquement lors du changement de statut: ${newSubscription.id} pour l'offre ${item.offer.name}`);
+            }
           }
         }
       }

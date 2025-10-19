@@ -17,6 +17,7 @@ export async function GET(
             firstName: true,
             lastName: true,
             email: true,
+            phone: true,
           },
         },
         items: {
@@ -46,6 +47,14 @@ export async function GET(
             country: true,
           },
         },
+        billingAddress: {
+          select: {
+            street: true,
+            city: true,
+            zipCode: true,
+            country: true,
+          },
+        },
       },
     });
 
@@ -57,9 +66,10 @@ export async function GET(
     }
 
     // Vérifier que la commande est dans un état permettant la génération du bon de livraison
-    if (order.status !== 'DELIVERED' && order.status !== 'FINISHED') {
+    const allowedStatuses = ['DELIVERED', 'FINISHED', 'SHIPPING', 'PAID', 'CONFIRMED'];
+    if (!allowedStatuses.includes(order.status)) {
       return NextResponse.json(
-        { error: 'La commande doit être livrée ou terminée pour générer un bon de livraison' },
+        { error: 'La commande doit être payée, confirmée, en livraison, livrée ou terminée pour générer un bon de livraison' },
         { status: 400 }
       );
     }
@@ -72,9 +82,12 @@ export async function GET(
         firstName: order.user.firstName,
         lastName: order.user.lastName,
         email: order.user.email,
+        phone: order.user.phone,
       },
       items: order.items.map(item => ({
         quantity: item.quantity,
+        unitPrice: item.unitPrice ? Number(item.unitPrice) : undefined,
+        totalPrice: item.totalPrice ? Number(item.totalPrice) : undefined,
         product: item.product,
         service: item.service,
         offer: item.offer,
@@ -85,6 +98,14 @@ export async function GET(
         zipCode: order.shippingAddress.zipCode,
         country: order.shippingAddress.country,
       } : undefined,
+      billingAddress: order.billingAddress ? {
+        street: order.billingAddress.street,
+        city: order.billingAddress.city,
+        zipCode: order.billingAddress.zipCode,
+        country: order.billingAddress.country,
+      } : undefined,
+      total: order.total ? Number(order.total) : undefined,
+      currency: order.currency || 'Ar',
     };
 
     return NextResponse.json(deliveryNoteData);

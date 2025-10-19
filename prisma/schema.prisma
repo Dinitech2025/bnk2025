@@ -346,8 +346,20 @@ model Order {
   transactionId     String?
   paymentDetails    Json?
   
+  // Réduction globale
+  globalDiscountType   String?     // PERCENTAGE ou FIXED
+  globalDiscountValue  Decimal?    // Valeur de la réduction (% ou montant fixe)
+  globalDiscountAmount Decimal?    // Montant calculé de la réduction
+  
   // Notes et métadonnées
   notes             String?
+  
+  // Taux de change au moment de la commande
+  exchangeRates     Json?           // Taux de change complets au moment de la commande
+  baseCurrency      String?         // Devise de base (MGA)
+  displayCurrency   String?         // Devise d'affichage choisie par le client
+  exchangeRate      Decimal?        // Taux de change spécifique utilisé
+  originalTotal     Decimal?        // Montant original dans la devise de base
   
   shippingAddress   Address?       @relation("shippingAddress", fields: [addressId], references: [id])
   billingAddress    Address?       @relation("billingAddress", fields: [billingAddressId], references: [id])
@@ -363,43 +375,154 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
-  orderId    String
-  quantity   Int      @default(1)
-  unitPrice  Decimal
-  totalPrice Decimal
-  itemType   String
-  productId  String?
-  serviceId  String?
-  offerId    String?
-  metadata   Json?
+  id            String   @id @default(cuid())
+  orderId       String
+  quantity      Int      @default(1)
+  unitPrice     Decimal
+  totalPrice    Decimal
+  itemType      String
+  productId     String?
+  serviceId     String?
+  offerId       String?
+  metadata      Json?
+  
+  // Réduction par article
+  discountType   String?  // PERCENTAGE ou FIXED
+  discountValue  Decimal? // Valeur de la réduction (% ou montant fixe)
+  discountAmount Decimal? // Montant calculé de la réduction
+  
   offer      Offer?   @relation(fields: [offerId], references: [id])
   order      Order    @relation(fields: [orderId], references: [id])
   product    Product? @relation(fields: [productId], references: [id])
   service    Service? @relation(fields: [serviceId], references: [id])
 }
 
+model PaymentMethod {
+  id                    String            @id @default(cuid())
+  code                  String            @unique // paypal, mobile_money, bank_transfer, cash, credit_card
+  name                  String            // Nom d'affichage
+  description           String?           // Description de la méthode
+  icon                  String?           // Nom de l'icône
+  isActive              Boolean           @default(true)
+  isBuiltin             Boolean           @default(false) // Mode de paiement intégré (insupprimable)
+  order                 Int               @default(0) // Ordre d'affichage
+  currency              String?           // Devise principale
+  
+  // Type de méthode
+  type                  String            @default("DIRECT") // DIRECT (API), PROVIDERS (fournisseurs), MANUAL (manuel)
+  
+  // Paramètres de configuration
+  minAmount             Decimal?          // Montant minimum
+  maxAmount             Decimal?          // Montant maximum
+  feeType               String?           // PERCENTAGE, FIXED, NONE
+  feeValue              Decimal?          // Valeur de la commission
+  processingTime        String?           // Temps de traitement (ex: "24h", "Instantané")
+  
+  // Configuration d'interface
+  requiresReference     Boolean           @default(false) // Nécessite une référence
+  requiresTransactionId Boolean           @default(false) // Nécessite un ID de transaction
+  allowPartialPayments  Boolean           @default(true)  // Permet les paiements partiels
+  
+  // Configuration API pour méthodes directes
+  apiEnabled            Boolean           @default(false) // Si la méthode utilise une API
+  apiEndpoint           String?           // Endpoint API principal
+  publicKey             String?           // Clé publique API
+  
+  // Métadonnées JSON pour paramètres avancés
+  settings              Json?             // Configuration spécifique (ex: endpoints API, clés)
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  
+  // Relations
+  providers             PaymentProvider[]
+  payments              Payment[]
+  
+  @@index([isActive])
+  @@index([code])
+  @@index([type])
+  @@index([order])
+}
+
+model PaymentProvider {
+  id                String          @id @default(cuid())
+  paymentMethodId   String
+  code              String          // orange_money, mvola, paypal, bni, etc.
+  name              String          // Nom d'affichage
+  description       String?
+  logo              String?         // URL du logo
+  isActive          Boolean         @default(true)
+  order             Int             @default(0)
+  
+  // Paramètres spécifiques au fournisseur
+  apiEndpoint       String?         // Endpoint API si applicable
+  publicKey         String?         // Clé publique
+  merchantId        String?         // ID marchand
+  
+  // Configuration des frais spécifique au fournisseur
+  feeType           String?         // PERCENTAGE, FIXED, NONE
+  feeValue          Decimal?        // Valeur de la commission
+  
+  // Limites spécifiques
+  minAmount         Decimal?
+  maxAmount         Decimal?
+  dailyLimit        Decimal?        // Limite quotidienne
+  
+  // Métadonnées JSON pour configuration avancée
+  settings          Json?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relations
+  paymentMethod     PaymentMethod   @relation(fields: [paymentMethodId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+  
+  @@unique([paymentMethodId, code])
+  @@index([paymentMethodId])
+  @@index([isActive])
+  @@index([code])
+}
+
 model Payment {
-  id              String   @id @default(cuid())
+  id              String           @id @default(cuid())
   orderId         String
   amount          Decimal
-  currency        String   @default("Ar")
-  method          String   // paypal, mobile_money, bank_transfer, cash
-  provider        String?  // orange_money, mvola, etc.
-  transactionId   String?  // ID de transaction externe
-  reference       String?  // Référence du paiement
-  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED, CANCELLED
-  notes           String?  // Notes sur le paiement
-  processedBy     String?  // ID de l'utilisateur qui a traité le paiement
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  currency        String           @default("Ar")
+  methodId        String?          // Référence vers PaymentMethod
+  providerId      String?          // Référence vers PaymentProvider
+  method          String?          // Conservé pour compatibilité (paypal, mobile_money, bank_transfer, cash)
+  provider        String?          // Conservé pour compatibilité (orange_money, mvola, etc.)
+  transactionId   String?          // ID de transaction externe
+  reference       String?          // Référence du paiement
+  status          String           @default("PENDING") // PENDING, COMPLETED, FAILED, CANCELLED
+  notes           String?          // Notes sur le paiement
+  processedBy     String?          // ID de l'utilisateur qui a traité le paiement
   
-  order           Order    @relation(fields: [orderId], references: [id])
-  processedByUser User?    @relation(fields: [processedBy], references: [id])
+  // Informations sur les frais
+  feeAmount       Decimal?         // Montant des frais appliqués
+  feeType         String?          // Type de frais appliqué
+  netAmount       Decimal?         // Montant net après frais
+  
+  // Taux de change au moment du paiement
+  paymentExchangeRate    Decimal?  // Taux de change au moment du paiement
+  paymentBaseCurrency    String?   // Devise de base au moment du paiement
+  paymentDisplayCurrency String?   // Devise d'affichage au moment du paiement
+  originalAmount         Decimal?  // Montant original dans la devise de base
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  order           Order            @relation(fields: [orderId], references: [id])
+  processedByUser User?            @relation(fields: [processedBy], references: [id])
+  paymentMethod   PaymentMethod?   @relation(fields: [methodId], references: [id])
+  paymentProvider PaymentProvider? @relation(fields: [providerId], references: [id])
   
   @@index([orderId])
   @@index([status])
   @@index([method])
+  @@index([methodId])
+  @@index([providerId])
   @@index([createdAt])
 }
 

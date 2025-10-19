@@ -6,8 +6,10 @@ import { convertDevToCmdOrderNumber } from '@/lib/utils'
 
 interface PaymentData {
   amount: number
-  method: string
-  provider?: string
+  methodId?: string
+  providerId?: string
+  method: string // Conservé pour compatibilité
+  provider?: string // Conservé pour compatibilité
   transactionId?: string
   reference?: string
   notes?: string
@@ -61,6 +63,50 @@ export async function POST(
       )
     }
 
+    // Récupérer les informations de la méthode et du fournisseur si spécifiés
+    let paymentMethod = null
+    let paymentProvider = null
+    let calculatedFees = { methodFee: 0, providerFee: 0, totalFee: 0 }
+
+    if (paymentData.methodId) {
+      paymentMethod = await prisma.paymentMethod.findUnique({
+        where: { id: paymentData.methodId },
+        include: {
+          providers: true
+        }
+      })
+
+      if (paymentData.providerId) {
+        paymentProvider = await prisma.paymentProvider.findUnique({
+          where: { id: paymentData.providerId }
+        })
+      }
+
+      // Calculer les frais
+      const calculateFee = (feeType: string | null, feeValue: any, amount: number) => {
+        if (!feeType || !feeValue || feeType === 'NONE') return 0
+        
+        const numValue = Number(feeValue)
+        if (feeType === 'PERCENTAGE') {
+          return (amount * numValue) / 100
+        } else if (feeType === 'FIXED') {
+          return numValue
+        }
+        
+        return 0
+      }
+
+      if (paymentMethod) {
+        calculatedFees.methodFee = calculateFee(paymentMethod.feeType, paymentMethod.feeValue, paymentData.amount)
+      }
+
+      if (paymentProvider) {
+        calculatedFees.providerFee = calculateFee(paymentProvider.feeType, paymentProvider.feeValue, paymentData.amount)
+      }
+
+      calculatedFees.totalFee = calculatedFees.methodFee + calculatedFees.providerFee
+    }
+
     // Créer le paiement dans une transaction
     const result = await prisma.$transaction(async (tx) => {
       // Créer le paiement
@@ -69,13 +115,22 @@ export async function POST(
           orderId: orderId,
           amount: paymentData.amount,
           currency: order.currency,
-          method: paymentData.method,
-          provider: paymentData.provider,
+          methodId: paymentData.methodId || null,
+          providerId: paymentData.providerId || null,
+          method: paymentData.method, // Conservé pour compatibilité
+          provider: paymentData.provider, // Conservé pour compatibilité
           transactionId: paymentData.transactionId,
           reference: paymentData.reference,
           status: 'COMPLETED',
           notes: paymentData.notes,
-          processedBy: session.user?.id
+          processedBy: session.user?.id,
+          feeAmount: calculatedFees.totalFee > 0 ? calculatedFees.totalFee : null,
+          feeType: calculatedFees.totalFee > 0 ? 'CALCULATED' : null,
+          netAmount: paymentData.amount - calculatedFees.totalFee
+        },
+        include: {
+          paymentMethod: true,
+          paymentProvider: true
         }
       })
 
@@ -102,14 +157,87 @@ export async function POST(
         }
       })
 
-      // Si la commande est entièrement payée et contient des abonnements, les activer
-      if (isFullyPaid && updatedOrder.subscriptions.length > 0) {
-        for (const subscription of updatedOrder.subscriptions) {
-          if (subscription.status === 'PENDING') {
-            await tx.subscription.update({
-              where: { id: subscription.id },
-              data: { status: 'ACTIVE' }
-            })
+      // Si la commande est entièrement payée, gérer les abonnements
+      if (isFullyPaid) {
+        // 1. Activer les abonnements existants
+        if (updatedOrder.subscriptions.length > 0) {
+          for (const subscription of updatedOrder.subscriptions) {
+            if (subscription.status === 'PENDING') {
+              await tx.subscription.update({
+                where: { id: subscription.id },
+                data: { status: 'ACTIVE' }
+              })
+            }
+          }
+        }
+        
+        // 2. Créer automatiquement des abonnements pour les offres d'abonnement
+        // Récupérer les items de la commande avec les détails des offres
+        const orderWithItems = await tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: {
+              include: {
+                offer: {
+                  include: {
+                    platformOffers: {
+                      include: {
+                        platform: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        if (orderWithItems) {
+          // Identifier les items qui sont des offres d'abonnement
+          const subscriptionOffers = orderWithItems.items.filter(item => 
+            (item.itemType === 'OFFER' || item.itemType === 'SUBSCRIPTION') && 
+            item.offer && 
+            item.offer.platformOffers.length > 0
+          );
+
+          console.log(`🔍 Offres d'abonnement trouvées: ${subscriptionOffers.length}`);
+
+          // Créer un abonnement pour chaque offre d'abonnement
+          for (const item of subscriptionOffers) {
+            if (!item.offer) continue;
+
+            // Vérifier si un abonnement existe déjà pour cette offre et cet utilisateur
+            const existingSubscription = await tx.subscription.findFirst({
+              where: {
+                userId: orderWithItems.userId,
+                offerId: item.offer.id,
+                orderId: orderId
+              }
+            });
+
+            if (!existingSubscription) {
+              // Calculer les dates de début et fin
+              const startDate = new Date();
+              const endDate = new Date();
+              endDate.setMonth(endDate.getMonth() + item.offer.duration);
+
+              // Créer l'abonnement
+              const newSubscription = await tx.subscription.create({
+                data: {
+                  userId: orderWithItems.userId,
+                  offerId: item.offer.id,
+                  orderId: orderId,
+                  status: 'ACTIVE',
+                  startDate: startDate,
+                  endDate: endDate,
+                  autoRenew: false
+                }
+              });
+
+              console.log(`✅ Abonnement créé automatiquement: ${newSubscription.id} pour l'offre ${item.offer.name}`);
+            } else {
+              console.log(`ℹ️ Abonnement déjà existant pour l'offre ${item.offer.name}`);
+            }
           }
         }
       }

@@ -166,7 +166,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }
   
   return (
-    <ClientOnly fallback={<div>{children}</div>}>
+    <ClientOnly fallback={
+      <CurrencyContext.Provider value={value}>
+        {children}
+      </CurrencyContext.Provider>
+    }>
       <CurrencyContext.Provider value={value}>
         {children}
       </CurrencyContext.Provider>

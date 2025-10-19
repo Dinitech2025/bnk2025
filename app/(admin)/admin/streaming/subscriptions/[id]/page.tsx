@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SubscriptionActions } from './subscription-actions'
 import { formatDuration } from '@/lib/utils'
-import { UserPlus, Trash } from 'lucide-react'
+import { UserPlus, Trash, ShoppingCart, ExternalLink } from 'lucide-react'
 
 interface PageProps {
   params: {
@@ -99,6 +99,24 @@ async function getSubscription(id: string) {
         }
       },
       accountProfiles: true,
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true,
+          total: true,
+          currency: true,
+          createdAt: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
+          }
+        }
+      },
     },
   })
 
@@ -233,6 +251,71 @@ export default async function SubscriptionPage({ params }: PageProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Commande associée */}
+          {subscription.order && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Commande associée
+                </CardTitle>
+                <CardDescription>Informations sur la commande d'origine</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">
+                          {subscription.order.orderNumber || `#${subscription.order.id.substring(0, 8)}`}
+                        </span>
+                        <Badge variant={
+                          subscription.order.status === 'PAID' ? 'default' :
+                          subscription.order.status === 'PENDING' ? 'secondary' :
+                          subscription.order.status === 'CANCELLED' ? 'destructive' :
+                          'outline'
+                        }>
+                          {subscription.order.status === 'PAID' ? 'Payée' :
+                           subscription.order.status === 'PENDING' ? 'En attente' :
+                           subscription.order.status === 'CANCELLED' ? 'Annulée' :
+                           subscription.order.status}
+                        </Badge>
+                        <Badge variant={
+                          subscription.order.paymentStatus === 'PAID' ? 'default' :
+                          subscription.order.paymentStatus === 'PARTIALLY_PAID' ? 'secondary' :
+                          'outline'
+                        }>
+                          {subscription.order.paymentStatus === 'PAID' ? 'Entièrement payé' :
+                           subscription.order.paymentStatus === 'PARTIALLY_PAID' ? 'Partiellement payé' :
+                           subscription.order.paymentStatus === 'PENDING' ? 'Paiement en attente' :
+                           subscription.order.paymentStatus}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Créée le {format(subscription.order.createdAt, 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className="font-semibold">
+                          {Number(subscription.order.total).toLocaleString('fr-FR')} {subscription.order.currency || 'Ar'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {subscription.order.user.firstName} {subscription.order.user.lastName}
+                        </div>
+                      </div>
+                      <Link href={`/admin/orders/${subscription.order.id}`}>
+                        <Button variant="outline" size="sm">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -52,18 +52,25 @@ export async function GET(req: Request) {
       }
     })
 
-    // Calculer le montant total dépensé par client
+    // Calculer le montant total dépensé par client et convertir les Decimal
     const clientsWithTotalSpent = clients.map(client => {
       const totalSpent = client.orders
         .filter(order => order.status !== 'CANCELLED')
         .reduce((sum, order) => {
           // Convertir le Decimal en nombre (les montants sont déjà en Ariary)
-          const orderTotal = order.total ? parseFloat(order.total.toString()) : 0
+          const orderTotal = order.total ? Number(order.total.toString()) : 0
           return sum + orderTotal
         }, 0)
       
+      // Convertir tous les Decimal dans les orders
+      const ordersWithConvertedDecimals = client.orders.map(order => ({
+        ...order,
+        total: order.total ? Number(order.total.toString()) : 0
+      }))
+      
       return {
         ...client,
+        orders: ordersWithConvertedDecimals,
         totalSpent
       }
     })

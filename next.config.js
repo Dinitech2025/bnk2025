@@ -54,7 +54,7 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https: blob:",
               "connect-src 'self' https://api.paypal.com https://api.sandbox.paypal.com http://localhost:* ws://localhost:*",
-              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com blob:",
+              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com blob: https://*.stagewise.ai https://stagewise.ai",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'"

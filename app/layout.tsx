@@ -7,7 +7,6 @@ import { AuthProvider } from '@/lib/auth-provider'
 import { generateMetadata } from './metadata'
 import { Toaster } from '@/components/ui/toaster'
 import { SonnerToast } from '@/components/ui/toast'
-import { StagewiseInit } from '@/components/stagewise-init'
 import { CurrencyProviderWrapper } from '@/components/providers/currency-provider'
 import { SettingsProvider } from '@/lib/contexts/settings-context'
 import { DynamicFavicon } from '@/components/dynamic-favicon'
@@ -34,7 +33,6 @@ export default async function RootLayout({
   return (
     <html lang="fr">
       <body className={inter.className}>
-        <StagewiseInit />
         <AuthProvider>
           <SettingsProvider>
             <DynamicFavicon />

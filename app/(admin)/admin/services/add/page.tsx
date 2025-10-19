@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache'
 import { Service } from '@prisma/client'
 import slugify from 'slugify'
 
+// Force dynamic rendering to avoid useRef SSR issues
+export const dynamic = 'force-dynamic'
+
 async function getCategories() {
   return await prisma.serviceCategory.findMany({
     select: {
