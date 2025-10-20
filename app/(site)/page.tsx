@@ -291,15 +291,59 @@ export default function HomePage() {
         categories={categories}
       />
       
-      {/* Badges de sécurité pour rassurer Google Safe Browsing */}
-      <section className="py-6 bg-white border-b">
+      {/* Section de présentation et SEO */}
+      <section className="py-12 bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">
-              🏢 Boutique e-commerce officielle Madagascar
-            </h2>
+          <div className="text-center max-w-4xl mx-auto">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+              🛍️ Boutik Naka - Votre E-commerce de Confiance à Madagascar
+            </h1>
+            <p className="text-lg text-gray-700 mb-8 leading-relaxed">
+              Découvrez la première plateforme e-commerce malgache proposant des <strong>produits high-tech</strong>, 
+              <strong> services numériques</strong> et <strong>abonnements streaming</strong>. 
+              Livraison rapide à Antananarivo, paiement sécurisé PayPal et Mobile Money.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="text-3xl mb-3">🚚</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Livraison Rapide</h3>
+                <p className="text-sm text-gray-600">
+                  Livraison express à Antananarivo et dans toute l'île de Madagascar
+                </p>
+              </div>
+              
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="text-3xl mb-3">💳</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Paiement Sécurisé</h3>
+                <p className="text-sm text-gray-600">
+                  PayPal, Mobile Money (Orange, MVola, Airtel), virement bancaire
+                </p>
+              </div>
+              
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="text-3xl mb-3">🎯</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Produits Authentiques</h3>
+                <p className="text-sm text-gray-600">
+                  Smartphones, ordinateurs, accessoires et services 100% authentiques
+                </p>
+              </div>
+            </div>
+            
+            {/* Badges de sécurité */}
+            <div className="flex flex-wrap justify-center gap-4">
+              <SecurityBadgeRow className="justify-center" />
+            </div>
+            
+            {/* Mots-clés SEO */}
+            <div className="mt-8 text-xs text-gray-500 max-w-3xl mx-auto">
+              <p>
+                <strong>Mots-clés:</strong> e-commerce Madagascar, boutique en ligne Antananarivo, 
+                smartphone Madagascar, ordinateur portable Tananarive, Netflix Madagascar, 
+                Disney+ Malgache, paiement mobile money, livraison express Madagascar
+              </p>
+            </div>
           </div>
-          <SecurityBadgeRow className="justify-center" />
         </div>
       </section>
       
