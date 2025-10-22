@@ -121,20 +121,39 @@ export function ImageUpload(props: ImageUploadProps) {
                 </Button>
               </div>
             ))}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={props.disabled || isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-dashed ${containerStyles}`}
+            >
+              {isUploading ? (
+                <>
+                  <ImageIcon className="h-6 w-6 mr-2 animate-spin" />
+                  Upload...
+                </>
+              ) : (
+                <>
+                  <ImagePlus className="h-6 w-6 mr-2" />
+                  Ajouter une image
+                </>
+              )}
+            </Button>
           </>
         ) : (
           <>
-            {props.value && (
+            {props.value ? (
               <div className={`relative overflow-hidden ${containerStyles}`}>
                 <Image
-                  src={(props.multiple ? (props.value as string[])[0] : props.value as string)}
+                  src={props.value as string}
                   alt="Image"
                   fill
                   className={effectiveVariant === 'avatar' ? 'object-cover' : 'object-contain'}
                 />
                 <Button
                   type="button"
-                  onClick={() => handleRemove((props.multiple ? (props.value as string[])[0] : props.value as string))}
+                  onClick={() => handleRemove(props.value as string)}
                   variant="destructive"
                   size="icon"
                   className="absolute top-2 right-2"
@@ -142,28 +161,29 @@ export function ImageUpload(props: ImageUploadProps) {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={props.disabled || isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-dashed ${containerStyles}`}
+              >
+                {isUploading ? (
+                  <>
+                    <ImageIcon className="h-6 w-6 mr-2 animate-spin" />
+                    Upload...
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="h-6 w-6 mr-2" />
+                    {effectiveVariant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
+                  </>
+                )}
+              </Button>
             )}
           </>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={props.disabled || isUploading}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-dashed ${containerStyles}`}
-        >
-          {isUploading ? (
-            <>
-              <ImageIcon className="h-6 w-6 mr-2 animate-spin" />
-              Upload...
-            </>
-          ) : (
-            <>
-              <ImagePlus className="h-6 w-6 mr-2" />
-              {effectiveVariant === 'avatar' ? 'Ajouter une photo' : 'Ajouter un logo'}
-            </>
-          )}
-        </Button>
       </div>
       <input
         ref={fileInputRef}
