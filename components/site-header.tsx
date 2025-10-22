@@ -112,7 +112,7 @@ export function SiteHeader() {
         {/* Logo à gauche */}
         <Link href="/" className="flex items-center space-x-2 flex-shrink-0 -ml-2 md:-ml-3 lg:-ml-4">
           {useSiteLogo && logoUrl ? (
-            <div className="relative h-16 w-56 md:h-20 md:w-72 lg:h-24 lg:w-96">
+            <div className="relative h-10 w-32 md:h-12 md:w-40 lg:h-14 lg:w-48">
               <Image
                 src={logoUrl}
                 alt={siteName}
