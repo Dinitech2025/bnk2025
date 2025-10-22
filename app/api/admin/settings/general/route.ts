@@ -3,6 +3,15 @@ import { db } from '@/lib/db'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
+// Fonction helper pour déterminer le type d'une valeur
+function determineType(value: any): string {
+  if (typeof value === 'boolean') return 'BOOLEAN'
+  if (typeof value === 'number') return 'NUMBER'
+  if (value === 'true' || value === 'false') return 'BOOLEAN'
+  if (!isNaN(Number(value))) return 'NUMBER'
+  return 'STRING'
+}
+
 // Récupérer les paramètres généraux
 export async function GET(request: NextRequest) {
   try {
@@ -73,4 +82,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+}
