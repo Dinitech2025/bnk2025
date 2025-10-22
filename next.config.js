@@ -17,6 +17,18 @@ const nextConfig = {
   experimental: {
     missingSuspenseWithCSRBailout: false,
   },
+
+  // Configuration pour les pages problématiques de pré-rendu
+  generateBuildId: async () => {
+    return 'build-cache-bust-' + Date.now()
+  },
+
+  // Ignorer les erreurs de pré-rendu pour les pages spécifiques
+  onDemandEntries: {
+    // Garder les pages problématiques en mémoire plus longtemps
+    maxInactiveAge: 60 * 1000,
+    pagesBufferLength: 5,
+  },
   
   // 🛡️ HEADERS DE SÉCURITÉ RENFORCÉS
   async headers() {
@@ -54,7 +66,7 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https: blob:",
               "connect-src 'self' https://api.paypal.com https://api.sandbox.paypal.com http://localhost:* ws://localhost:*",
-              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com blob: https://*.stagewise.ai https://stagewise.ai",
+              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'"
