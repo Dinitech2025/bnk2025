@@ -58,6 +58,14 @@ export async function GET(request: NextRequest) {
       ]
     }
 
+    console.log('🔍 API Payment Methods - Requête:', {
+      methodWhere,
+      providerWhere,
+      amount,
+      currency,
+      includeInactive
+    })
+
     const paymentMethods = await prisma.paymentMethod.findMany({
       where: methodWhere,
       include: {
@@ -69,22 +77,36 @@ export async function GET(request: NextRequest) {
       orderBy: { order: 'asc' }
     })
 
+    console.log('📊 Méthodes trouvées:', paymentMethods.length)
+    paymentMethods.forEach(method => {
+      console.log(`  • ${method.name} (${method.code}) - ${method.type} - Actif: ${method.isActive} - Fournisseurs: ${method.providers.length}`)
+      method.providers.forEach(provider => {
+        console.log(`    └─ ${provider.name} (${provider.code}) - Actif: ${provider.isActive}`)
+      })
+    })
+
     // Filtrer les méthodes selon leur type et leurs fournisseurs
     const filteredMethods = paymentMethods.filter(method => {
       if (includeInactive) return true
       
       // Les méthodes DIRECT et MANUAL n'ont pas besoin de fournisseurs
       if (method.type === 'DIRECT' || method.type === 'MANUAL') {
+        console.log(`✅ Méthode ${method.name} acceptée (type ${method.type})`)
         return true
       }
       
       // Les méthodes PROVIDERS ont besoin d'au moins un fournisseur actif
       if (method.type === 'PROVIDERS') {
-        return method.providers.some(provider => provider.isActive)
+        const hasActiveProvider = method.providers.some(provider => provider.isActive)
+        console.log(`${hasActiveProvider ? '✅' : '❌'} Méthode ${method.name} - Fournisseurs actifs: ${hasActiveProvider}`)
+        return hasActiveProvider
       }
       
+      console.log(`❌ Méthode ${method.name} - Type non géré: ${method.type}`)
       return false
     })
+
+    console.log('🎯 Méthodes filtrées:', filteredMethods.length)
 
     // Calculer les frais pour chaque méthode et fournisseur si un montant est fourni
     const methodsWithFees = filteredMethods.map(method => {

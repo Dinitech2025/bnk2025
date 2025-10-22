@@ -22,6 +22,7 @@ interface PaymentProvider {
   maxAmount: string | null
   dailyLimit: string | null
   settings: any
+  calculatedFee?: number | null
 }
 
 interface PaymentMethod {
@@ -71,6 +72,7 @@ export function PaymentMethodSelector({
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -80,23 +82,28 @@ export function PaymentMethodSelector({
   const loadPaymentMethods = async () => {
     try {
       setIsLoading(true)
+      console.log('🔍 Chargement méthodes paiement:', { total, currency })
       const response = await fetch(`/api/payment-methods?amount=${total}&currency=${currency}`)
       
       if (!response.ok) {
-        throw new Error('Erreur lors du chargement des méthodes de paiement')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Erreur API méthodes paiement:', response.status, errorData)
+        throw new Error(errorData.error || 'Erreur lors du chargement des méthodes de paiement')
       }
 
       const data = await response.json()
+      console.log('✅ Méthodes paiement reçues:', data)
       
       const transformedMethods = (data.paymentMethods || []).map(method => ({
         ...method,
-        enabled: method.isActive,
+        enabled: method.isActive && (method.type !== 'PROVIDERS' || method.providers.length > 0),
         icon: getMethodIcon(method.icon, method.type)
       }))
       
+      console.log('🔄 Méthodes transformées:', transformedMethods)
       setPaymentMethods(transformedMethods)
     } catch (error) {
-      console.error('Erreur chargement méthodes paiement:', error)
+      console.error('❌ Erreur chargement méthodes paiement:', error)
       toast({
         title: "Erreur",
         description: "Impossible de charger les méthodes de paiement",
@@ -132,24 +139,119 @@ export function PaymentMethodSelector({
 
     switch (selectedMethod.code) {
       case 'paypal':
+        // Pour PayPal, vérifier si un fournisseur est sélectionné (si nécessaire)
+        if (selectedMethod.type === 'PROVIDERS' && !selectedProvider) {
+          return (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                ⚠️ Veuillez sélectionner un fournisseur PayPal ci-dessus
+              </p>
+            </div>
+          )
+        }
+        
         return (
           <div className="space-y-4 pt-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
                 💳 Paiement sécurisé avec PayPal - Restez sur cette page
               </p>
+              {selectedProvider && (
+                <p className="text-xs text-blue-700 mt-1">
+                  Fournisseur : {selectedProvider.name}
+                </p>
+              )}
             </div>
             
             <PayPalSimple
               amount={total}
               currency={currency}
               orderData={orderData}
+              provider={selectedProvider}
               onSuccess={onPaymentSuccess}
               onError={(error) => {
                 console.error('Erreur PayPal:', error)
                 onPaymentError('Erreur lors du paiement PayPal. Veuillez réessayer.')
               }}
             />
+          </div>
+        )
+
+      case 'online_payment':
+        // Nouvelle méthode : Paiement en ligne avec fournisseurs (PayPal, carte bancaire)
+        if (selectedMethod.providers && selectedMethod.providers.length > 0) {
+          if (!selectedProvider) {
+            return (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  ⚠️ Veuillez choisir PayPal ou Carte bancaire ci-dessus
+                </p>
+              </div>
+            )
+          }
+
+          // Gestion PayPal provider
+          if (selectedProvider.code === 'paypal') {
+            return (
+              <div className="space-y-4 pt-4">
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    💳 Paiement sécurisé avec PayPal - Connectez-vous avec votre compte PayPal
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Vous pouvez utiliser votre compte PayPal ou payer directement par carte.
+                  </p>
+                </div>
+                
+                <PayPalSimple
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  provider={selectedProvider}
+                  onSuccess={onPaymentSuccess}
+                  onError={(error) => {
+                    console.error('Erreur PayPal:', error)
+                    onPaymentError('Erreur lors du paiement PayPal. Veuillez réessayer.')
+                  }}
+                />
+              </div>
+            )
+          }
+
+          // Gestion carte bancaire provider
+          if (selectedProvider.code === 'card_payment') {
+            return (
+              <div className="space-y-4 pt-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    💳 Paiement par carte bancaire - Traitement sécurisé via PayPal
+                  </p>
+                  <p className="text-xs text-green-700 mt-1">
+                    Aucun compte PayPal requis. Entrez directement vos informations de carte.
+                  </p>
+                </div>
+                
+                <PayPalSimple
+                  amount={total}
+                  currency={currency}
+                  orderData={orderData}
+                  provider={selectedProvider}
+                  onSuccess={onPaymentSuccess}
+                  onError={(error) => {
+                    console.error('Erreur paiement carte:', error)
+                    onPaymentError('Erreur lors du paiement par carte. Veuillez réessayer.')
+                  }}
+                />
+              </div>
+            )
+          }
+        }
+        
+        return (
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-sm text-gray-600">
+              🚧 Configuration du paiement en cours...
+            </p>
           </div>
         )
 
@@ -231,6 +333,7 @@ export function PaymentMethodSelector({
             setSelectedMethodId(value)
             const method = paymentMethods.find(m => m.id === value)
             setSelectedMethod(method || null)
+            setSelectedProvider(null) // Reset provider when changing method
           }}
         >
           <div className="grid grid-cols-1 gap-3">
@@ -269,7 +372,12 @@ export function PaymentMethodSelector({
                       </div>
                       <div className="text-sm text-gray-500">
                         {method.description}
-                    </div>
+                      </div>
+                      {method.type === 'PROVIDERS' && method.providers.length > 0 && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          {method.providers.length} fournisseur{method.providers.length > 1 ? 's' : ''} disponible{method.providers.length > 1 ? 's' : ''}
+                        </div>
+                      )}
                   </div>
                 </div>
                 </Label>
@@ -277,6 +385,58 @@ export function PaymentMethodSelector({
             ))}
           </div>
         </RadioGroup>
+        )}
+
+        {/* Sélection du fournisseur si nécessaire */}
+        {selectedMethod && selectedMethod.providers && selectedMethod.providers.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="font-medium text-gray-900">Choisissez votre mode de paiement :</h4>
+            <RadioGroup 
+              value={selectedProvider?.id || ''} 
+              onValueChange={(value) => {
+                const provider = selectedMethod.providers.find(p => p.id === value)
+                setSelectedProvider(provider || null)
+              }}
+            >
+              <div className="grid grid-cols-1 gap-2">
+                {selectedMethod.providers.map((provider) => (
+                  <div
+                    key={provider.id}
+                    className={`relative border rounded-lg p-3 cursor-pointer transition-all ${
+                      selectedProvider?.id === provider.id
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Label
+                      htmlFor={provider.id}
+                      className="flex items-center space-x-3 cursor-pointer"
+                    >
+                      <RadioGroupItem
+                        value={provider.id}
+                        id={provider.id}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">{provider.name}</div>
+                            {provider.description && (
+                              <div className="text-sm text-gray-500">{provider.description}</div>
+                            )}
+                          </div>
+                          {provider.calculatedFee !== undefined && provider.calculatedFee > 0 && (
+                            <div className="text-sm text-gray-600">
+                              +{provider.calculatedFee.toLocaleString()} {currency} frais
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </RadioGroup>
+          </div>
         )}
 
         {renderPaymentForm()}

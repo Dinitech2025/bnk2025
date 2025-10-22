@@ -29,7 +29,10 @@ import {
   List,
   Menu,
   X,
-  MessageSquare
+  MessageSquare,
+  Truck,
+  BarChart3,
+  RotateCcw
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -50,34 +53,34 @@ interface NavItem {
 // Navigation items for admin sidebar - Updated with Quotes
 const adminNavItems: NavItem[] = [
   {
-    title: 'Tableau de bord',
+    title: 'Dashboard',
     href: '/admin',
     icon: LayoutDashboard,
   },
   {
-    title: 'Gestion des clients',
+    title: 'Clients',
     href: '/admin/clients',
     icon: Users,
   },
   {
-    title: 'Gestion du Cyber',
+    title: 'Cyber café',
     href: '/admin/cybercafe',
     icon: Computer,
   },
   {
-    title: 'Gestion des produits',
+    title: 'Produits',
     icon: ShoppingBag,
     submenu: true,
     submenuItems: [
-      { title: 'Simulation Produit Importé', href: '/admin/products/imported/simulation' },
-      { title: 'Produits importés', href: '/admin/products/imported' },
-      { title: 'Produits simples', href: '/admin/products' },
+      { title: 'Simulation Import', href: '/admin/products/imported/simulation' },
+      { title: 'Importés', href: '/admin/products/imported' },
+      { title: 'Catalogue', href: '/admin/products' },
       { title: 'Catégories', href: '/admin/products/categories' },
       { title: 'Inventaire', href: '/admin/products/inventory' },
     ]
   },
   {
-    title: 'Gestion des services',
+    title: 'Services',
     icon: Package,
     submenu: true,
     submenuItems: [
@@ -86,7 +89,7 @@ const adminNavItems: NavItem[] = [
     ]
   },
   {
-    title: 'Gestion des abonnements',
+    title: 'Streaming',
     icon: Play,
     submenu: true,
     submenuItems: [
@@ -114,12 +117,32 @@ const adminNavItems: NavItem[] = [
     icon: MessageSquare,
   },
   {
-    title: 'Contenu du site',
+    title: 'Livraison',
+    href: '/admin/delivery-settings',
+    icon: Truck,
+  },
+  {
+    title: 'Rapports',
+    href: '/admin/reports',
+    icon: BarChart3,
+  },
+  {
+    title: 'Promotions',
+    href: '/admin/promotions',
+    icon: Tag,
+  },
+  {
+    title: 'Retours',
+    href: '/admin/returns',
+    icon: RotateCcw,
+  },
+  {
+    title: 'Site Web',
     icon: Globe,
     submenu: true,
     submenuItems: [
-      { title: 'Bannière Principale', href: '/admin/hero-banner' },
-      { title: 'Slides d\'accueil', href: '/admin/hero-slides' },
+      { title: 'Bannière', href: '/admin/hero-banner' },
+      { title: 'Slides', href: '/admin/hero-slides' },
     ]
   },
   {
@@ -127,14 +150,14 @@ const adminNavItems: NavItem[] = [
     icon: Settings,
     submenu: true,
     submenuItems: [
-      { title: 'Informations du site', href: '/admin/settings/site' },
+      { title: 'Site', href: '/admin/settings/site' },
       { title: 'Apparence', href: '/admin/settings/appearance' },
       { title: 'Contact', href: '/admin/settings/contact' },
-      { title: 'SEO & Réseaux sociaux', href: '/admin/settings/seo' },
-      { title: 'Gestion d\'employés', href: '/admin/settings/employees' },
-      { title: 'Conversion de devises', href: '/admin/settings/currency' },
-      { title: 'Calcul d\'Importation', href: '/admin/settings/import-calculation' },
-      { title: 'Méthodes de paiement', href: '/admin/payment-methods' },
+      { title: 'SEO & Social', href: '/admin/settings/seo' },
+      { title: 'Employés', href: '/admin/settings/employees' },
+      { title: 'Devises', href: '/admin/settings/currency' },
+      { title: 'Import', href: '/admin/settings/import-calculation' },
+      { title: 'Paiements', href: '/admin/payment-methods' },
     ]
   },
 ]
@@ -145,15 +168,15 @@ function AdminSidebar() {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(
     // Ouvrir automatiquement le sous-menu si un de ses éléments est actif
     pathname.startsWith('/admin/streaming') 
-      ? 'Gestion des abonnements' 
-      : pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/payment-methods')
+      ? 'Streaming' 
+      : pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/payment-methods') || pathname.startsWith('/admin/delivery-settings')
         ? 'Paramètres'
         : pathname.startsWith('/admin/products')
-          ? 'Gestion des produits'
+          ? 'Produits'
           : pathname.startsWith('/admin/services')
-            ? 'Gestion des services'
+            ? 'Services'
             : pathname.startsWith('/admin/hero-slides') || pathname.startsWith('/admin/hero-banner')
-              ? 'Contenu du site'
+              ? 'Site Web'
         : null
   )
 
@@ -211,10 +234,10 @@ function AdminSidebar() {
                       onClick={() => toggleSubmenu(item.title)}
                       className={cn(
                         'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                        (pathname.startsWith(`/admin/streaming`) && item.title === 'Gestion des abonnements') ||
-                        (pathname.startsWith(`/admin/products`) && item.title === 'Gestion des produits') ||
-                        (pathname.startsWith(`/admin/services`) && item.title === 'Gestion des services') ||
-                        ((pathname.startsWith(`/admin/settings`) || pathname.startsWith(`/admin/payment-methods`)) && item.title === 'Paramètres')
+                        (pathname.startsWith(`/admin/streaming`) && item.title === 'Streaming') ||
+                        (pathname.startsWith(`/admin/products`) && item.title === 'Produits') ||
+                        (pathname.startsWith(`/admin/services`) && item.title === 'Services') ||
+                        ((pathname.startsWith(`/admin/settings`) || pathname.startsWith(`/admin/payment-methods`) || pathname.startsWith(`/admin/delivery-settings`)) && item.title === 'Paramètres')
                           ? 'bg-slate-800 text-white'
                           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       )}

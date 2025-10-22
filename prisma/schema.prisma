@@ -42,6 +42,10 @@ model User {
   quotes              Quote[]
   quoteMessages       QuoteMessage[]
   carts               Cart[]
+  promotionUsages     PromotionUsage[]
+  returns             Return[]
+  processedReturns    Return[]         @relation("ProcessedReturns")
+  orderHistory        OrderHistory[]
 
   @@index([role])
   @@index([email])
@@ -346,6 +350,13 @@ model Order {
   transactionId     String?
   paymentDetails    Json?
   
+  // Informations de livraison
+  deliveryMode      String?        // Type de livraison (home_delivery, express_delivery, pickup_store, pickup_point)
+  deliveryName      String?        // Nom du mode de livraison
+  deliveryCost      Decimal?       // Coût de la livraison
+  deliveryTime      String?        // Temps de livraison estimé
+  deliveryDetails   Json?          // Détails additionnels de livraison
+  
   // Réduction globale
   globalDiscountType   String?     // PERCENTAGE ou FIXED
   globalDiscountValue  Decimal?    // Valeur de la réduction (% ou montant fixe)
@@ -361,17 +372,47 @@ model Order {
   exchangeRate      Decimal?        // Taux de change spécifique utilisé
   originalTotal     Decimal?        // Montant original dans la devise de base
   
+  // Informations de livraison
+  deliveryMethodId  String?         // Méthode de livraison choisie
+  shippingCost      Decimal?        // Coût de livraison calculé
+  estimatedDelivery Json?           // Délai de livraison estimé {min: number, max: number}
+  trackingNumber    String?         // Numéro de suivi
+  
   shippingAddress   Address?       @relation("shippingAddress", fields: [addressId], references: [id])
   billingAddress    Address?       @relation("billingAddress", fields: [billingAddressId], references: [id])
+  deliveryMethod    DeliveryMethod? @relation(fields: [deliveryMethodId], references: [id])
   user              User           @relation(fields: [userId], references: [id])
   items             OrderItem[]
   subscriptions     Subscription[]
   payments          Payment[]
+  promotion         Promotion?     @relation(fields: [promotionId], references: [id])
+  promotionId       String?
+  promotionUsages   PromotionUsage[]
+  returns           Return[]
+  history           OrderHistory[]
 
   @@index([userId])
   @@index([status])
   @@index([orderNumber])
   @@index([paymentStatus])
+  @@index([promotionId])
+}
+
+model OrderHistory {
+  id          String   @id @default(cuid())
+  orderId     String
+  status      String   // Nouveau statut
+  previousStatus String? // Ancien statut
+  action      String   // Type d'action: STATUS_CHANGE, CREATED, CANCELLED, etc.
+  description String?  // Description de l'action
+  userId      String?  // Utilisateur qui a effectué l'action
+  createdAt   DateTime @default(now())
+  
+  order       Order    @relation(fields: [orderId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -395,6 +436,7 @@ model OrderItem {
   order      Order    @relation(fields: [orderId], references: [id])
   product    Product? @relation(fields: [productId], references: [id])
   service    Service? @relation(fields: [serviceId], references: [id])
+  returnItems ReturnItem[]
 }
 
 model PaymentMethod {
@@ -916,4 +958,151 @@ model HeroBannerImage {
   @@index([heroBannerId])
   @@index([isActive])
   @@index([order])
+}
+
+model DeliveryMethod {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  type          String         // 'api' or 'manual'
+  isActive      Boolean        @default(true)
+  apiConfig     Json?          // API configuration for external providers
+  estimatedDays Json           // {min: number, max: number}
+  icon          String?        @default("truck")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  pricingRules  PricingRule[]
+  orders        Order[]
+
+  @@index([isActive])
+  @@index([type])
+}
+
+model DeliveryZone {
+  id           String         @id @default(cuid())
+  name         String
+  description  String?
+  type         String         // 'country', 'region', 'city', 'postal'
+  areas        Json           // Array of strings (countries, cities, postal codes, etc.)
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  pricingRules PricingRule[]
+
+  @@index([isActive])
+  @@index([type])
+}
+
+model PricingRule {
+  id                    String         @id @default(cuid())
+  deliveryMethodId      String
+  deliveryZoneId        String
+  weightRanges          Json?          // Array of weight ranges with pricing
+  volumeRanges          Json?          // Array of volume ranges with pricing
+  fixedPrice            Decimal?       // Fixed price option
+  freeShippingThreshold Decimal?       // Minimum order value for free shipping
+  isActive              Boolean        @default(true)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deliveryMethod        DeliveryMethod @relation(fields: [deliveryMethodId], references: [id], onDelete: Cascade)
+  deliveryZone          DeliveryZone   @relation(fields: [deliveryZoneId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryMethodId, deliveryZoneId])
+  @@index([isActive])
+}
+
+model Promotion {
+  id                String           @id @default(cuid())
+  name              String
+  description       String?
+  type              String           // 'PERCENTAGE', 'FIXED_AMOUNT', 'FREE_SHIPPING', 'BUY_X_GET_Y'
+  code              String?          @unique // Code promo optionnel
+  value             Decimal          // Valeur de la promotion (pourcentage ou montant)
+  minOrderAmount    Decimal?         // Montant minimum de commande
+  maxDiscountAmount Decimal?         // Montant maximum de réduction
+  usageLimit        Int?             // Limite d'utilisation globale
+  usageCount        Int              @default(0) // Nombre d'utilisations
+  userUsageLimit    Int?             // Limite par utilisateur
+  isActive          Boolean          @default(true)
+  isPublic          Boolean          @default(true) // Visible publiquement ou code requis
+  startDate         DateTime
+  endDate           DateTime
+  applicableProducts Json?           // IDs des produits concernés
+  applicableCategories Json?         // IDs des catégories concernées
+  excludedProducts  Json?            // IDs des produits exclus
+  excludedCategories Json?           // IDs des catégories exclues
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  orders            Order[]
+  promotionUsages   PromotionUsage[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model PromotionUsage {
+  id          String    @id @default(cuid())
+  promotionId String
+  userId      String
+  orderId     String
+  discountAmount Decimal
+  createdAt   DateTime  @default(now())
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, userId, orderId])
+  @@index([promotionId])
+  @@index([userId])
+}
+
+model Return {
+  id              String        @id @default(cuid())
+  returnNumber    String        @unique
+  orderId         String
+  userId          String
+  status          String        @default("REQUESTED") // REQUESTED, APPROVED, REJECTED, IN_TRANSIT, RECEIVED, PROCESSED, REFUNDED
+  reason          String        // DEFECTIVE, WRONG_ITEM, NOT_AS_DESCRIBED, CHANGED_MIND, etc.
+  description     String?
+  requestedAmount Decimal       // Montant demandé pour le remboursement
+  approvedAmount  Decimal?      // Montant approuvé par l'admin
+  refundedAmount  Decimal?      // Montant effectivement remboursé
+  refundMethod    String?       // ORIGINAL_PAYMENT, STORE_CREDIT, BANK_TRANSFER
+  adminNotes      String?       // Notes internes de l'administrateur
+  customerNotes   String?       // Notes du client
+  images          Json?         // URLs des images jointes
+  trackingNumber  String?       // Numéro de suivi du retour
+  processedBy     String?       // ID de l'admin qui a traité le retour
+  processedAt     DateTime?     // Date de traitement
+  refundedAt      DateTime?     // Date du remboursement
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  order           Order         @relation(fields: [orderId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+  processor       User?         @relation("ProcessedReturns", fields: [processedBy], references: [id])
+  returnItems     ReturnItem[]
+
+  @@index([status])
+  @@index([orderId])
+  @@index([userId])
+  @@index([returnNumber])
+}
+
+model ReturnItem {
+  id          String   @id @default(cuid())
+  returnId    String
+  orderItemId String
+  quantity    Int      // Quantité à retourner
+  reason      String?  // Raison spécifique pour cet article
+  condition   String?  // État de l'article (NEW, USED, DAMAGED, etc.)
+  refundAmount Decimal // Montant de remboursement pour cet article
+  createdAt   DateTime @default(now())
+  
+  return      Return    @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([returnId])
+  @@index([orderItemId])
 }

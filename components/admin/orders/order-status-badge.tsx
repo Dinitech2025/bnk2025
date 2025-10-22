@@ -13,6 +13,8 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
         return 'bg-gray-100 text-gray-800';
       case 'PAID':
         return 'bg-emerald-100 text-emerald-800';
+      case 'PARTIALLY_PAID':
+        return 'bg-orange-100 text-orange-800';
       case 'CONFIRMED':
         return 'bg-green-100 text-green-800';
       case 'PENDING':
@@ -43,8 +45,11 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
       case 'WAITING_PAYMENT':
         return 'Devis en attente de paiement';
       case 'PAID':
-      case 'CONFIRMED':
-        return 'Commande payée';
+        return 'Payée';
+      case 'PARTIALLY_PAID':
+        return 'Payée partiellement';
+      case 'CONFIRMED': // Ancienne valeur pour compatibilité
+        return 'Payée';
       case 'PENDING':
         return 'En attente';
       case 'PROCESSING':

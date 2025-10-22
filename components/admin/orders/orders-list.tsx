@@ -132,13 +132,14 @@ export default function OrdersList({ orders }: { orders: OrderWithRelations[] })
     const statusTranslations: { [key: string]: string } = {
       'QUOTE': 'Devis en attente de paiement',
       'PENDING': 'En attente',
+      'PARTIALLY_PAID': 'Payée partiellement',
+      'PAID': 'Commande payée',
       'PROCESSING': 'En traitement',
       'SHIPPING': 'En livraison',
       'DELIVERED': 'Livrée',
       'CANCELLED': 'Annulée',
       'FINISHED': 'Terminée',
-      'CONFIRMED': 'Commande payée',
-      'PAID': 'Commande payée'
+      'CONFIRMED': 'Commande payée'
     };
     return statusTranslations[status] || status;
   };

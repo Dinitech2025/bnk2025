@@ -1,3 +1,5 @@
+'use client'
+
 import { Service, ServiceCategory } from '@prisma/client'
 import React from 'react'
 import { useForm } from 'react-hook-form'

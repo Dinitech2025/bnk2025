@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { convertDevToCmdOrderNumber } from '@/lib/utils'
+import { convertDevToCmdOrderNumber, defaultExchangeRates } from '@/lib/utils'
+
+// Désactiver le cache pour cette API
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface PaymentData {
   amount: number
@@ -13,6 +17,7 @@ interface PaymentData {
   transactionId?: string
   reference?: string
   notes?: string
+  displayCurrency?: string // Devise d'affichage au moment du paiement
 }
 
 /**
@@ -109,12 +114,35 @@ export async function POST(
 
     // Créer le paiement dans une transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Déterminer le taux de change et le montant original
+      const paymentCurrency = order.currency || 'MGA'
+      const displayCurrency = paymentData.displayCurrency || paymentCurrency
+      
+      // Capturer les taux de change actuels pour la devise d'affichage
+      let exchangeRate = 1
+      let originalAmount = paymentData.amount
+      
+      if (displayCurrency !== paymentCurrency) {
+        // Si on affiche dans une devise différente, capturer le taux actuel
+        exchangeRate = defaultExchangeRates[displayCurrency] || 1
+        // Le montant original est dans la devise d'affichage
+        originalAmount = paymentData.amount
+      } else {
+        // Même devise, pas de conversion
+        exchangeRate = 1
+        originalAmount = paymentData.amount
+      }
+
       // Créer le paiement
       const payment = await tx.payment.create({
         data: {
           orderId: orderId,
           amount: paymentData.amount,
           currency: order.currency,
+          originalAmount: originalAmount,
+          paymentExchangeRate: exchangeRate,
+          paymentDisplayCurrency: displayCurrency,
+          paymentBaseCurrency: paymentCurrency,
           methodId: paymentData.methodId || null,
           providerId: paymentData.providerId || null,
           method: paymentData.method, // Conservé pour compatibilité
@@ -148,14 +176,55 @@ export async function POST(
         data: {
           orderNumber: newOrderNumber,
           paymentStatus: isFullyPaid ? 'PAID' : 'PARTIALLY_PAID',
-          // Ne pas changer automatiquement le statut à CONFIRMED, laisser PAID
-          status: order.status === 'QUOTE' && isFullyPaid ? 'PAID' : order.status
+          // Changer automatiquement le statut selon le paiement
+          status: (() => {
+            // Si entièrement payé, passer à PAID (depuis QUOTE, PENDING, ou PARTIALLY_PAID)
+            if ((order.status === 'QUOTE' || order.status === 'PENDING' || order.status === 'PARTIALLY_PAID') && isFullyPaid) {
+              return 'PAID'
+            } 
+            // Si paiement partiel, passer à PARTIALLY_PAID (depuis QUOTE, PENDING, ou rester PARTIALLY_PAID)
+            else if ((order.status === 'QUOTE' || order.status === 'PENDING' || order.status === 'PARTIALLY_PAID') && updatedTotalPaid > 0 && !isFullyPaid) {
+              return 'PARTIALLY_PAID'
+            }
+            return order.status
+          })()
         },
         include: {
           payments: true,
           subscriptions: true
         }
       })
+
+      // Ajouter une entrée d'historique si le statut a changé automatiquement
+      const newStatus = (() => {
+        // Si entièrement payé, passer à PAID (depuis QUOTE, PENDING, ou PARTIALLY_PAID)
+        if ((order.status === 'QUOTE' || order.status === 'PENDING' || order.status === 'PARTIALLY_PAID') && isFullyPaid) {
+          return 'PAID'
+        } 
+        // Si paiement partiel, passer à PARTIALLY_PAID (depuis QUOTE, PENDING, ou rester PARTIALLY_PAID)
+        else if ((order.status === 'QUOTE' || order.status === 'PENDING' || order.status === 'PARTIALLY_PAID') && updatedTotalPaid > 0 && !isFullyPaid) {
+          return 'PARTIALLY_PAID'
+        }
+        return order.status
+      })()
+
+      if (newStatus !== order.status) {
+        const descriptions = {
+          'PAID': `Statut changé automatiquement vers "Payée" après paiement complet (${paymentData.amount} ${order.currency})`,
+          'PARTIALLY_PAID': `Statut changé automatiquement vers "Payée partiellement" après paiement partiel (${paymentData.amount} ${order.currency})`
+        }
+        
+        await tx.orderHistory.create({
+          data: {
+            orderId: orderId,
+            status: newStatus,
+            previousStatus: order.status,
+            action: newStatus === 'PAID' ? 'PAYMENT_COMPLETED' : 'PAYMENT_PARTIAL',
+            description: descriptions[newStatus] || `Statut changé vers ${newStatus}`,
+            userId: session.user?.id || null
+          }
+        })
+      }
 
       // Si la commande est entièrement payée, gérer les abonnements
       if (isFullyPaid) {
@@ -292,7 +361,14 @@ export async function GET(
       }
     })
 
-    return NextResponse.json(payments)
+    const response = NextResponse.json(payments)
+    
+    // Headers pour désactiver le cache
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Erreur lors de la récupération des paiements:', error)
     return NextResponse.json(

@@ -20,6 +20,15 @@ export async function POST(request: NextRequest) {
       billingAddress: body.billingAddress
     })
 
+    console.log('🚚 Données livraison reçues:', {
+      deliveryCost: body.deliveryCost,
+      deliveryInfo: body.deliveryInfo
+    })
+
+    console.log('🎯 Données promotion reçues:', {
+      promotion: body.promotion
+    })
+
     // Logs détaillés pour debugging
     console.log('🔍 ANALYSE DÉTAILLÉE DES ADRESSES:')
     console.log('   📦 SHIPPING ADDRESS:')
@@ -61,6 +70,8 @@ export async function POST(request: NextRequest) {
       lastName,
       paymentData,
       notes,
+      deliveryCost,
+      deliveryInfo,
       exchangeRates,
       displayCurrency,
       baseCurrency
@@ -276,8 +287,18 @@ export async function POST(request: NextRequest) {
         paymentDetails: JSON.stringify(paymentData),
         
         // Statut
-        status: 'CONFIRMED',
+        status: 'PAID',
         notes: notes || '',
+        
+        // Informations de livraison (utiliser les anciens champs pour compatibilité)
+        deliveryMode: body.deliveryInfo?.code || null,
+        deliveryName: body.deliveryInfo?.name || null,
+        deliveryCost: body.deliveryCost ? parseFloat(body.deliveryCost.toString()) : null,
+        deliveryTime: body.deliveryInfo?.estimatedTime || null,
+        deliveryDetails: body.deliveryInfo ? JSON.stringify(body.deliveryInfo) : null,
+        
+        // Informations de promotion
+        promotionId: body.promotion?.id || null,
         
         // Note: Exchange rate fields removed as they don't exist in Order model
         
@@ -358,6 +379,39 @@ export async function POST(request: NextRequest) {
         method: payment.method,
         transactionId: payment.transactionId
       });
+    }
+
+    // Enregistrer l'utilisation de la promotion si applicable
+    if (body.promotion && userId) {
+      try {
+        await prisma.promotionUsage.create({
+          data: {
+            promotionId: body.promotion.id,
+            userId: userId,
+            orderId: order.id,
+            discountAmount: body.promotion.discountAmount || 0
+          }
+        })
+
+        // Incrémenter le compteur d'utilisation de la promotion
+        await prisma.promotion.update({
+          where: { id: body.promotion.id },
+          data: {
+            usageCount: {
+              increment: 1
+            }
+          }
+        })
+
+        console.log('✅ Utilisation de promotion enregistrée:', {
+          promotionCode: body.promotion.code,
+          discountAmount: body.promotion.discountAmount,
+          orderId: order.id
+        })
+      } catch (promotionError) {
+        console.error('❌ Erreur lors de l\'enregistrement de la promotion:', promotionError)
+        // Ne pas faire échouer la commande pour une erreur de promotion
+      }
     }
 
     // Log pour audit

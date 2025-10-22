@@ -110,14 +110,14 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-md">
       <div className="container flex h-16 md:h-20 items-center justify-between px-4">
         {/* Logo à gauche */}
-        <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
+        <Link href="/" className="flex items-center space-x-2 flex-shrink-0 -ml-2 md:-ml-3 lg:-ml-4">
           {useSiteLogo && logoUrl ? (
-            <div className="relative h-8 w-32 md:h-12 md:w-48 lg:h-16 lg:w-64">
+            <div className="relative h-16 w-56 md:h-20 md:w-72 lg:h-24 lg:w-96">
               <Image
                 src={logoUrl}
                 alt={siteName}
                 fill
-                className="object-contain"
+                className="object-contain object-left"
                 priority
               />
             </div>

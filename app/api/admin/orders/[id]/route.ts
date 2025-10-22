@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Désactiver le cache pour cette API
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -101,6 +105,44 @@ export async function GET(
             },
           },
         },
+        returns: {
+          include: {
+            returnItems: {
+              include: {
+                orderItem: {
+                  include: {
+                    product: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                    service: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                    offer: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -121,9 +163,36 @@ export async function GET(
         startDate: sub.startDate.toISOString(),
         endDate: sub.endDate.toISOString(),
       })),
+      returns: order.returns.map((returnItem: any) => ({
+        ...returnItem,
+        createdAt: returnItem.createdAt.toISOString(),
+        processedAt: returnItem.processedAt ? returnItem.processedAt.toISOString() : null,
+        refundedAt: returnItem.refundedAt ? returnItem.refundedAt.toISOString() : null,
+        requestedAmount: Number(returnItem.requestedAmount),
+        approvedAmount: returnItem.approvedAmount ? Number(returnItem.approvedAmount) : null,
+        refundedAmount: returnItem.refundedAmount ? Number(returnItem.refundedAmount) : null,
+        returnItems: (returnItem.returnItems || []).map((item: any) => ({
+          ...item,
+          refundAmount: Number(item.refundAmount),
+          createdAt: item.createdAt.toISOString(),
+          orderItem: item.orderItem ? {
+            ...item.orderItem,
+            unitPrice: Number(item.orderItem.unitPrice),
+            totalPrice: Number(item.orderItem.totalPrice),
+            discountAmount: item.orderItem.discountAmount ? Number(item.orderItem.discountAmount) : null,
+          } : null
+        }))
+      })),
     }
 
-    return NextResponse.json(formattedOrder)
+    const response = NextResponse.json(formattedOrder)
+    
+    // Headers pour désactiver le cache
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Error fetching order:', error)
     return NextResponse.json(
@@ -331,4 +400,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-} 
+}

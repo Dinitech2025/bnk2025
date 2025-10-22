@@ -2,6 +2,7 @@
 
 import { signOut, useSession } from 'next-auth/react'
 import { Bell, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +13,25 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { CurrencySelector } from '@/components/ui/currency-selector'
+import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
+
+interface Notification {
+  id: string
+  type: 'info' | 'warning' | 'error'
+  title: string
+  message: string
+  action?: {
+    text: string
+    url: string
+  }
+  createdAt: string
+}
 
 export default function AdminHeaderSimple() {
   const { data: session } = useSession()
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   
   // Données utilisateur directement depuis la session (pas de useEffect complexe)
   const userData = {
@@ -27,6 +44,40 @@ export default function AdminHeaderSimple() {
   const initials = userData.name
     ? userData.name.split(' ').map((n) => n[0]).join('')
     : userData.email?.charAt(0).toUpperCase()
+
+  // Charger les notifications
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch('/api/admin/notifications')
+      if (response.ok) {
+        const data = await response.json()
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.unreadCount || 0)
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des notifications:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'STAFF') {
+      fetchNotifications()
+      // Actualiser toutes les 5 minutes
+      const interval = setInterval(fetchNotifications, 5 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [session])
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'warning':
+        return '⚠️'
+      case 'error':
+        return '🚨'
+      default:
+        return '📢'
+    }
+  }
 
   return (
     <header className="h-12 sm:h-16 border-b bg-white flex items-center px-3 sm:px-6">
@@ -53,10 +104,68 @@ export default function AdminHeaderSimple() {
           <CurrencySelector />
           
           {/* Notifications */}
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="h-4 w-4" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="relative">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <Badge 
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] rounded-full bg-red-500 text-white flex items-center justify-center"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+              <div className="p-3 border-b">
+                <h4 className="font-semibold">Notifications</h4>
+                <p className="text-sm text-gray-600">{unreadCount} nouvelles</p>
+              </div>
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  Aucune notification
+                </div>
+              ) : (
+                notifications.slice(0, 10).map((notification) => (
+                  <DropdownMenuItem key={notification.id} className="p-0">
+                    <div className="w-full p-3 hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <span className="text-lg">{getNotificationIcon(notification.type)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-900 truncate">
+                            {notification.title}
+                          </p>
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {notification.message}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-500">
+                              {new Date(notification.createdAt).toLocaleDateString('fr-FR')}
+                            </span>
+                            {notification.action && (
+                              <Link href={notification.action.url}>
+                                <Button variant="ghost" size="sm" className="text-xs h-6">
+                                  {notification.action.text}
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+              {notifications.length > 10 && (
+                <div className="p-3 border-t text-center">
+                  <Button variant="ghost" size="sm" className="text-sm">
+                    Voir toutes les notifications
+                  </Button>
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Menu utilisateur */}
           <DropdownMenu>
@@ -102,4 +211,3 @@ export default function AdminHeaderSimple() {
     </header>
   )
 }
-

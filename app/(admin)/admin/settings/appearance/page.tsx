@@ -17,8 +17,12 @@ interface AppearanceSettings {
   faviconUrl: string
   adminLogoUrl: string
   bannerUrl: string
+  invoiceLogo1Url: string
+  invoiceLogo2Url: string
   useSiteLogo: string
   footerText: string
+  invoiceFooterText: string
+  showInvoiceFooter: string
 }
 
 export default function AppearanceSettingsPage() {
@@ -33,6 +37,10 @@ export default function AppearanceSettingsPage() {
   const faviconUrl = watch('faviconUrl')
   const adminLogoUrl = watch('adminLogoUrl')
   const bannerUrl = watch('bannerUrl')
+  const invoiceLogo1Url = watch('invoiceLogo1Url')
+  const invoiceLogo2Url = watch('invoiceLogo2Url')
+  const showInvoiceFooter = watch('showInvoiceFooter')
+  const invoiceFooterText = watch('invoiceFooterText')
 
   // Charger les paramètres existants
   useEffect(() => {
@@ -45,7 +53,7 @@ export default function AppearanceSettingsPage() {
           
           // Remplir le formulaire avec les données existantes
           Object.entries(data).forEach(([key, value]) => {
-            if (key in { logoUrl: '', faviconUrl: '', adminLogoUrl: '', bannerUrl: '', useSiteLogo: '', footerText: '' }) {
+            if (key in { logoUrl: '', faviconUrl: '', adminLogoUrl: '', bannerUrl: '', invoiceLogo1Url: '', invoiceLogo2Url: '', useSiteLogo: '', footerText: '', invoiceFooterText: '', showInvoiceFooter: '' }) {
               setValue(key as keyof AppearanceSettings, value as string)
             }
           })
@@ -167,6 +175,7 @@ export default function AppearanceSettingsPage() {
                   value={adminLogoUrl || ''}
                   onChange={(url) => setValue('adminLogoUrl', url)}
                   disabled={isLoading || isSaving}
+                  multiple={false}
                   variant="logo"
                 />
                 <p className="text-sm text-muted-foreground">
@@ -202,6 +211,47 @@ export default function AppearanceSettingsPage() {
               </div>
             </div>
             
+            <Separator />
+            
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium">Logos pour factures</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configurez différents logos à utiliser sur vos factures. Vous pourrez choisir entre ces logos lors de la génération des factures.
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="invoiceLogo1Url">Logo facture 1</Label>
+                  <ImageUpload
+                    value={invoiceLogo1Url || ''}
+                    onChange={(url) => setValue('invoiceLogo1Url', url)}
+                    disabled={isLoading || isSaving}
+                    multiple={false}
+                    variant="logo"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Premier logo disponible pour les factures
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="invoiceLogo2Url">Logo facture 2</Label>
+                  <ImageUpload
+                    value={invoiceLogo2Url || ''}
+                    onChange={(url) => setValue('invoiceLogo2Url', url)}
+                    disabled={isLoading || isSaving}
+                    multiple={false}
+                    variant="logo"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Deuxième logo disponible pour les factures
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="footerText">Texte de pied de page</Label>
               <Textarea
@@ -214,6 +264,55 @@ export default function AppearanceSettingsPage() {
                 Texte affiché dans le pied de page du site
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Paramètres de facture</CardTitle>
+            <CardDescription>
+              Configurez l'apparence et le contenu de vos factures
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showInvoiceFooter">Afficher le texte de pied de facture</Label>
+                <Switch
+                  id="showInvoiceFooter"
+                  checked={showInvoiceFooter === 'true'}
+                  onCheckedChange={(checked) => {
+                    setValue('showInvoiceFooter', checked ? 'true' : 'false')
+                  }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Activez cette option pour afficher un texte personnalisé en bas de vos factures.
+              </p>
+            </div>
+
+            {showInvoiceFooter === 'true' && (
+              <div className="space-y-2">
+                <Label htmlFor="invoiceFooterText">Texte de pied de facture</Label>
+                <Textarea
+                  id="invoiceFooterText"
+                  {...register('invoiceFooterText')}
+                  rows={6}
+                  placeholder="NB: En acceptant cet achat vous acceptez ces conditions suivantes
+
+• La livraison se 2 ou 3 semaines est comptée à partir de la réception dans notre entrepôt ou dépôt des fonds à cause des circonstances de transit de colis
+
+• Comme le prix affiché sur la facture est le prix du produit sur le fournisseur et les frais de livraison de France vers Madagascar donc en cas de retour
+
+Pour savoir plus sur ces conditions, veuillez visiter le lien: https://www.boutik-naka.com/content/3-conditions-utilisation
+
+• le retour Madagascar vers la France sera à la charge du client"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Ce texte apparaîtra en bas de toutes vos factures. Vous pouvez inclure des conditions, mentions légales, etc.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
         

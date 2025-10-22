@@ -142,7 +142,7 @@ export function OrderForm({ users, products, services, offers, initialData }: Or
   
   const [formData, setFormData] = useState<OrderFormData>({
     userId: '',
-    status: 'QUOTE',
+    status: 'PENDING',
     total: 0,
     items: [],
     notes: '',

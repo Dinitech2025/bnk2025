@@ -2,13 +2,17 @@
 export const orderStatusTranslations: Record<string, string> = {
   // Statuts de commande
   'PENDING': 'En attente',
-  'CONFIRMED': 'Confirmée',
+  'PARTIALLY_PAID': 'Payée partiellement',
+  'PAID': 'Payée',
   'PROCESSING': 'En cours de traitement',
   'SHIPPED': 'Expédiée',
   'DELIVERED': 'Livrée',
   'CANCELLED': 'Annulée',
   'REFUNDED': 'Remboursée',
   'QUOTE': 'Devis',
+  
+  // Ancienne valeur pour compatibilité
+  'CONFIRMED': 'Payée',
   
   // Statuts de paiement
   'UNPAID': 'Non payée',
@@ -48,14 +52,17 @@ export function getOrderStatusColor(status: string): string {
   const normalizedStatus = status.toUpperCase()
   
   switch (normalizedStatus) {
-    case 'CONFIRMED':
-    case 'DELIVERED':
     case 'PAID':
+    case 'DELIVERED':
+      return 'bg-green-100 text-green-800'
+    case 'CONFIRMED': // Ancienne valeur pour compatibilité
       return 'bg-green-100 text-green-800'
     case 'PENDING':
     case 'QUOTE':
     case 'UNPAID':
       return 'bg-yellow-100 text-yellow-800'
+    case 'PARTIALLY_PAID':
+      return 'bg-orange-100 text-orange-800'
     case 'CANCELLED':
     case 'REFUNDED':
     case 'FAILED':

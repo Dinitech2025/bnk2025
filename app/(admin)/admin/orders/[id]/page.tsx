@@ -2,6 +2,10 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, User, MapPin, CreditCard, Clock, Package, Users, Monitor, AlertCircle, ShoppingCart, CheckCircle, XCircle, Calendar, ExternalLink, Receipt, Truck } from 'lucide-react';
+
+// Désactiver le cache pour cette page dynamique
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -9,7 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import OrderStatusBadge from '@/components/admin/orders/order-status-badge';
 import { OrderActions } from '@/components/admin/orders/order-actions';
 import { PriceWithConversion } from '@/components/ui/currency-selector';
-import { PaymentSummary } from '@/components/admin/orders/payment-summary';
+import { PaymentSummaryWrapper } from '@/components/admin/orders/payment-summary-wrapper';
+import { ReturnItemButton } from '@/components/admin/orders/return-item-button';
+import { OrderDetailWrapper } from '@/components/admin/orders/order-detail-wrapper';
+import { PaymentAmountDisplay } from '@/components/admin/orders/payment-amount-display';
 import { prisma } from "@/lib/prisma";
 
 interface Address {
@@ -28,6 +35,33 @@ interface User {
   lastName: string | null;
   email: string;
   phone: string | null;
+}
+
+interface ReturnItem {
+  id: string;
+  quantity: number;
+  reason: string | null;
+  condition: string | null;
+  refundAmount: number;
+  orderItem: {
+    product?: { name: string };
+    service?: { name: string };
+    offer?: { name: string };
+    metadata: any;
+  };
+}
+
+interface OrderReturn {
+  id: string;
+  returnNumber: string;
+  status: string;
+  reason: string;
+  description: string | null;
+  requestedAmount: number;
+  approvedAmount: number | null;
+  refundedAmount: number | null;
+  createdAt: Date;
+  returnItems: ReturnItem[];
 }
 
 interface PlatformOffer {
@@ -119,6 +153,19 @@ interface Payment {
   } | null;
 }
 
+interface OrderHistoryEntry {
+  id: string;
+  status: string;
+  previousStatus?: string;
+  action: string;
+  description?: string;
+  createdAt: string;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
 interface Order {
   id: string;
   orderNumber?: string;
@@ -135,11 +182,19 @@ interface Order {
   shippingAddress: Address | null;
   billingAddress: Address | null;
   subscriptions: Subscription[];
+  returns: OrderReturn[];
+  history: OrderHistoryEntry[];
   // Nouveaux champs de réduction globale
   globalDiscountType?: string | null;
   globalDiscountValue?: number | null;
   globalDiscountAmount?: number | null;
   notes?: string | null;
+  // Champs de livraison
+  deliveryMode?: string | null;
+  deliveryName?: string | null;
+  deliveryCost?: number | null;
+  deliveryTime?: string | null;
+  deliveryDetails?: string | null;
 }
 
 // Fonction pour extraire les informations des métadonnées
@@ -184,7 +239,7 @@ function getAllPaymentMethods(payments: Payment[]): string {
 }
 
 // Fonction pour calculer le statut de paiement
-function getPaymentStatus(order: Order): { status: string; totalPaid: number; remaining: number } {
+function getPaymentStatus(order: Order): { status: string; statusElement: JSX.Element; totalPaid: number; remaining: number } {
   const totalPaid = order.payments
     .filter(p => p.status === 'COMPLETED')
     .reduce((sum, p) => sum + p.amount, 0);
@@ -192,16 +247,27 @@ function getPaymentStatus(order: Order): { status: string; totalPaid: number; re
   const totalOrder = order.total;
   const remaining = Math.max(0, totalOrder - totalPaid);
   
+  // Helper pour formater les prix avec conversion
+  const formatPrice = (price: number) => {
+    // Utiliser PriceWithConversion mais récupérer seulement le texte
+    return <PriceWithConversion price={price} />;
+  };
+
   let status = '';
+  let statusElement = null;
   if (totalPaid === 0) {
-    status = `💳 ${totalOrder.toLocaleString('fr-FR')} ${order.currency} à payer`;
+    statusElement = (
+      <span>💳 <PriceWithConversion price={totalOrder} /> à payer</span>
+    );
   } else if (remaining > 0) {
-    status = `⚠️ ${totalPaid.toLocaleString('fr-FR')} ${order.currency} payé, ${remaining.toLocaleString('fr-FR')} ${order.currency} restant`;
+    statusElement = (
+      <span>⚠️ <PriceWithConversion price={totalPaid} /> payé, <PriceWithConversion price={remaining} /> restant</span>
+    );
   } else {
-    status = `✅ Entièrement payé`;
+    statusElement = <span>✅ Entièrement payé</span>;
   }
   
-  return { status, totalPaid, remaining };
+  return { status, statusElement, totalPaid, remaining };
 }
 
 // Fonction pour calculer les totaux avec réductions
@@ -273,7 +339,22 @@ async function getOrder(id: string): Promise<any> {
         },
       },
       payments: {
-        include: {
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          originalAmount: true,
+          paymentExchangeRate: true,
+          paymentDisplayCurrency: true,
+          paymentBaseCurrency: true,
+          method: true,
+          provider: true,
+          transactionId: true,
+          reference: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
           processedByUser: {
             select: {
               id: true,
@@ -346,23 +427,33 @@ async function getOrder(id: string): Promise<any> {
   return {
     ...order,
     total: Number(order.total),
+    deliveryCost: (order as any).deliveryCost ? Number((order as any).deliveryCost) : null,
+    exchangeRate: (order as any).exchangeRate ? Number((order as any).exchangeRate) : null,
+    originalTotal: (order as any).originalTotal ? Number((order as any).originalTotal) : null,
+    shippingCost: (order as any).shippingCost ? Number((order as any).shippingCost) : null,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     globalDiscountValue: (order as any).globalDiscountValue ? Number((order as any).globalDiscountValue) : null,
     globalDiscountAmount: (order as any).globalDiscountAmount ? Number((order as any).globalDiscountAmount) : null,
-    items: order.items.map((item: any) => ({
+    items: (order as any).items.map((item: any) => ({
       ...item,
       unitPrice: Number(item.unitPrice),
       totalPrice: Number(item.totalPrice),
       discountValue: item.discountValue ? Number(item.discountValue) : null,
       discountAmount: item.discountAmount ? Number(item.discountAmount) : null,
     })),
-    payments: order.payments.map(payment => ({
+    payments: (order as any).payments.map((payment: any) => ({
       ...payment,
       amount: Number(payment.amount),
+      feeAmount: payment.feeAmount ? Number(payment.feeAmount) : null,
+      netAmount: payment.netAmount ? Number(payment.netAmount) : null,
+      paymentExchangeRate: payment.paymentExchangeRate ? Number(payment.paymentExchangeRate) : null,
+      originalAmount: payment.originalAmount ? Number(payment.originalAmount) : null,
       createdAt: payment.createdAt.toISOString(),
     })),
-    subscriptions: order.subscriptions.map(sub => ({
+    returns: [], // Sera rempli séparément
+    history: [], // Pas d'historique implémenté
+    subscriptions: (order as any).subscriptions.map((sub: any) => ({
       ...sub,
       startDate: sub.startDate.toISOString(),
       endDate: sub.endDate.toISOString(),
@@ -370,8 +461,34 @@ async function getOrder(id: string): Promise<any> {
   };
 }
 
+async function getOrderReturns(orderId: string) {
+  try {
+    const response = await fetch(`http://localhost:3000/api/debug/returns?orderNumber=${orderId}`, {
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    
+    if (data.found && data.order.returnsCount > 0) {
+      return data.order.returns.map((ret: any) => ({
+        ...ret,
+        createdAt: ret.createdAt // Déjà en string depuis l'API
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Erreur récupération retours:', error);
+    return [];
+  }
+}
+
 export default async function OrderDetailsPage({ params }: { params: { id: string } }) {
   const order = await getOrder(params.id);
+  
+  // Récupérer les retours séparément via l'API debug
+  const returns = order.orderNumber ? await getOrderReturns(order.orderNumber) : [];
+  
+  // Ajouter les retours à l'ordre
+  order.returns = returns;
   
   // Calculer les totaux avec réductions
   const orderTotals = calculateOrderTotals(order);
@@ -384,104 +501,127 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
   const notes = firstItemMetadata?.notes;
 
   return (
-    <div className="min-h-screen bg-gray-50/30">
-      <div className="px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* En-tête */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/orders">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">
-              Commande {order.orderNumber || order.id.substring(0, 8)}
-            </h1>
-            <p className="text-muted-foreground">
-              Créée le {new Date(order.createdAt).toLocaleDateString('fr-FR', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </p>
+        {/* En-tête moderne et compact */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/admin/orders">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Commandes
+                </Button>
+              </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {order.orderNumber || `#${order.id.substring(0, 8)}`}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {new Date(order.createdAt).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <OrderStatusBadge status={order.status} />
+              <OrderActions 
+                orderId={order.id} 
+                orderStatus={order.status} 
+                orderNumber={order.orderNumber}
+                paymentStatus={order.status}
+                hasPayments={order.payments && order.payments.length > 0}
+              />
+            </div>
           </div>
-          <OrderStatusBadge status={order.status} />
         </div>
-        
-        <OrderActions 
-          orderId={order.id} 
-          orderStatus={order.status} 
+
+        {/* Barre de progression du statut - Largeur complète */}
+        <OrderDetailWrapper
+          orderId={order.id}
+          initialStatus={order.status}
           orderNumber={order.orderNumber}
-          paymentStatus={order.status}
-          hasPayments={order.payments && order.payments.length > 0}
+          orderTotal={Number(order.total)}
+          currency={order.currency}
         />
-      </div>
 
         {/* Contenu principal */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Colonne principale - Articles et détails */}
-          <div className="xl:col-span-3 space-y-6">
-          
+          <div className="xl:col-span-3 space-y-4">
+
           {/* Articles de la commande */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Articles commandés
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Package className="h-5 w-5 text-blue-600" />
+                Articles commandés ({order.items.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
+            <CardContent className="pt-0">
+              <div className="space-y-3">
                 {order.items.map((item, index) => {
                   const itemMetadata = parseMetadata(item.metadata);
                   
                   return (
-                    <div key={item.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg">
-                            {item.product?.name || item.service?.name || item.offer?.name || itemMetadata?.name || 'Article'}
-                          </h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary">
-                              {item.itemType === 'PRODUCT' && 'Produit'}
-                              {item.itemType === 'SERVICE' && 'Service'}
-                              {item.itemType === 'OFFER' && 'Abonnement'}
-                            </Badge>
-                            <span className="text-sm text-muted-foreground">
-                              Quantité: {item.quantity}
-                            </span>
+                    <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                              {item.itemType === 'PRODUCT' && <Package className="h-5 w-5 text-blue-600" />}
+                              {item.itemType === 'SERVICE' && <Users className="h-5 w-5 text-blue-600" />}
+                              {item.itemType === 'OFFER' && <Monitor className="h-5 w-5 text-blue-600" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-gray-900 truncate">
+                                {item.product?.name || item.service?.name || item.offer?.name || itemMetadata?.name || 'Article'}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {item.itemType === 'PRODUCT' && 'Produit'}
+                                  {item.itemType === 'SERVICE' && 'Service'}
+                                  {item.itemType === 'OFFER' && 'Abonnement'}
+                                </Badge>
+                                <span className="text-xs text-gray-500">
+                                  Qty: {item.quantity}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          {/* Affichage avec réduction */}
+                        <div className="flex-shrink-0 text-right ml-4">
                           {item.discountAmount && item.discountAmount > 0 ? (
                             <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground line-through">
-                                {(item.unitPrice * item.quantity).toLocaleString('fr-FR')} {order.currency}
-                              </p>
                               <div className="flex items-center gap-2 justify-end">
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                                  -{formatDiscount(item.discountType, item.discountValue, item.discountAmount, order.currency)?.valueText}
+                                <span className="text-sm text-gray-400 line-through">
+                                  <PriceWithConversion price={item.unitPrice * item.quantity} />
+                                </span>
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                  -{item.discountType === 'PERCENTAGE' 
+                                    ? `${item.discountValue}%` 
+                                    : `${item.discountValue?.toLocaleString('fr-FR')} Ar`
+                                  }
                                 </Badge>
                               </div>
-                              <p className="font-semibold text-lg text-green-600">
+                              <p className="font-semibold text-green-600">
                                 <PriceWithConversion price={item.totalPrice} />
-                              </p>
-                              <p className="text-xs text-green-600">
-                                Économie: {item.discountAmount.toLocaleString('fr-FR')} {order.currency}
                               </p>
                             </div>
                           ) : (
                             <div>
-                              <p className="font-semibold text-lg">
+                              <p className="font-semibold text-gray-900">
                                 <PriceWithConversion price={item.totalPrice} />
                               </p>
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-sm text-gray-500">
                                 {item.quantity} × <PriceWithConversion price={item.unitPrice} />
                               </p>
                             </div>
@@ -604,6 +744,19 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                           <p className="text-sm mt-1">{itemMetadata.notes}</p>
                         </div>
                       )}
+
+                      {/* Bouton de retour */}
+                      <div className="border-t pt-4 mt-4">
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm font-medium text-muted-foreground">Actions</p>
+                          <ReturnItemButton
+                            orderItem={item}
+                            orderId={order.id}
+                            orderNumber={order.orderNumber || ''}
+                            currency={order.currency}
+                          />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -631,7 +784,13 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <p className="font-medium">
-                            {payment.amount.toLocaleString('fr-FR')} {payment.currency}
+                            <PaymentAmountDisplay 
+                              amount={payment.amount}
+                              currency={payment.currency}
+                              originalAmount={payment.originalAmount}
+                              paymentExchangeRate={payment.paymentExchangeRate}
+                              paymentDisplayCurrency={payment.paymentDisplayCurrency}
+                            />
                           </p>
                           <span className="text-xs text-muted-foreground">
                             {new Date(payment.createdAt).toLocaleDateString('fr-FR', {
@@ -681,61 +840,233 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
             </Card>
           )}
 
+          {/* Retours */}
+          {order.returns.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Retours de produits ({order.returns.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {order.returns.map((returnItem) => {
+                    const getStatusColor = (status: string) => {
+                      switch (status) {
+                        case 'REQUESTED': return 'bg-yellow-100 text-yellow-800'
+                        case 'APPROVED': return 'bg-blue-100 text-blue-800'
+                        case 'REJECTED': return 'bg-red-100 text-red-800'
+                        case 'IN_TRANSIT': return 'bg-purple-100 text-purple-800'
+                        case 'RECEIVED': return 'bg-indigo-100 text-indigo-800'
+                        case 'PROCESSED': return 'bg-orange-100 text-orange-800'
+                        case 'REFUNDED': return 'bg-green-100 text-green-800'
+                        default: return 'bg-gray-100 text-gray-800'
+                      }
+                    }
+
+                    const getStatusLabel = (status: string) => {
+                      switch (status) {
+                        case 'REQUESTED': return 'Demandé'
+                        case 'APPROVED': return 'Approuvé'
+                        case 'REJECTED': return 'Rejeté'
+                        case 'IN_TRANSIT': return 'En transit'
+                        case 'RECEIVED': return 'Reçu'
+                        case 'PROCESSED': return 'Traité'
+                        case 'REFUNDED': return 'Remboursé'
+                        default: return status
+                      }
+                    }
+
+                    const getItemName = (orderItem: any) => {
+                      // Vérifier si orderItem existe
+                      if (!orderItem) {
+                        return 'Article non trouvé'
+                      }
+                      
+                      // Priorité aux relations directes
+                      if (orderItem?.product?.name) return orderItem.product.name
+                      if (orderItem?.service?.name) return orderItem.service.name
+                      if (orderItem?.offer?.name) return orderItem.offer.name
+                      
+                      // Fallback sur metadata
+                      if (orderItem?.metadata) {
+                        try {
+                          let metadata = orderItem.metadata
+                          
+                          // Si c'est une chaîne, essayer de la parser
+                          if (typeof metadata === 'string') {
+                            metadata = JSON.parse(metadata)
+                          }
+                          
+                          // Vérifier différentes propriétés possibles
+                          if (metadata?.name) return metadata.name
+                          if (metadata?.productName) return metadata.productName
+                          if (metadata?.serviceName) return metadata.serviceName
+                          if (metadata?.offerName) return metadata.offerName
+                          if (metadata?.title) return metadata.title
+                          
+                        } catch (error) {
+                          // Si le parsing JSON échoue, essayer d'utiliser la chaîne directement
+                          if (typeof orderItem.metadata === 'string' && orderItem.metadata.length > 0) {
+                            return orderItem.metadata
+                          }
+                        }
+                      }
+                      
+                      // Dernière tentative avec les propriétés de base
+                      if (orderItem?.name) return orderItem.name
+                      if (orderItem?.title) return orderItem.title
+                      
+                      return 'Article inconnu'
+                    }
+
+                    return (
+                      <div key={returnItem.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <h4 className="font-semibold">Retour #{returnItem.returnNumber}</h4>
+                              <Badge className={getStatusColor(returnItem.status)}>
+                                {getStatusLabel(returnItem.status)}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Créé le {new Date(returnItem.createdAt).toLocaleDateString('fr-FR')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold"><PriceWithConversion price={returnItem.requestedAmount} /></p>
+                            <p className="text-sm text-gray-600">Montant demandé</p>
+                            {returnItem.refundedAmount && (
+                              <p className="text-sm text-green-600 font-medium">
+                                Remboursé: <PriceWithConversion price={returnItem.refundedAmount} />
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {returnItem.description && (
+                          <p className="text-sm text-gray-700 mb-3 p-2 bg-gray-50 rounded">
+                            {returnItem.description}
+                          </p>
+                        )}
+
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-gray-600">Articles retournés:</p>
+                          {returnItem.returnItems && returnItem.returnItems.length > 0 ? (
+                            returnItem.returnItems.map((item) => {
+                              const itemName = getItemName(item.orderItem)
+                              
+                              // Debug temporaire - à supprimer après test
+                              if (typeof window !== 'undefined') {
+                                console.log('🔍 ReturnItem:', item.id)
+                                console.log('🔍 OrderItem:', item.orderItem)
+                                console.log('🔍 Metadata:', item.orderItem?.metadata)
+                                console.log('🎯 Nom calculé:', itemName)
+                              }
+                              
+                              return (
+                                <div key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+                                  <span>{itemName} (x{item.quantity})</span>
+                                  <span className="font-medium"><PriceWithConversion price={item.refundAmount} /></span>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <p className="text-sm text-gray-500 italic">Aucun article spécifié</p>
+                          )}
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t flex justify-between items-center">
+                          <span className="text-sm text-gray-600">
+                            Raison: {returnItem.reason === 'DEFECTIVE' ? 'Défectueux' : 
+                                    returnItem.reason === 'WRONG_ITEM' ? 'Article incorrect' : 
+                                    returnItem.reason === 'NOT_AS_DESCRIBED' ? 'Non conforme' : 
+                                    returnItem.reason === 'CHANGED_MIND' ? 'Changement d\'avis' : 
+                                    returnItem.reason}
+                          </span>
+                          <Link href={`/admin/returns/${returnItem.id}`}>
+                            <Button variant="outline" size="sm">
+                              Voir détails
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Historique des statuts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Historique de la commande
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Clock className="h-5 w-5 text-purple-600" />
+                Historique
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="font-medium">Commande créée</p>
-                    <p className="text-sm text-muted-foreground">
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {/* Entrée de création de commande */}
+                <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">Commande créée</p>
+                    <p className="text-xs text-gray-500">
                       {new Date(order.createdAt).toLocaleDateString('fr-FR', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
                         day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit'
                       })}
                     </p>
                   </div>
                 </div>
-                
-                {order.updatedAt !== order.createdAt && (
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="font-medium">Dernière modification</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(order.updatedAt).toLocaleDateString('fr-FR', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
+
+                {/* Historique dynamique des changements de statut */}
+                {order.history && order.history.length > 0 && order.history.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      entry.action === 'STATUS_CHANGE' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">
+                        {entry.description || `Statut: ${entry.status}`}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(entry.createdAt).toLocaleDateString('fr-FR', {
                           day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
+                        {entry.user && (
+                          <span className="ml-1">
+                            • {entry.user.firstName} {entry.user.lastName}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Statut actuel si pas d'historique */}
+                {(!order.history || order.history.length === 0) && (
+                  <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="font-medium">Statut actuel: {order.status}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Dernière mise à jour: {new Date(order.updatedAt).toLocaleDateString('fr-FR')}
                       </p>
                     </div>
                   </div>
                 )}
-                
-                <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="font-medium">Statut actuel: {order.status}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Dernière mise à jour: {new Date(order.updatedAt).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -858,11 +1189,14 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
           <div className="xl:col-span-1 space-y-6">
           
           {/* Résumé de la commande */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Résumé</CardTitle>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Receipt className="h-5 w-5 text-green-600" />
+                Résumé
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="pt-0 space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Sous-total articles</span>
                 <PriceWithConversion price={orderTotals.itemsSubtotal} />
@@ -877,18 +1211,34 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                       <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
                         {order.globalDiscountType === 'PERCENTAGE' 
                           ? `${order.globalDiscountValue}%` 
-                          : `${order.globalDiscountValue?.toLocaleString('fr-FR')} ${order.currency}`
+                          : `${order.globalDiscountValue?.toLocaleString('fr-FR')} Ar`
                         }
                       </Badge>
                     )}
                   </span>
-                  <span>-{orderTotals.globalDiscountAmount.toLocaleString('fr-FR')} {order.currency}</span>
+                  <span>-<PriceWithConversion price={orderTotals.globalDiscountAmount} /></span>
                 </div>
               )}
               
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Frais de livraison</span>
-                <span>Gratuit</span>
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {order.deliveryName || 'Frais de livraison'}
+                    {order.deliveryTime && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({order.deliveryTime})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <span>
+                  {order.deliveryCost ? (
+                    <PriceWithConversion price={order.deliveryCost} />
+                  ) : (
+                    'Gratuit'
+                  )}
+                </span>
               </div>
               
               {/* Total des économies */}
@@ -897,7 +1247,7 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                   <div className="flex justify-between items-center text-green-700">
                     <span className="font-medium">💰 Total économisé</span>
                     <span className="font-semibold">
-                      {(orderTotals.itemsSubtotal + orderTotals.globalDiscountAmount - orderTotals.finalTotal).toLocaleString('fr-FR')} {order.currency}
+                      <PriceWithConversion price={orderTotals.itemsSubtotal + orderTotals.globalDiscountAmount - orderTotals.finalTotal} />
                     </span>
                   </div>
                 </div>
@@ -935,6 +1285,79 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
             </CardContent>
           </Card>
 
+          {/* Informations de livraison */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Truck className="h-5 w-5" />
+                Livraison
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {order.deliveryName ? (
+                <>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Mode de livraison</p>
+                    <p className="font-medium">{order.deliveryName}</p>
+                  </div>
+                  
+                  {order.deliveryTime && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Délai estimé</p>
+                      <p className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {order.deliveryTime}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Coût de livraison</p>
+                    <p className="font-medium">
+                      {order.deliveryCost ? (
+                        <PriceWithConversion price={order.deliveryCost} />
+                      ) : (
+                        <span className="text-green-600">Gratuit</span>
+                      )}
+                    </p>
+                  </div>
+                  
+                  {order.deliveryDetails && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Détails</p>
+                      <div className="text-sm text-muted-foreground">
+                        {(() => {
+                          try {
+                            const details = JSON.parse(order.deliveryDetails);
+                            return (
+                              <div className="space-y-1">
+                                {details.description && <p>{details.description}</p>}
+                                {details.code && (
+                                  <p className="text-xs">
+                                    <span className="font-mono bg-gray-100 px-1 rounded">
+                                      {details.code}
+                                    </span>
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          } catch {
+                            return <p>{order.deliveryDetails}</p>;
+                          }
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-muted-foreground text-center py-4">
+                  <p>Aucune information de livraison</p>
+                  <p className="text-xs">Commande créée avant l'ajout des modes de livraison</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Informations de paiement */}
           <Card>
             <CardHeader>
@@ -962,14 +1385,14 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
                       order.paymentStatus === 'PARTIALLY_PAID' ? 'bg-yellow-500' : 'bg-gray-400'
                     }`}></div>
                     <span className="text-sm">
-                      {getPaymentStatus(order).status}
+                      {getPaymentStatus(order).statusElement}
                     </span>
                   </div>
                 </div>
 
                 {/* Résumé financier */}
                 {order.payments.length > 0 && (
-                  <PaymentSummary 
+                  <PaymentSummaryWrapper 
                     payments={order.payments}
                     orderTotal={order.total}
                     orderCurrency={order.currency}

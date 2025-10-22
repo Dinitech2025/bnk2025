@@ -73,24 +73,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-// Fonction utilitaire pour déterminer le type d'un paramètre
-function determineType(value: any): string {
-  if (typeof value === 'string') {
-    if (value.startsWith('http') && (value.includes('.jpg') || value.includes('.png') || value.includes('.gif') || value.includes('.webp'))) {
-      return 'IMAGE'
-    }
-    if (value.length > 100) {
-      return 'TEXT'
-    }
-    return 'STRING'
-  }
-  if (typeof value === 'number') {
-    return 'NUMBER'
-  }
-  if (typeof value === 'boolean') {
-    return 'BOOLEAN'
-  }
-  return 'STRING'
-} 
+}

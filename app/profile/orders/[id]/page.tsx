@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, Package, MapPin, CreditCard, Calendar, User, Phone, Mail, FileText } from 'lucide-react'
+import { ArrowLeft, Package, MapPin, CreditCard, Calendar, User, Phone, Mail, FileText, RotateCcw } from 'lucide-react'
 import { translateOrderStatus, getOrderStatusColor } from '@/lib/utils/status-translations'
 import { useCurrency } from '@/lib/contexts/currency-context'
 
@@ -85,6 +85,26 @@ export default function OrderDetailPage() {
   const formatPrice = (price: number) => {
     const convertedPrice = convertPrice(price, targetCurrency || currency)
     return `${convertedPrice.toLocaleString()} ${targetCurrency || currency}`
+  }
+
+  // Vérifier si un article peut être retourné
+  const canReturnItem = (order: OrderDetail, item: OrderItem) => {
+    // Conditions pour pouvoir retourner un article :
+    // 1. Commande livrée
+    // 2. Dans les 30 jours après livraison
+    // 3. Pas déjà retourné
+    
+    if (order.status !== 'DELIVERED') return false
+    
+    const deliveryDate = new Date(order.createdAt) // Approximation, devrait être la date de livraison
+    const returnDeadline = new Date(deliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 jours
+    
+    return new Date() <= returnDeadline
+  }
+
+  const handleReturnRequest = (item: OrderItem) => {
+    // Rediriger vers la page de retours avec l'article pré-sélectionné
+    router.push(`/returns?orderId=${order?.id}&itemId=${item.id}`)
   }
 
   useEffect(() => {
@@ -264,8 +284,19 @@ export default function OrderDetailPage() {
                         </div>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right space-y-2">
                       <p className="font-medium">{formatPrice(Number(item.totalPrice))}</p>
+                      {order && canReturnItem(order, item) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReturnRequest(item)}
+                          className="text-xs"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Retourner
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -407,4 +438,4 @@ export default function OrderDetailPage() {
       </div>
     </div>
   )
-} 
+}

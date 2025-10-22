@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { CreditCard, Smartphone, Building, Banknote, Loader2 } from 'lucide-react'
+import { useCurrency } from '@/components/providers/currency-provider'
 
 interface PaymentModalProps {
   isOpen: boolean
@@ -19,6 +20,32 @@ interface PaymentModalProps {
   currency: string
   orderNumber?: string
   onPaymentSuccess: () => void
+}
+
+interface ExistingPayment {
+  id: string
+  amount: number
+  currency: string
+  method: string | null
+  provider: string | null
+  status: string
+  transactionId: string | null
+  reference: string | null
+  notes: string | null
+  createdAt: string
+  paymentMethod?: {
+    name: string
+    icon: string | null
+  }
+  paymentProvider?: {
+    name: string
+  }
+  processedByUser?: {
+    id: string
+    name: string | null
+    firstName: string | null
+    lastName: string | null
+  }
 }
 
 interface PaymentFormData {
@@ -88,10 +115,14 @@ export function PaymentModal({
   orderNumber,
   onPaymentSuccess
 }: PaymentModalProps) {
+  const { targetCurrency } = useCurrency()
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [existingPayments, setExistingPayments] = useState<ExistingPayment[]>([])
   const [loading, setLoading] = useState(true)
+  const [remainingAmount, setRemainingAmount] = useState(orderTotal)
+  const [totalPaid, setTotalPaid] = useState(0)
   const [formData, setFormData] = useState<PaymentFormData>({
-    amount: orderTotal,
+    amount: 0, // Sera calculé automatiquement
     methodId: '',
     providerId: '',
     method: '',
@@ -105,12 +136,30 @@ export function PaymentModal({
   const selectedMethod = paymentMethods.find(m => m.id === formData.methodId)
   const selectedProvider = selectedMethod?.providers.find(p => p.id === formData.providerId)
 
-  // Charger les méthodes de paiement
+  // Charger les méthodes de paiement et les paiements existants
   useEffect(() => {
     if (isOpen) {
       fetchPaymentMethods()
+      fetchExistingPayments()
     }
   }, [isOpen, orderTotal])
+
+  // Calculer le montant restant quand les paiements existants changent
+  useEffect(() => {
+    const paid = existingPayments
+      .filter(p => p.status === 'COMPLETED')
+      .reduce((sum, p) => sum + Number(p.amount), 0)
+    
+    setTotalPaid(paid)
+    const remaining = Math.max(0, orderTotal - paid)
+    setRemainingAmount(remaining)
+    
+    // Pré-remplir le montant avec le montant restant
+    setFormData(prev => ({
+      ...prev,
+      amount: remaining
+    }))
+  }, [existingPayments, orderTotal])
 
   const fetchPaymentMethods = async () => {
     try {
@@ -124,6 +173,19 @@ export function PaymentModal({
       toast.error('Erreur lors du chargement des méthodes de paiement')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchExistingPayments = async () => {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/payments`)
+      if (!response.ok) throw new Error('Erreur lors du chargement')
+      const payments = await response.json()
+      console.log('Paiements récupérés:', payments) // Debug
+      setExistingPayments(payments || [])
+    } catch (error) {
+      console.error('Erreur lors du chargement des paiements existants:', error)
+      toast.error('Erreur lors du chargement des paiements existants')
     }
   }
 
@@ -159,6 +221,11 @@ export function PaymentModal({
 
     if (formData.amount <= 0) {
       toast.error('Le montant doit être supérieur à 0')
+      return
+    }
+
+    if (formData.amount > remainingAmount) {
+      toast.error(`Le montant ne peut pas dépasser le montant restant (${remainingAmount.toLocaleString()} ${currency})`)
       return
     }
 
@@ -207,7 +274,8 @@ export function PaymentModal({
           provider: selectedProvider?.code,
           transactionId: formData.transactionId || undefined,
           reference: formData.reference || undefined,
-          notes: formData.notes || undefined
+          notes: formData.notes || undefined,
+          displayCurrency: targetCurrency || currency // Capturer la devise d'affichage actuelle
         })
       })
 
@@ -274,26 +342,89 @@ export function PaymentModal({
             Enregistrer un paiement
           </DialogTitle>
           {orderNumber && (
-            <p className="text-sm text-muted-foreground">
-              Commande: {orderNumber} • Montant restant: {orderTotal} {currency}
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Commande: {orderNumber} • Total: {orderTotal.toLocaleString()} {currency}
+              </p>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-green-600 font-medium">
+                  Payé: {totalPaid.toLocaleString()} {currency}
+                </span>
+                <span className="text-orange-600 font-medium">
+                  Restant: {remainingAmount.toLocaleString()} {currency}
+                </span>
+              </div>
+            </div>
           )}
         </DialogHeader>
 
+        {/* Paiements existants */}
+        {existingPayments.length > 0 && (
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium text-sm text-gray-700">Paiements effectués</h4>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {existingPayments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={payment.status === 'COMPLETED' ? 'default' : 'secondary'} className="text-xs">
+                      {payment.status === 'COMPLETED' ? 'Validé' : payment.status}
+                    </Badge>
+                    <span className="text-gray-600">
+                      {payment.paymentMethod?.name || payment.method || 'Méthode inconnue'}
+                    </span>
+                  </div>
+                  <span className="font-medium">
+                    {Number(payment.amount).toLocaleString()} {payment.currency}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="amount">Montant *</Label>
               <Input
                 id="amount"
                 type="number"
                 step="0.01"
                 min="0.01"
-                max={orderTotal}
+                max={remainingAmount}
                 value={formData.amount}
                 onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
                 required
               />
+              {/* Boutons de raccourci */}
+              <div className="flex gap-1 flex-wrap">
+                {remainingAmount > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs px-2 py-1 h-auto"
+                    onClick={() => setFormData(prev => ({ ...prev, amount: remainingAmount }))}
+                  >
+                    Restant ({remainingAmount.toLocaleString()})
+                  </Button>
+                )}
+                {[25, 50, 75].map(percent => {
+                  const amount = Math.round((remainingAmount * percent) / 100)
+                  return amount > 0 ? (
+                    <Button
+                      key={percent}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs px-2 py-1 h-auto"
+                      onClick={() => setFormData(prev => ({ ...prev, amount }))}
+                    >
+                      {percent}%
+                    </Button>
+                  ) : null
+                })}
+              </div>
             </div>
             <div>
               <Label>Devise</Label>

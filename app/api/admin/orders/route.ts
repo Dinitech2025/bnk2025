@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
 
+// Désactiver le cache pour cette API
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     console.log('GET /api/admin/orders - Récupération des commandes');
@@ -86,7 +90,14 @@ export async function GET() {
       })),
     }))
 
-    return NextResponse.json(formattedOrders)
+    const response = NextResponse.json(formattedOrders)
+    
+    // Headers pour désactiver le cache
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Error fetching orders:', error)
     return NextResponse.json(
@@ -226,7 +237,8 @@ export async function POST(request: Request) {
     }
 
     // Générer le nouveau numéro avec le préfixe approprié
-    const prefix = data.status === 'QUOTE' ? `DEV-${currentYear}-` : `CMD-${currentYear}-`;
+    // Les commandes PENDING utilisent le préfixe DEV (devis), les autres CMD
+    const prefix = data.status === 'PENDING' ? `DEV-${currentYear}-` : `CMD-${currentYear}-`;
     const sequentialNumber = maxSequentialNumber + 1;
     const orderNumber = `${prefix}${sequentialNumber.toString().padStart(4, '0')}`;
 

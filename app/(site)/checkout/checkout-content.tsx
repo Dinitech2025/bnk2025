@@ -17,7 +17,10 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from '@/components/ui/use-toast'
 import { PaymentMethodSelector } from '@/components/checkout/payment-method-selector-simple'
+import { DeliveryOptions } from '@/components/checkout/delivery-options'
 import { AuthModal } from '@/components/auth/auth-modal'
+import { PromoCodeInput } from '@/components/checkout/promo-code-input'
+import { OrderSummary } from '@/components/checkout/order-summary'
 import { useCurrency } from '@/lib/contexts/currency-context'
 
 interface OrderItem {
@@ -53,6 +56,17 @@ interface UserAddress {
   phoneNumber?: string | null
 }
 
+interface PromoCode {
+  id: string
+  code: string
+  name: string
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING' | 'BUY_X_GET_Y'
+  value: number
+  minOrderAmount?: number
+  maxDiscountAmount?: number
+  description?: string
+}
+
 export default function CheckoutContent() {
   const { data: session, status } = useSession()
   const { currency, targetCurrency, formatWithTargetCurrency, exchangeRates } = useCurrency()
@@ -66,6 +80,10 @@ export default function CheckoutContent() {
   const [isProcessingPayPalReturn, setIsProcessingPayPalReturn] = useState(false)
   const [showAuthRequired, setShowAuthRequired] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [selectedDelivery, setSelectedDelivery] = useState<any>(null)
+  const [deliveryCost, setDeliveryCost] = useState(0)
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null)
+  const [discountAmount, setDiscountAmount] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -76,6 +94,34 @@ export default function CheckoutContent() {
     // Utiliser les taux du système (exchangeRates du contexte)
     const rate = exchangeRates[targetCurrency]
     return rate ? price * rate : price
+  }
+
+  // Gérer les changements de mode de livraison
+  const handleDeliveryChange = (delivery: any) => {
+    setSelectedDelivery(delivery)
+    setDeliveryCost(delivery?.price || 0)
+    console.log('🚚 Mode de livraison sélectionné:', delivery)
+  }
+
+  // Calculer le total avec frais de livraison et promotions
+  const getTotalWithDelivery = () => {
+    const baseTotal = orderData?.total || 0
+    const finalDeliveryCost = (appliedPromo?.type === 'FREE_SHIPPING') ? 0 : deliveryCost
+    return baseTotal - discountAmount + finalDeliveryCost
+  }
+
+  // Gérer l'application d'un code promo
+  const handlePromoApplied = (promo: PromoCode, discount: number) => {
+    setAppliedPromo(promo)
+    setDiscountAmount(discount)
+    console.log('🎯 Code promo appliqué:', promo.code, 'Réduction:', discount)
+  }
+
+  // Gérer la suppression d'un code promo
+  const handlePromoRemoved = () => {
+    setAppliedPromo(null)
+    setDiscountAmount(0)
+    console.log('🗑️ Code promo retiré')
   }
 
   // Données du formulaire étendues
@@ -390,6 +436,8 @@ export default function CheckoutContent() {
         body: JSON.stringify({
           items: orderData.items,
           total: calculatedTotal || orderData.total,
+          deliveryCost: deliveryCost,
+          deliveryInfo: selectedDelivery,
           currency: targetCurrency || currency || orderData.currency || 'MGA',
           shippingAddress: {
             firstName: formData.firstName,
@@ -425,7 +473,16 @@ export default function CheckoutContent() {
           // Taux de change au moment de la commande
           exchangeRates: exchangeRates,
           baseCurrency: currency, // MGA
-          displayCurrency: targetCurrency || currency
+          displayCurrency: targetCurrency || currency,
+          
+          // Informations de promotion
+          promotion: appliedPromo ? {
+            id: appliedPromo.id,
+            code: appliedPromo.code,
+            type: appliedPromo.type,
+            value: appliedPromo.value,
+            discountAmount: discountAmount
+          } : null
         })
       })
 
@@ -864,6 +921,16 @@ export default function CheckoutContent() {
           </CardContent>
         </Card>
 
+        {/* Mode de livraison */}
+        <DeliveryOptions
+          selectedDeliveryId={selectedDelivery?.id || null}
+          onDeliveryChange={handleDeliveryChange}
+          shippingAddress={{
+            city: formData.shippingCity || 'Antananarivo',
+            country: formData.shippingCountry || 'Madagascar'
+          }}
+        />
+
         {/* Mode de paiement */}
         <Card>
           <CardHeader>
@@ -874,12 +941,7 @@ export default function CheckoutContent() {
           </CardHeader>
           <CardContent>
             <PaymentMethodSelector
-              total={(() => {
-                const calculatedTotal = (orderData.items || []).reduce((sum, item) => 
-                  sum + ((item.price || 0) * (item.quantity || 0)), 0
-                )
-                return orderData.total || calculatedTotal
-              })()}
+              total={getTotalWithDelivery()}
               currency={orderData.currency || 'Ar'}
               orderData={{
                 items: orderData.items || [],
@@ -993,77 +1055,23 @@ export default function CheckoutContent() {
 
       {/* Colonne droite - Résumé et paiement */}
       <div className="space-y-6">
+        {/* Code promo */}
+        <PromoCodeInput
+          subtotal={orderData?.total || 0}
+          onPromoApplied={handlePromoApplied}
+          onPromoRemoved={handlePromoRemoved}
+          appliedPromo={appliedPromo}
+          discountAmount={discountAmount}
+        />
+
         {/* Résumé de commande */}
-        <Card className="sticky top-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" />
-              Résumé de votre commande
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {(orderData.items || []).map((item, index) => (
-                <div key={index} className="flex justify-between items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                        Qty: {item.quantity}
-                      </span>
-                      {item.duration && (
-                        <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                          <Clock className="w-3 h-3 mr-1" />
-                          {item.duration}
-                        </span>
-                      )}
-                      {item.maxProfiles && (
-                        <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
-                          <Users className="w-3 h-3 mr-1" />
-                          {item.maxProfiles} profils
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right ml-4">
-                    <p className="font-bold text-lg text-gray-900">
-                      {convertPrice(((item.price || 0) * (item.quantity || 0)), targetCurrency || currency).toLocaleString()} {targetCurrency || currency}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {convertPrice(item.price || 0, targetCurrency || currency).toLocaleString()} {targetCurrency || currency} × {item.quantity}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              
-              <Separator className="my-6" />
-              
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-gray-700">Total à payer</span>
-                  <div className="text-right">
-                    {(() => {
-                      // Calculer le total côté client pour vérification
-                      const calculatedTotal = (orderData.items || []).reduce((sum, item) => 
-                        sum + ((item.price || 0) * (item.quantity || 0)), 0
-                      )
-                      const displayTotal = orderData.total || calculatedTotal
-                      const convertedTotal = convertPrice(displayTotal, targetCurrency || currency)
-                      
-                      return (
-                        <>
-                          <span className="text-2xl font-bold text-blue-600">
-                            {convertedTotal.toLocaleString()} {targetCurrency || currency}
-                          </span>
-                        </>
-                      )
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <OrderSummary
+          items={orderData?.items || []}
+          appliedPromo={appliedPromo}
+          discountAmount={discountAmount}
+          shippingCost={deliveryCost}
+          freeShipping={appliedPromo?.type === 'FREE_SHIPPING'}
+        />
 
       </div>
     </div>

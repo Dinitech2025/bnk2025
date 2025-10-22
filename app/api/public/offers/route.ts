@@ -46,18 +46,4 @@ export async function GET() {
     console.error('[OFFERS_GET]', error)
     return new NextResponse('Internal error', { status: 500 })
   }
-}
-
-function getDurationText(duration: number, unit: string): string {
-  switch (unit) {
-    case 'YEAR':
-      return duration === 1 ? '1 an' : `${duration} ans`
-    case 'MONTH':
-      return duration === 1 ? '1 mois' : `${duration} mois`
-    case 'WEEK':
-      return duration === 1 ? '1 semaine' : `${duration} semaines`
-    case 'DAY':
-    default:
-      return duration === 1 ? '1 jour' : `${duration} jours`
-  }
-} 
+}

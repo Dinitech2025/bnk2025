@@ -48,6 +48,7 @@ const feeTypeOptions = [
 
 export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuccess }: PaymentProviderFormProps) {
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+  const [selectedMethod, setSelectedMethod] = useState<any>(null)
   const [formData, setFormData] = useState({
     paymentMethodId: '',
     code: '',
@@ -68,6 +69,30 @@ export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuc
   
   const [loading, setLoading] = useState(false)
   const isEditing = !!provider
+
+  // Fonction pour déterminer le type de méthode de paiement
+  const getPaymentMethodType = () => {
+    if (!selectedMethod) return 'unknown'
+    
+    switch (selectedMethod.code) {
+      case 'online_payment':
+        return 'online'
+      case 'mobile_money':
+        return 'mobile'
+      case 'bank_transfer':
+        return 'bank'
+      case 'cash':
+        return 'cash'
+      default:
+        if (selectedMethod.name?.toLowerCase().includes('mobile') || 
+            selectedMethod.name?.toLowerCase().includes('money')) return 'mobile'
+        if (selectedMethod.name?.toLowerCase().includes('bank') || 
+            selectedMethod.name?.toLowerCase().includes('virement')) return 'bank'
+        if (selectedMethod.name?.toLowerCase().includes('espèce') || 
+            selectedMethod.name?.toLowerCase().includes('cash')) return 'cash'
+        return 'online'
+    }
+  }
 
   // Charger les méthodes de paiement disponibles
   useEffect(() => {
@@ -95,6 +120,11 @@ export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuc
         maxAmount: provider.maxAmount ? provider.maxAmount.toString() : '',
         dailyLimit: provider.dailyLimit ? provider.dailyLimit.toString() : ''
       })
+      // Trouver la méthode associée
+      if (paymentMethods.length > 0) {
+        const method = paymentMethods.find(m => m.id === provider.paymentMethod?.id)
+        setSelectedMethod(method)
+      }
     } else {
       setFormData({
         paymentMethodId: methodId || '',
@@ -113,8 +143,13 @@ export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuc
         maxAmount: '',
         dailyLimit: ''
       })
+      // Trouver la méthode par methodId
+      if (methodId && paymentMethods.length > 0) {
+        const method = paymentMethods.find(m => m.id === methodId)
+        setSelectedMethod(method)
+      }
     }
-  }, [provider, methodId, isOpen])
+  }, [provider, methodId, isOpen, paymentMethods])
 
   const fetchPaymentMethods = async () => {
     try {
@@ -178,12 +213,92 @@ export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuc
     }))
   }
 
+  // Fonctions pour obtenir les champs spécifiques selon le type
+  const getFieldsForType = (type: string) => {
+    switch (type) {
+      case 'online':
+        return {
+          title: 'Fournisseur de paiement en ligne',
+          fields: ['apiEndpoint', 'publicKey', 'merchantId'],
+          labels: {
+            apiEndpoint: 'URL API',
+            publicKey: 'Clé publique',
+            merchantId: 'ID Marchand'
+          },
+          placeholders: {
+            apiEndpoint: 'https://api.paypal.com',
+            publicKey: 'pk_live_...',
+            merchantId: 'merchant_123'
+          }
+        }
+      case 'mobile':
+        return {
+          title: 'Fournisseur Mobile Money',
+          fields: ['publicKey', 'merchantId'],
+          labels: {
+            publicKey: 'Numéro marchand',
+            merchantId: 'Code fournisseur'
+          },
+          placeholders: {
+            publicKey: '261340000000',
+            merchantId: 'ORANGE_MG'
+          }
+        }
+      case 'bank':
+        return {
+          title: 'Banque partenaire',
+          fields: ['publicKey', 'merchantId', 'apiEndpoint'],
+          labels: {
+            publicKey: 'RIB/IBAN',
+            merchantId: 'Code SWIFT',
+            apiEndpoint: 'Adresse de la banque'
+          },
+          placeholders: {
+            publicKey: 'MG46 1234 5678 9012 3456 789',
+            merchantId: 'BMOIMGMG',
+            apiEndpoint: 'Antananarivo, Madagascar'
+          }
+        }
+      case 'cash':
+        return {
+          title: 'Point de paiement espèce',
+          fields: ['apiEndpoint', 'publicKey'],
+          labels: {
+            apiEndpoint: 'Adresse exacte',
+            publicKey: 'Téléphone de contact'
+          },
+          placeholders: {
+            apiEndpoint: 'Rue de la Paix, Antananarivo',
+            publicKey: '+261 34 00 000 00'
+          }
+        }
+      default:
+        return {
+          title: 'Fournisseur de paiement',
+          fields: ['apiEndpoint', 'publicKey', 'merchantId'],
+          labels: {
+            apiEndpoint: 'URL API',
+            publicKey: 'Clé publique',
+            merchantId: 'ID Marchand'
+          },
+          placeholders: {
+            apiEndpoint: 'https://api.example.com',
+            publicKey: 'key_...',
+            merchantId: 'merchant_...'
+          }
+        }
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Modifier le fournisseur de paiement' : 'Nouveau fournisseur de paiement'}
+            {isEditing 
+              ? `Modifier ${getFieldsForType(getPaymentMethodType()).title.toLowerCase()}`
+              : getFieldsForType(getPaymentMethodType()).title
+            }
           </DialogTitle>
         </DialogHeader>
 
@@ -266,41 +381,32 @@ export function PaymentProviderForm({ isOpen, onClose, provider, methodId, onSuc
             </div>
           </div>
 
-          {/* Configuration API */}
-          <div className="space-y-4">
-            <Label>Configuration API (optionnel)</Label>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="apiEndpoint">Endpoint API</Label>
-                <Input
-                  id="apiEndpoint"
-                  value={formData.apiEndpoint}
-                  onChange={(e) => handleInputChange('apiEndpoint', e.target.value)}
-                  placeholder="https://api.example.com"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="publicKey">Clé publique</Label>
-                  <Input
-                    id="publicKey"
-                    value={formData.publicKey}
-                    onChange={(e) => handleInputChange('publicKey', e.target.value)}
-                    placeholder="Clé publique API"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="merchantId">ID Marchand</Label>
-                  <Input
-                    id="merchantId"
-                    value={formData.merchantId}
-                    onChange={(e) => handleInputChange('merchantId', e.target.value)}
-                    placeholder="ID marchand"
-                  />
+          {/* Configuration spécifique selon le type */}
+          {(() => {
+            const typeConfig = getFieldsForType(getPaymentMethodType())
+            return (
+              <div className="space-y-4">
+                <Label>Configuration spécifique</Label>
+                <div className="grid grid-cols-1 gap-4">
+                  {typeConfig.fields.map((field) => (
+                    <div key={field} className="space-y-2">
+                      <Label htmlFor={field}>
+                        {typeConfig.labels[field]}
+                        {field === 'apiEndpoint' && getPaymentMethodType() === 'online' ? ' *' : ''}
+                      </Label>
+                      <Input
+                        id={field}
+                        value={formData[field as keyof typeof formData] as string}
+                        onChange={(e) => handleInputChange(field, e.target.value)}
+                        placeholder={typeConfig.placeholders[field]}
+                        required={field === 'apiEndpoint' && getPaymentMethodType() === 'online'}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* Configuration des frais */}
           <div className="space-y-4">

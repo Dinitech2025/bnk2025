@@ -11,6 +11,7 @@ interface PayPalSimpleProps {
   amount: number
   currency: string
   orderData: any
+  provider?: any
   onSuccess: (paymentData: any) => void
   onError: (error: string) => void
 }
@@ -19,6 +20,7 @@ export function PayPalSimple({
   amount,
   currency,
   orderData,
+  provider,
   onSuccess,
   onError
 }: PayPalSimpleProps) {
@@ -70,7 +72,8 @@ export function PayPalSimple({
         convertedAmount: convertedAmount,
         convertedCurrency: getPayPalCurrency(),
         systemExchangeRates: exchangeRates,
-        eurRateUsed: exchangeRates['EUR']
+        eurRateUsed: exchangeRates['EUR'],
+        provider: provider?.name || 'Default'
       })
 
       // Créer la commande
@@ -82,7 +85,8 @@ export function PayPalSimple({
         body: JSON.stringify({
           amount: getPayPalAmount(),
           currency: getPayPalCurrency(),
-          orderData
+          orderData,
+          providerId: provider?.id
         }),
       })
 
@@ -187,6 +191,11 @@ export function PayPalSimple({
             <div className="flex items-center space-x-2 text-sm font-medium text-gray-700">
               <CreditCard className="h-4 w-4" />
               <span>Paiement sécurisé via PayPal</span>
+              {provider && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                  {provider.name}
+                </span>
+              )}
             </div>
 
             {(currency === 'Ar' || currency === 'MGA' || !currency) && (

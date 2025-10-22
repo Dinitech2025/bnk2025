@@ -6,6 +6,7 @@ import { Receipt, Truck, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeliveryNoteModal } from './delivery-note-modal'
 import { InvoiceModal } from './invoice-modal'
+// Composant de statut retiré - maintenant géré dans la page principale
 
 interface OrderActionsProps {
   orderId: string
@@ -49,26 +50,26 @@ export function OrderActions({
   const invoiceIcon = isPaid ? Receipt : FileText
 
   return (
-    <div className="flex gap-2">
-      {canGenerateDeliveryNote && (
+    <div className="flex gap-2 flex-wrap">
+        {canGenerateDeliveryNote && (
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={openDeliveryModal}
+          >
+            <Truck className="h-4 w-4" />
+            Bon de livraison
+          </Button>
+        )}
+        
         <Button 
           variant="outline" 
           className="flex items-center gap-2"
-          onClick={openDeliveryModal}
+          onClick={openInvoiceModal}
         >
-          <Truck className="h-4 w-4" />
-          Bon de livraison
+          {React.createElement(invoiceIcon, { className: "h-4 w-4" })}
+          {invoiceButtonText}
         </Button>
-      )}
-      
-      <Button 
-        variant="outline" 
-        className="flex items-center gap-2"
-        onClick={openInvoiceModal}
-      >
-        {React.createElement(invoiceIcon, { className: "h-4 w-4" })}
-        {invoiceButtonText}
-      </Button>
       
       {/* Modal bon de livraison */}
       <DeliveryNoteModal

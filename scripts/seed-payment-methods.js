@@ -3,30 +3,7 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const defaultPaymentMethods = [
-  {
-    code: 'paypal',
-    name: 'PayPal',
-    description: 'Paiement via votre compte PayPal',
-    icon: 'CreditCard',
-    type: 'DIRECT',
-    isActive: true,
-    order: 1,
-    feeType: 'PERCENTAGE',
-    feeValue: 3.4,
-    processingTime: 'Instantané',
-    requiresReference: false,
-    requiresTransactionId: true,
-    allowPartialPayments: true,
-    apiEnabled: true,
-    apiEndpoint: 'https://api.paypal.com',
-    settings: {
-      clientId: 'PAYPAL_CLIENT_ID', // À configurer dans les variables d'environnement
-      supportedCurrencies: ['EUR', 'USD', 'GBP'],
-      features: ['instant_transfer', 'buyer_protection'],
-      modes: ['sandbox', 'live']
-    },
-    providers: [] // PayPal n'utilise pas de fournisseurs
-  },
+
   {
     code: 'mobile_money',
     name: 'Mobile Money',

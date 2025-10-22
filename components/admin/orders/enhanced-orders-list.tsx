@@ -23,7 +23,8 @@ import {
   TrendingUp,
   FileText,
   Mail,
-  Truck
+  Truck,
+  PlusCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
@@ -77,6 +78,7 @@ import { PaymentModal } from '@/components/admin/orders/payment-modal';
 import { InvoiceModal } from '@/components/admin/orders/invoice-modal';
 import { PriceWithConversion } from '@/components/ui/currency-selector';
 import { OrderTotalDisplay } from './order-total-display';
+import { RevenueDisplay } from './revenue-display';
 import { Pagination } from '@/components/ui/pagination';
 
 // Types
@@ -100,7 +102,10 @@ interface Payment {
   provider: string | null;
   createdAt: string;
   status: string;
+  feeAmount?: number | null;
+  netAmount?: number | null;
   paymentExchangeRate?: number | null;
+  originalAmount?: number | null;
   paymentDisplayCurrency?: string | null;
   paymentBaseCurrency?: string | null;
 }
@@ -126,9 +131,12 @@ interface OrderWithRelations {
   billingAddress?: any;
   shippingAddress?: any;
   // Champs de taux de change
-  exchangeRates?: string | null;
+  exchangeRates?: any;
   displayCurrency?: string | null;
   exchangeRate?: number | null;
+  baseCurrency?: string | null;
+  originalTotal?: number | null;
+  shippingCost?: number | null;
 }
 
 interface OrdersStats {
@@ -158,11 +166,13 @@ interface EnhancedOrdersListProps {
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Tous les statuts' },
   { value: 'PENDING', label: 'En attente' },
-  { value: 'CONFIRMED', label: 'Confirmée' },
+  { value: 'PARTIALLY_PAID', label: 'Payée partiellement' },
   { value: 'PAID', label: 'Payée' },
+  { value: 'PROCESSING', label: 'En cours' },
   { value: 'SHIPPED', label: 'Expédiée' },
   { value: 'DELIVERED', label: 'Livrée' },
   { value: 'CANCELLED', label: 'Annulée' },
+  { value: 'REFUNDED', label: 'Remboursée' },
 ];
 
 const PAYMENT_STATUS_OPTIONS = [
@@ -419,27 +429,29 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
   // Fonction pour traduire les statuts en français
   const getStatusInFrench = useCallback((status: string): string => {
     const statusTranslations: { [key: string]: string } = {
-      'QUOTE': 'Devis en attente de paiement',
       'PENDING': 'En attente',
-      'PROCESSING': 'En traitement',
-      'SHIPPING': 'En livraison',
+      'PARTIALLY_PAID': 'Payée partiellement',
+      'PAID': 'Payée',
+      'PROCESSING': 'En cours',
+      'SHIPPED': 'Expédiée',
       'DELIVERED': 'Livrée',
       'CANCELLED': 'Annulée',
-      'FINISHED': 'Terminée',
-      'CONFIRMED': 'Commande payée',
-      'PAID': 'Commande payée'
+      'REFUNDED': 'Remboursée',
+      // Compatibilité avec les anciens statuts
+      'CONFIRMED': 'Payée',
+      'QUOTE': 'En attente'
     };
     return statusTranslations[status] || status;
   }, []);
 
   // Fonction pour changer le statut d'une commande
   const updateOrderStatus = useCallback(async (orderId: string, newStatus: string) => {
-    // Si le statut est PAID, ouvrir le modal de paiement au lieu de changer directement le statut
-    if (newStatus === 'PAID') {
+    // Si le statut est PAID ou PARTIALLY_PAID, ouvrir le modal de paiement au lieu de changer directement le statut
+    if (newStatus === 'PAID' || newStatus === 'PARTIALLY_PAID') {
       const order = orders.find(o => o.id === orderId);
       if (order) {
-        // Vérifier si la commande est déjà entièrement payée
-        if (order.paymentStatus === 'PAID') {
+        // Pour PAID, vérifier si la commande est déjà entièrement payée
+        if (newStatus === 'PAID' && order.paymentStatus === 'PAID') {
           toast.error('Cette commande est déjà entièrement payée');
           return;
         }
@@ -459,7 +471,10 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de la mise à jour du statut');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || errorData.details || `Erreur ${response.status}: ${response.statusText}`;
+        console.error('Erreur API détaillée:', errorData);
+        throw new Error(errorMessage);
       }
 
       toast.success(`Statut mis à jour vers "${getStatusInFrench(newStatus)}"`);
@@ -489,46 +504,192 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
   }, [router]);
 
   return (
-    <div className="space-y-6">
-      {/* Barre de recherche et filtres */}
+    <div className="space-y-3">
+      {/* En-tête fusionné avec statistiques et recherche */}
       <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <CardHeader className="pb-2 pt-3 px-4">
+          {/* Titre et actions */}
+          <div className="flex justify-between items-center mb-3">
+            <h1 className="text-lg font-bold text-gray-900">Gestion des Commandes</h1>
+            <Link 
+              href="/admin/orders/new" 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors">
+              <PlusCircle className="h-3.5 w-3.5" />
+              Nouvelle Commande
+            </Link>
+          </div>
+
+          {/* Statistiques complètes avec cadres */}
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-3 pb-3 border-b border-gray-100">
+            {/* Total Commandes */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <Package className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-blue-600 font-medium">Total</p>
+                    <p className="text-lg font-bold text-blue-900">{stats.totalOrders}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-blue-600">+{stats.todayOrders}</p>
+                  <p className="text-xs text-blue-500">aujourd'hui</p>
+                </div>
+              </div>
+            </div>
+
+            {/* En Attente */}
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                    <Clock className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-yellow-600 font-medium">En Attente</p>
+                    <p className="text-lg font-bold text-yellow-900">{stats.pendingOrders}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-yellow-600">
+                    {stats.totalOrders > 0 ? Math.round((stats.pendingOrders / stats.totalOrders) * 100) : 0}%
+                  </p>
+                  <p className="text-xs text-yellow-500">du total</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Partiellement Payées */}
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                    <DollarSign className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-orange-600 font-medium">Partielles</p>
+                    <p className="text-lg font-bold text-orange-900">{stats.partiallyPaidOrders || 0}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-orange-600">
+                    {stats.totalOrders > 0 ? Math.round(((stats.partiallyPaidOrders || 0) / stats.totalOrders) * 100) : 0}%
+                  </p>
+                  <p className="text-xs text-orange-500">du total</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Payées */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <CheckSquare className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-green-600 font-medium">Payées</p>
+                    <p className="text-lg font-bold text-green-900">{stats.paidOrders}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-green-600">{stats.conversionRate || 0}%</p>
+                  <p className="text-xs text-green-500">conversion</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chiffre d'Affaires */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-emerald-600 font-medium">CA Total</p>
+                    <p className="text-lg font-bold text-emerald-900">
+                      <RevenueDisplay 
+                        totalRevenueAr={stats.totalRevenue || 0}
+                        totalRevenueUSD={stats.totalRevenueUSD || 0}
+                        totalRevenueEUR={stats.totalRevenueEUR || 0}
+                      />
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-emerald-600">
+                    {stats.averageOrderValue >= 1000 
+                      ? `${Math.round(stats.averageOrderValue / 1000)}K` 
+                      : Math.round(stats.averageOrderValue || 0)}
+                  </p>
+                  <p className="text-xs text-emerald-500">panier moy</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Croissance */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-purple-600 font-medium">Croissance</p>
+                    <p className="text-lg font-bold text-purple-900">
+                      {stats.monthlyGrowth > 0 ? '+' : ''}{stats.monthlyGrowth || 0}%
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-purple-600">{stats.thisWeekOrders || 0}</p>
+                  <p className="text-xs text-purple-500">cette sem.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          {/* Recherche et filtres */}
+          <div className="flex flex-col lg:flex-row gap-2 items-start lg:items-center justify-between">
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5" />
                 <Input
                   placeholder="Rechercher par numéro, client, email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-9 h-8 text-sm"
                 />
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1.5 h-8 px-2.5 text-xs"
               >
-                <Filter className="h-4 w-4" />
+                <Filter className="h-3.5 w-3.5" />
                 Filtres
-                {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </Button>
               
               {selectedOrders.size > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs">
                       Actions ({selectedOrders.size})
-                      <ChevronDown className="h-4 w-4 ml-1" />
+                      <ChevronDown className="h-3.5 w-3.5 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => handleBulkAction('export')}>
-                      <Download className="h-4 w-4 mr-2" />
+                      <Download className="h-3.5 w-3.5 mr-2" />
                       Exporter
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -536,7 +697,7 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
                       onClick={() => handleBulkAction('delete')}
                       className="text-red-600"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
                       Supprimer
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -546,9 +707,9 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
           </div>
           
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 mt-2 border-t">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Statut" />
                 </SelectTrigger>
                 <SelectContent>
@@ -561,7 +722,7 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
               </Select>
               
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Paiement" />
                 </SelectTrigger>
                 <SelectContent>
@@ -574,7 +735,7 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
               </Select>
               
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Trier par" />
                 </SelectTrigger>
                 <SelectContent>
@@ -588,8 +749,8 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
               
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start text-left font-normal">
-                    <Calendar className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="justify-start text-left font-normal h-8 text-sm">
+                    <Calendar className="mr-1.5 h-3.5 w-3.5" />
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
@@ -621,14 +782,14 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
       </Card>
 
       {/* Résumé des résultats */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between text-xs text-muted-foreground py-1">
+        <div className="flex items-center gap-3">
           <span>
-            {filteredAndSortedOrders.length} commande(s) sur {orders.length} (Page {pagination.currentPage} sur {pagination.totalPages})
-            {selectedOrders.size > 0 && ` • ${selectedOrders.size} sélectionnée(s)`}
+            {filteredAndSortedOrders.length} sur {orders.length} • Page {pagination.currentPage}/{pagination.totalPages}
+            {selectedOrders.size > 0 && ` • ${selectedOrders.size} sélectionnées`}
           </span>
-          <span className="text-xs bg-muted px-2 py-1 rounded-md">
-            💡 Cliquez sur une ligne pour voir les détails
+          <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            💡 Clic pour détails
           </span>
         </div>
         
@@ -656,64 +817,64 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
+                <TableRow className="h-10">
+                  <TableHead className="w-10 py-2">
                     <Checkbox
                       checked={selectedOrders.size === filteredAndSortedOrders.length && filteredAndSortedOrders.length > 0}
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>Commande</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Mode de paiement</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-20">Actions</TableHead>
+                  <TableHead className="py-2 text-xs font-medium">Commande</TableHead>
+                  <TableHead className="py-2 text-xs font-medium">Client</TableHead>
+                  <TableHead className="py-2 text-xs font-medium">Statut</TableHead>
+                  <TableHead className="py-2 text-xs font-medium">Paiement</TableHead>
+                  <TableHead className="py-2 text-xs font-medium text-right">Total</TableHead>
+                  <TableHead className="py-2 text-xs font-medium">Date</TableHead>
+                  <TableHead className="w-16 py-2 text-xs font-medium">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAndSortedOrders.map((order) => (
                   <TableRow 
                     key={order.id} 
-                    className="hover:bg-muted/50 cursor-pointer transition-colors"
+                    className="hover:bg-muted/50 cursor-pointer transition-colors h-12"
                     onClick={(e) => handleRowClick(order.id, e)}
                   >
-                    <TableCell>
+                    <TableCell className="py-2">
                       <Checkbox
                         checked={selectedOrders.has(order.id)}
                         onCheckedChange={() => handleSelectOrder(order.id)}
                       />
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium">
+                    <TableCell className="py-2">
+                      <div className="space-y-0.5">
+                        <div className="font-medium text-sm">
                           {order.orderNumber || `#${order.id.substring(0, 8)}`}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {order.items.length} article(s)
+                          {order.items.length} article{order.items.length > 1 ? 's' : ''}
                         </div>
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium">
+                    <TableCell className="py-2">
+                      <div className="space-y-0.5">
+                        <div className="font-medium text-sm">
                           {order.user.firstName} {order.user.lastName}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground truncate max-w-32">
                           {order.user.email}
                         </div>
                       </div>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell className="py-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button 
                             variant="ghost" 
-                            className="p-0 hover:bg-transparent"
+                            className="p-0 hover:bg-transparent h-auto"
                             disabled={loading === order.id}
                           >
                             <OrderStatusBadge status={order.status} />
@@ -723,34 +884,34 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
                           <DropdownMenuLabel>Changer le statut</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'QUOTE')}
-                            disabled={loading === order.id}
-                          >
-                            Devis en attente de paiement
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'PAID')}
-                            disabled={loading === order.id}
-                          >
-                            Commande payée
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'PENDING')}
                             disabled={loading === order.id}
                           >
                             En attente
                           </DropdownMenuItem>
                           <DropdownMenuItem 
+                            onClick={() => updateOrderStatus(order.id, 'PARTIALLY_PAID')}
+                            disabled={loading === order.id}
+                          >
+                            Payée partiellement
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => updateOrderStatus(order.id, 'PAID')}
+                            disabled={loading === order.id}
+                          >
+                            Payée
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'PROCESSING')}
                             disabled={loading === order.id}
                           >
-                            En traitement
+                            En cours
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'SHIPPING')}
+                            onClick={() => updateOrderStatus(order.id, 'SHIPPED')}
                             disabled={loading === order.id}
                           >
-                            En livraison
+                            Expédiée
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => updateOrderStatus(order.id, 'DELIVERED')}
@@ -765,24 +926,24 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
                             Annulée
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => updateOrderStatus(order.id, 'FINISHED')}
+                            onClick={() => updateOrderStatus(order.id, 'REFUNDED')}
                             disabled={loading === order.id}
                           >
-                            Terminée
+                            Remboursée
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                     
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-sm">
+                    <TableCell className="py-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-1">
+                          <span className="font-medium text-xs">
                             {getPaymentMethod(order)}
                           </span>
                           {order.payments && order.payments.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {order.payments.length} paiement{order.payments.length > 1 ? 's' : ''}
+                            <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
+                              {order.payments.length}
                             </Badge>
                           )}
                         </div>
@@ -792,30 +953,34 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
                       </div>
                     </TableCell>
                     
-                    <TableCell>
-                      <OrderTotalDisplay 
-                        price={order.total}
-                        currency={order.currency}
-                        exchangeRates={order.exchangeRates}
-                        displayCurrency={order.displayCurrency}
-                        exchangeRate={order.exchangeRate}
-                        payments={order.payments}
-                      />
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div className="text-sm">
-                        {format(new Date(order.createdAt), 'dd/MM/yyyy', { locale: fr })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(order.createdAt), 'HH:mm')}
+                    <TableCell className="py-2 text-right">
+                      <div className="text-sm font-medium">
+                        <OrderTotalDisplay 
+                          price={order.total}
+                          currency={order.currency}
+                          exchangeRates={order.exchangeRates}
+                          displayCurrency={order.displayCurrency}
+                          exchangeRate={order.exchangeRate}
+                          payments={order.payments}
+                        />
                       </div>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell className="py-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">
+                          {format(new Date(order.createdAt), 'dd/MM/yy', { locale: fr })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(new Date(order.createdAt), 'HH:mm')}
+                        </div>
+                      </div>
+                    </TableCell>
+                    
+                    <TableCell className="py-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -882,9 +1047,9 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
         </CardContent>
       </Card>
 
-      {/* Pagination et sélecteur de limite */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {/* Pagination compacte */}
+      <div className="flex items-center justify-between gap-2 mt-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>Afficher</span>
           <Select 
             value={pagination.limit.toString()} 
@@ -895,7 +1060,7 @@ export function EnhancedOrdersList({ orders, stats, pagination }: EnhancedOrders
               router.push(`?${params.toString()}`);
             }}
           >
-            <SelectTrigger className="w-20 h-8">
+            <SelectTrigger className="w-16 h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

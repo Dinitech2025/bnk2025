@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Pencil, MapPin, ShoppingBag, Calendar, User, Mail, Phone, CreditCard, Briefcase } from 'lucide-react'
+import { Pencil, MapPin, ShoppingBag, Calendar, User, Mail, Phone, CreditCard, Briefcase, RotateCcw } from 'lucide-react'
 import { translateOrderStatus, getOrderStatusColor } from '@/lib/utils/status-translations'
 import { useCurrency } from '@/lib/contexts/currency-context'
 
@@ -80,7 +80,7 @@ export default function ProfilePage() {
     // Gérer le paramètre tab dans l'URL
     const urlParams = new URLSearchParams(window.location.search)
     const tabParam = urlParams.get('tab')
-    if (tabParam && ['info', 'addresses', 'orders'].includes(tabParam)) {
+    if (tabParam && ['info', 'addresses', 'orders', 'returns'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [])
@@ -242,6 +242,7 @@ export default function ProfilePage() {
               <TabsTrigger value="info">Informations personnelles</TabsTrigger>
               <TabsTrigger value="addresses">Mes adresses</TabsTrigger>
               <TabsTrigger value="orders">Mes commandes</TabsTrigger>
+              <TabsTrigger value="returns">Mes retours</TabsTrigger>
             </TabsList>
             
             {/* Onglet Informations personnelles */}
@@ -443,6 +444,35 @@ export default function ProfilePage() {
                       </Link>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Onglet Retours */}
+            <TabsContent value="returns">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <RotateCcw className="h-5 w-5" />
+                    Mes retours
+                  </CardTitle>
+                  <CardDescription>
+                    Suivez l'état de vos demandes de retour et remboursement
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <RotateCcw className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-600 mb-4">
+                      Consultez vos demandes de retour sur une page dédiée pour une meilleure expérience.
+                    </p>
+                    <Link href="/profile/returns">
+                      <Button>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Voir mes retours
+                      </Button>
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

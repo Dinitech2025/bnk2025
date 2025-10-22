@@ -10,13 +10,13 @@ export async function GET(
   return handleInvoiceGeneration(params.id);
 }
 
-// Route POST pour la conversion de devise
+// Route POST pour la conversion de devise et sélection de logo
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const { conversionData } = await request.json();
-  return handleInvoiceGeneration(params.id, conversionData);
+  const { conversionData, selectedLogo } = await request.json();
+  return handleInvoiceGeneration(params.id, conversionData, selectedLogo);
 }
 
 /**
@@ -47,8 +47,20 @@ function getCurrencySymbol(currency: string): string {
   return symbols[currency] || currency;
 }
 
-async function handleInvoiceGeneration(orderId: string, conversionData?: { targetCurrency: string; exchangeRate: number }) {
+async function handleInvoiceGeneration(orderId: string, conversionData?: { targetCurrency: string; exchangeRate: number }, selectedLogo?: string) {
   try {
+    // Récupérer les paramètres de facture
+    const settings = await prisma.setting.findMany({
+      where: {
+        key: {
+          in: ['invoiceFooterText', 'showInvoiceFooter']
+        }
+      }
+    });
+    
+    const invoiceFooterText = settings.find(s => s.key === 'invoiceFooterText')?.value || '';
+    const showInvoiceFooter = settings.find(s => s.key === 'showInvoiceFooter')?.value === 'true';
+    
     // Vérifier que la commande existe et récupérer les détails nécessaires pour la facture
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -185,6 +197,13 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
         provider: payment.provider || undefined,
         createdAt: payment.createdAt
       })) || [],
+      delivery: (order as any).deliveryName ? {
+        mode: (order as any).deliveryMode || undefined,
+        name: (order as any).deliveryName || undefined,
+        cost: (order as any).deliveryCost ? Number((order as any).deliveryCost) : undefined,
+        time: (order as any).deliveryTime || undefined,
+        details: (order as any).deliveryDetails || undefined
+      } : undefined,
       items: order.items.map(item => {
         // Récupérer le nom depuis les relations ou les métadonnées
         let itemName = item.product?.name || item.service?.name || item.offer?.name;
@@ -216,8 +235,27 @@ async function handleInvoiceGeneration(orderId: string, conversionData?: { targe
         value: Number(order.globalDiscountValue),
         amount: Number(order.globalDiscountAmount)
       } : undefined,
-      convertedPrices: Object.keys(convertedPrices).length > 0 ? convertedPrices : undefined
+      convertedPrices: Object.keys(convertedPrices).length > 0 ? convertedPrices : undefined,
+      selectedLogo: selectedLogo || undefined,
+      invoiceFooterText: invoiceFooterText,
+      showInvoiceFooter: showInvoiceFooter
     };
+
+    // Pré-charger le logo si nécessaire
+    if (selectedLogo && selectedLogo !== 'none') {
+      try {
+        const response = await fetch(selectedLogo);
+        const blob = await response.blob();
+        const buffer = await blob.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const mimeType = blob.type || 'image/png';
+        invoiceData.selectedLogo = `data:${mimeType};base64,${base64}`;
+      } catch (error) {
+        console.error('Erreur lors du chargement du logo:', error);
+        // Continuer sans logo en cas d'erreur
+        invoiceData.selectedLogo = undefined;
+      }
+    }
 
     // Générer le PDF
     const pdfBase64 = generateInvoicePDF(invoiceData);

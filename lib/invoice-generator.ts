@@ -28,6 +28,9 @@ interface InvoiceData {
   currency: string;
   currencySymbol: string;
   exchangeRate?: number;
+  selectedLogo?: string;
+  invoiceFooterText?: string;
+  showInvoiceFooter?: boolean;
   customer: {
     id: string;
     name: string;
@@ -56,6 +59,13 @@ interface InvoiceData {
     provider?: string;
     createdAt: string;
   }>;
+  delivery?: {
+    mode?: string;
+    name?: string;
+    cost?: number;
+    time?: string;
+    details?: string;
+  };
   items: InvoiceItem[];
   globalDiscount?: {
     type: string;
@@ -120,21 +130,46 @@ function formatAddress(address: any, customerInfo?: any): string[] {
 /**
  * Ajoute le logo ou le nom du site dans l'en-tête
  */
-function addCompanyHeader(doc: any, margin: number, logoPath?: string) {
+function addCompanyHeader(doc: any, margin: number, logoBase64?: string) {
   const companyName = 'Boutik\'nakà';
   const subtitle = 'Service proposé par Dinitech';
   
-  // Si un logo existe, l'ajouter ici (pour une future implémentation)
-  if (logoPath) {
-    // TODO: Ajouter l'image du logo
-    // doc.addImage(logoPath, 'PNG', margin, 15, 40, 20);
-    // Ajuster la position du texte si logo présent
-    doc.setFontSize(14);
-    doc.setTextColor(220, 20, 60);
-    doc.text(companyName, margin + 45, 25);
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text(subtitle, margin + 45, 30);
+  // Si un logo existe (en base64), l'ajouter SANS texte
+  if (logoBase64 && logoBase64 !== 'none' && logoBase64.startsWith('data:')) {
+    try {
+      // Dimensions du logo - jsPDF préservera automatiquement les proportions
+      // En spécifiant seulement la largeur, la hauteur s'ajustera proportionnellement
+      const logoMaxWidth = 55;  // Largeur encore réduite pour un logo plus discret
+      
+      // Déterminer le format de l'image
+      let format = 'PNG';
+      if (logoBase64.includes('data:image/jpeg') || logoBase64.includes('data:image/jpg')) {
+        format = 'JPEG';
+      } else if (logoBase64.includes('data:image/gif')) {
+        format = 'GIF';
+      }
+      
+      // Position du logo à la marge initiale (sans décalage)
+      const logoStartX = margin; // Position à la marge standard
+      
+      // Ajouter l'image en spécifiant seulement la largeur pour préserver les proportions
+      // jsPDF calculera automatiquement la hauteur proportionnelle
+      doc.addImage(logoBase64, format, logoStartX, 15, logoMaxWidth, 0);
+      
+      // PAS DE TEXTE - le logo remplace complètement le texte
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du logo au PDF:', error);
+      // Fallback: afficher le nom sans logo
+      doc.setFontSize(16);
+      doc.setTextColor(220, 20, 60);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, margin, 22);
+      doc.setFontSize(8);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      doc.text(subtitle, margin, 27);
+    }
   } else {
     // Utiliser le nom du site en grand si pas de logo
     doc.setFontSize(16);
@@ -166,6 +201,22 @@ function getDocumentType(status: string): string {
 }
 
 /**
+ * Génère le titre de facture avec préfixe selon le type de commande
+ */
+function generateInvoiceTitle(orderNumber: string): string {
+  if (orderNumber.startsWith('DEV-')) {
+    // Pour les devis : PROFORMA #DEV-ANNEE-XXXX
+    return `PROFORMA #${orderNumber}`;
+  } else if (orderNumber.startsWith('CMD-')) {
+    // Pour les commandes : FACTURE #CMD-ANNEE-XXXX
+    return `FACTURE #${orderNumber}`;
+  } else {
+    // Fallback pour les autres formats
+    return `FACTURE #${orderNumber}`;
+  }
+}
+
+/**
  * Génère un PDF de facture avec les prix convertis
  */
 export function generateInvoicePDF(invoiceData: InvoiceData): string {
@@ -184,15 +235,21 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
     
     // === EN-TÊTE AVEC LOGO ===
     // Ajouter le logo ou le nom du site
-    addCompanyHeader(doc, margin);
+    addCompanyHeader(doc, margin, invoiceData.selectedLogo);
     
     // Numéro de commande (droite)
     doc.setFontSize(10);
     doc.setTextColor(128, 128, 128);
-    doc.text(`#${invoiceData.orderNumber}`, pageWidth - margin, 22, { align: 'right' });
+    const invoiceTitle = generateInvoiceTitle(invoiceData.orderNumber);
+    doc.text(invoiceTitle, pageWidth - margin, 22, { align: 'right' });
     
     // === ADRESSES DYNAMIQUES ===
-    let currentY = 40;
+    // Calculer la position Y en fonction de la présence du logo
+    let currentY = 50; // Position par défaut
+    if (invoiceData.selectedLogo && invoiceData.selectedLogo !== 'none' && invoiceData.selectedLogo.startsWith('data:')) {
+      // Si logo présent: position logo (15) + hauteur estimée du logo réduit (~28px) + espace très réduit (-3px)
+      currentY = 15 + 28 - 3; // 40px - chevauchement pour proximité maximale
+    }
     
     // Adresse de facturation (gauche)
     doc.setFontSize(11);
@@ -444,9 +501,25 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
     
     // === TABLEAU MODE DE LIVRAISON (GAUCHE) - seulement si produits physiques ===
     if (hasPhysicalProducts) {
-      const deliveryData = [
-        ['Retrait au magasin']
-      ];
+      const deliveryData = [];
+      
+      if (invoiceData.delivery?.name) {
+        let deliveryText = invoiceData.delivery.name;
+        
+        if (invoiceData.delivery.time) {
+          deliveryText += ` (${invoiceData.delivery.time})`;
+        }
+        
+        if (invoiceData.delivery.cost && invoiceData.delivery.cost > 0) {
+          deliveryText += ` - ${invoiceData.delivery.cost.toLocaleString('fr-FR')} ${invoiceData.currencySymbol}`;
+        } else {
+          deliveryText += ' - Gratuit';
+        }
+        
+        deliveryData.push([deliveryText]);
+      } else {
+        deliveryData.push(['Mode de livraison non spécifié']);
+      }
       
       autoTable(doc, {
         startY: finalY,
@@ -528,14 +601,39 @@ export function generateInvoicePDF(invoiceData: InvoiceData): string {
     // === PIED DE PAGE ===
     doc.setFontSize(7);
     doc.setTextColor(128, 128, 128);
+    
+    let currentFooterY = pageHeight - 25; // Position de départ pour le pied de page
+    
+    // Afficher le texte de pied personnalisé si activé
+    if (invoiceData.showInvoiceFooter && invoiceData.invoiceFooterText) {
+      doc.setFontSize(8);
+      doc.setTextColor(0, 0, 0); // Noir pour le texte personnalisé
+      
+      // Diviser le texte en lignes
+      const lines = invoiceData.invoiceFooterText.split('\n');
+      lines.forEach((line, index) => {
+        if (line.trim()) {
+          doc.text(line.trim(), margin, currentFooterY - (index * 4), { align: 'left' });
+        }
+      });
+      
+      // Ajuster la position pour les informations de l'entreprise
+      currentFooterY -= (lines.length * 4) + 10;
+      
+      // Remettre la couleur grise pour les infos de l'entreprise
+      doc.setFontSize(7);
+      doc.setTextColor(128, 128, 128);
+    }
+    
+    // Informations de l'entreprise (toujours affichées)
     const footerText = 'Boutik nakà - Service d\'achat & Marketplace à Madagascar - 102-Lot Lazaret Nord - Croissement Garage Fano - 201 Diego-Suarez - Diégo Suarez - ANTSIRANANA';
-    doc.text(footerText, pageWidth / 2, pageHeight - 20, { align: 'center' });
+    doc.text(footerText, pageWidth / 2, currentFooterY, { align: 'center' });
     
     const footerText2 = 'Pour toute assistance / réclamation : contact@boutik-naka.com';
-    doc.text(footerText2, pageWidth / 2, pageHeight - 15, { align: 'center' });
+    doc.text(footerText2, pageWidth / 2, currentFooterY + 5, { align: 'center' });
     
     const footerText3 = 'DINITECH Multi-Services | Services Boutik\'nakà - NIF: 6002203980 | STAT: 45174 71 2019 102041';
-    doc.text(footerText3, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    doc.text(footerText3, pageWidth / 2, currentFooterY + 10, { align: 'center' });
     
     // Retourner le document au format base64
     return doc.output('datauristring');
@@ -552,6 +650,8 @@ function getStatusText(status: string): string {
       return 'Devis en attente de paiement';
     case 'PENDING':
       return 'En attente';
+    case 'PARTIALLY_PAID':
+      return 'Payée partiellement';
     case 'PAID':
       return 'Commande payée';
     case 'PROCESSING':

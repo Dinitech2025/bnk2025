@@ -1,190 +1,173 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-
-/**
- * Génère le numéro de commande selon le statut
- */
-async function generateOrderNumber(order: any, newStatus: string): Promise<string> {
-  // Si le statut ne change pas, garder le même numéro
-  if (order.status === newStatus) {
-    return order.orderNumber;
-  }
-
-  const currentYear = new Date().getFullYear();
-  
-  // Si on passe de QUOTE à un autre statut, générer un nouveau numéro CMD
-  if (order.status === 'QUOTE' && newStatus !== 'QUOTE') {
-    // Trouver le dernier numéro de commande CMD
-    const lastOrders = await prisma.order.findMany({
-      where: {
-        orderNumber: {
-          startsWith: `CMD-${currentYear}`
-        }
-      },
-      orderBy: {
-        orderNumber: 'desc'
-      },
-      take: 10
-    });
-
-    // Trouver le plus grand numéro séquentiel
-    let maxSequentialNumber = 0;
-    for (const ord of lastOrders) {
-      const match = ord.orderNumber?.match(/CMD-\d{4}-(\d{4})/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxSequentialNumber) {
-          maxSequentialNumber = num;
-        }
-      }
-    }
-
-    // Générer le nouveau numéro
-    return `CMD-${currentYear}-${(maxSequentialNumber + 1).toString().padStart(4, '0')}`;
-  }
-
-  // Dans les autres cas, garder le même numéro
-  return order.orderNumber;
-}
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { status, paymentData } = await request.json()
-    const orderId = params.id
-
-    // Récupérer la commande existante avec ses abonnements et paiements
-    const existingOrder = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        subscriptions: true,
-        payments: true
-      }
-    })
-
-    if (!existingOrder) {
+    console.log('🚀 Début de PATCH /api/admin/orders/[id]/status')
+    
+    // Vérifier l'authentification
+    const session = await getServerSession(authOptions)
+    console.log('🔐 Session:', session ? `${session.user.email} (${session.user.role})` : 'null')
+    
+    if (!session || !['ADMIN', 'STAFF'].includes(session.user.role)) {
+      console.log('❌ Authentification échouée')
       return NextResponse.json(
-        { message: 'Commande non trouvée' },
-        { status: 404 }
+        { error: 'Non autorisé' },
+        { status: 401 }
       )
     }
 
-    // Si le statut passe à PAID et qu'il y a des données de paiement, on doit enregistrer le paiement
-    if (status === 'PAID' && paymentData) {
+    const body = await request.json()
+    console.log('📝 Body reçu:', body)
+    
+    const { status } = body
+    const orderId = params.id
+    
+    console.log(`🎯 Tentative de changement: orderId=${orderId}, newStatus=${status}`)
+
+    // Valider le statut
+    const validStatuses = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED', 'CONFIRMED'] // CONFIRMED maintenu pour compatibilité
+    if (!validStatuses.includes(status)) {
       return NextResponse.json(
-        { 
-          error: 'Pour marquer une commande comme payée, utilisez l\'API de paiement /api/admin/orders/[id]/payments',
-          redirectTo: `/api/admin/orders/${orderId}/payments`
-        },
+        { error: 'Statut invalide' },
         { status: 400 }
       )
     }
 
-    // Générer un nouveau numéro de commande si nécessaire
-    const orderNumber = await generateOrderNumber(existingOrder, status)
-
-    // Mise à jour dans une transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Mettre à jour la commande
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status,
-          orderNumber,
-          // Mettre à jour le paymentStatus seulement si ce n'est pas déjà PAID
-          paymentStatus: status === 'CANCELLED' ? 'CANCELLED' : existingOrder.paymentStatus
-        },
-        include: {
-          subscriptions: true,
-          payments: true
-        }
-      })
-
-      // Si la commande passe à CONFIRMED/PAID et qu'elle est entièrement payée, gérer les abonnements
-      if ((status === 'CONFIRMED' || status === 'PAID') && existingOrder.paymentStatus === 'PAID') {
-        // 1. Activer les abonnements existants
-        for (const subscription of updatedOrder.subscriptions) {
-          if (subscription.status === 'PENDING') {
-            await tx.subscription.update({
-              where: { id: subscription.id },
-              data: { status: 'ACTIVE' }
-            })
-          }
-        }
-
-        // 2. Créer automatiquement des abonnements pour les offres d'abonnement si aucun n'existe
-        if (updatedOrder.subscriptions.length === 0) {
-          // Récupérer les items de la commande avec les détails des offres
-          const orderWithItems = await tx.order.findUnique({
-            where: { id: orderId },
-            include: {
-              items: {
-                include: {
-                  offer: {
-                    include: {
-                      platformOffers: {
-                        include: {
-                          platform: true
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          });
-
-          if (orderWithItems) {
-            // Identifier les items qui sont des offres d'abonnement
-            const subscriptionOffers = orderWithItems.items.filter(item => 
-              (item.itemType === 'OFFER' || item.itemType === 'SUBSCRIPTION') && 
-              item.offer && 
-              item.offer.platformOffers.length > 0
-            );
-
-            console.log(`🔍 Offres d'abonnement trouvées lors du changement de statut: ${subscriptionOffers.length}`);
-
-            // Créer un abonnement pour chaque offre d'abonnement
-            for (const item of subscriptionOffers) {
-              if (!item.offer) continue;
-
-              // Calculer les dates de début et fin
-              const startDate = new Date();
-              const endDate = new Date();
-              endDate.setMonth(endDate.getMonth() + item.offer.duration);
-
-              // Créer l'abonnement
-              const newSubscription = await tx.subscription.create({
-                data: {
-                  userId: orderWithItems.userId,
-                  offerId: item.offer.id,
-                  orderId: orderId,
-                  status: 'ACTIVE',
-                  startDate: startDate,
-                  endDate: endDate,
-                  autoRenew: false
-                }
-              });
-
-              console.log(`✅ Abonnement créé automatiquement lors du changement de statut: ${newSubscription.id} pour l'offre ${item.offer.name}`);
-            }
-          }
-        }
+    // Définir l'ordre logique des statuts
+    const statusFlow = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
+    
+    // Fonction pour valider les transitions
+    const isValidTransition = (currentStatus: string, newStatus: string): boolean => {
+      // L'annulation est toujours possible (sauf depuis DELIVERED et REFUNDED)
+      if (newStatus === 'CANCELLED' && !['DELIVERED', 'REFUNDED'].includes(currentStatus)) {
+        return true
       }
+      
+      // Le remboursement est possible seulement depuis PAID
+      if (newStatus === 'REFUNDED' && ['PAID'].includes(currentStatus)) {
+        return true
+      }
+      
+      // Réactivation depuis CANCELLED vers PENDING
+      if (currentStatus === 'CANCELLED' && newStatus === 'PENDING') {
+        return true
+      }
+      
+      // Pas de transition depuis REFUNDED (statut final)
+      if (currentStatus === 'REFUNDED') {
+        return false
+      }
+      
+      // Compatibilité CONFIRMED → PAID
+      if (currentStatus === 'CONFIRMED' && newStatus === 'PAID') {
+        return true
+      }
+      
+      // Transitions normales dans l'ordre du flow
+      const currentIndex = statusFlow.indexOf(currentStatus)
+      const newIndex = statusFlow.indexOf(newStatus)
+      
+      // Permettre de passer à l'étape suivante
+      if (currentIndex >= 0 && newIndex === currentIndex + 1) {
+        return true
+      }
+      
+      // Permettre de rester au même statut (pas de changement)
+      if (currentStatus === newStatus) {
+        return true
+      }
+      
+      return false
+    }
 
-      return updatedOrder
+    // Vérifier que la commande existe
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: orderId }
     })
 
-    console.log(`Commande ${result.id} mise à jour - Statut: ${status}, Numéro: ${orderNumber}`)
+    if (!existingOrder) {
+      return NextResponse.json(
+        { error: 'Commande non trouvée' },
+        { status: 404 }
+      )
+    }
 
-    return NextResponse.json(result)
+    console.log(`🔄 Tentative de changement: ${existingOrder.status} → ${status}`)
+    
+    // Valider la transition de statut
+    if (!isValidTransition(existingOrder.status, status)) {
+      console.log(`❌ Transition invalide: ${existingOrder.status} → ${status}`)
+      return NextResponse.json(
+        { error: `Transition invalide: impossible de passer de "${existingOrder.status}" à "${status}"` },
+        { status: 400 }
+      )
+    }
+    
+    console.log(`✅ Transition valide: ${existingOrder.status} → ${status}`)
+
+    // Mettre à jour le statut et ajouter l'historique dans une transaction
+    console.log('🔄 Début de la transaction...')
+    
+    const [updatedOrder] = await prisma.$transaction([
+      // Mettre à jour le statut
+      prisma.order.update({
+        where: { id: orderId },
+        data: { 
+          status,
+          updatedAt: new Date()
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          updatedAt: true
+        }
+      }),
+      // Ajouter l'entrée dans l'historique
+      prisma.orderHistory.create({
+        data: {
+          orderId: orderId,
+          status: status,
+          previousStatus: existingOrder.status,
+          action: 'STATUS_CHANGE',
+          description: `Statut changé de "${existingOrder.status}" vers "${status}"`,
+          userId: session.user?.id || null
+        }
+      })
+    ])
+    
+    console.log('✅ Transaction terminée avec succès')
+
+    console.log(`✅ Statut de commande mis à jour: ${existingOrder.orderNumber || orderId} → ${status}`)
+    console.log(`📝 Historique ajouté: ${existingOrder.status} → ${status}`)
+
+    return NextResponse.json({
+      success: true,
+      order: {
+        ...updatedOrder,
+        updatedAt: updatedOrder.updatedAt.toISOString()
+      }
+    })
+
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la commande:', error);
+    console.error('❌ ERREUR DÉTAILLÉE lors de la mise à jour du statut:')
+    console.error('   Type:', typeof error)
+    console.error('   Message:', error instanceof Error ? error.message : String(error))
+    console.error('   Stack:', error instanceof Error ? error.stack : 'Pas de stack trace')
+    console.error('   Erreur complète:', error)
+    
     return NextResponse.json(
-      { error: 'Erreur lors de la mise à jour du statut' },
+      { 
+        error: 'Erreur interne du serveur',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
-    );
+    )
   }
-} 
+}

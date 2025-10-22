@@ -3,14 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { EnhancedOrderForm } from '@/components/admin/orders/enhanced-order-form';
 import { Metadata } from 'next';
 
+// Désactiver le cache pour avoir les données en temps réel
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: 'Nouvelle commande',
   description: 'Créer une nouvelle commande',
 };
 
 export default async function NewOrderPage() {
-  // Récupérer les données nécessaires
-  const [users, products, services, offers] = await Promise.all([
+  // Récupérer les données nécessaires (temps réel, sans cache)
+  const [users, products, services, offers, paymentMethods, deliveryMethods] = await Promise.all([
     prisma.user.findMany({
       where: {
         role: 'CLIENT'
@@ -87,6 +91,46 @@ export default async function NewOrderPage() {
       orderBy: {
         name: 'asc'
       }
+    }),
+    // Modes de paiement actifs
+    prisma.paymentMethod.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        description: true,
+        feeType: true,
+        feeValue: true,
+        isActive: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    }),
+    // Modes de livraison actifs
+    prisma.deliveryMethod.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        estimatedDays: true,
+        isActive: true,
+        pricingRules: {
+          select: {
+            id: true,
+            fixedPrice: true,
+            isActive: true
+          },
+          where: { isActive: true },
+          orderBy: { fixedPrice: 'asc' },
+          take: 1
+        }
+      },
+      orderBy: {
+        name: 'asc'
+      }
     })
   ]);
 
@@ -100,21 +144,27 @@ export default async function NewOrderPage() {
     })),
     products: products.map(product => ({
       id: product.id,
-      name: product.name,
+      name: product.name.trim(), // Nettoyer le nom
       price: Number(product.price),
-      description: product.description || undefined
+      description: product.description 
+        ? product.description.replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim() // Nettoyer la description
+        : undefined
     })),
     services: services.map(service => ({
       id: service.id,
-      name: service.name,
+      name: service.name.trim(), // Nettoyer le nom
       price: Number(service.price),
-      description: service.description || undefined
+      description: service.description 
+        ? service.description.replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim() // Nettoyer la description
+        : undefined
     })),
     offers: offers.map(offer => ({
       id: offer.id,
-      name: offer.name,
+      name: offer.name.trim(), // Nettoyer le nom
       price: Number(offer.price),
-      description: offer.description || undefined,
+      description: offer.description 
+        ? offer.description.replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim() // Nettoyer la description
+        : undefined,
       duration: offer.duration,
       platformOffers: offer.platformOffers.map(po => ({
         id: po.id,
@@ -124,7 +174,27 @@ export default async function NewOrderPage() {
           logo: po.platform.logo || undefined
         }
       }))
-    }))
+    })),
+    paymentMethods: paymentMethods.map(method => ({
+      id: method.id,
+      name: method.name,
+      type: method.type,
+      description: method.description,
+      feeType: method.feeType,
+      feeValue: method.feeValue ? Number(method.feeValue) : 0,
+      isActive: method.isActive
+    })),
+    deliveryMethods: deliveryMethods.map(method => {
+      const estimatedDaysData = method.estimatedDays as any;
+      return {
+        id: method.id,
+        name: method.name,
+        description: method.description,
+        basePrice: method.pricingRules[0]?.fixedPrice ? Number(method.pricingRules[0].fixedPrice) : 0,
+        estimatedDays: estimatedDaysData?.min || estimatedDaysData?.max || 0,
+        isActive: method.isActive
+      };
+    })
   };
 
   return (

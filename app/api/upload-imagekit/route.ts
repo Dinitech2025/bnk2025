@@ -11,10 +11,29 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData()
-    const files = formData.getAll('files') as File[]
+    
+    // Supporter les deux formats: 'file' (singulier) et 'files' (pluriel)
+    let files: File[] = []
+    const singleFile = formData.get('file') as File
+    const multipleFiles = formData.getAll('files') as File[]
+    
+    if (singleFile) {
+      files = [singleFile]
+    } else if (multipleFiles && multipleFiles.length > 0) {
+      files = multipleFiles
+    }
+    
     const type = formData.get('type') as string || 'general'
 
+    console.log('📁 FormData reçue:', {
+      singleFile: singleFile ? singleFile.name : 'null',
+      multipleFiles: multipleFiles.length,
+      type,
+      finalFilesCount: files.length
+    })
+
     if (!files || files.length === 0) {
+      console.error('❌ Aucun fichier fourni dans la requête')
       return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 })
     }
 
@@ -71,10 +90,21 @@ export async function POST(request: NextRequest) {
     })
 
     const urls = await Promise.all(uploadPromises)
+    const validUrls = urls.filter(Boolean)
 
+    // Si un seul fichier, retourner l'URL directement (compatibilité avec les composants existants)
+    if (files.length === 1 && validUrls.length === 1) {
+      return NextResponse.json({ 
+        url: validUrls[0],
+        urls: validUrls,
+        message: 'Fichier uploadé avec succès'
+      })
+    }
+
+    // Pour plusieurs fichiers, retourner le format habituel
     return NextResponse.json({ 
-      urls: urls.filter(Boolean),
-      message: `${urls.length} fichier(s) uploadé(s) avec succès`
+      urls: validUrls,
+      message: `${validUrls.length} fichier(s) uploadé(s) avec succès`
     })
 
   } catch (error) {
@@ -83,4 +113,4 @@ export async function POST(request: NextRequest) {
       error: 'Erreur lors de l\'upload des fichiers' 
     }, { status: 500 })
   }
-} 
+}

@@ -2,7 +2,6 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
 import { EnhancedOrdersList } from '@/components/admin/orders/enhanced-orders-list';
-import { RefreshButton } from '@/components/admin/orders/refresh-button';
 import OrdersLoading from './loading';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
@@ -12,10 +11,13 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Type pour les données après conversion des Decimal en number
-type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'user' | 'createdAt' | 'updatedAt' | 'payments'> & {
+type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'user' | 'createdAt' | 'updatedAt' | 'payments' | 'exchangeRate' | 'originalTotal' | 'shippingCost'> & {
   total: number;
   createdAt: string;
   updatedAt: string;
+  exchangeRate?: number | null;
+  originalTotal?: number | null;
+  shippingCost?: number | null;
   user: {
     id: string;
     firstName: string | null;
@@ -29,10 +31,13 @@ type OrderWithConvertedPrices = Omit<OrderWithRelations, 'total' | 'items' | 'us
     discountValue: number | null;
     discountAmount: number | null;
   }>;
-  payments: Array<Omit<OrderWithRelations['payments'][0], 'amount' | 'createdAt'> & {
+  payments: Array<Omit<OrderWithRelations['payments'][0], 'amount' | 'createdAt' | 'feeAmount' | 'netAmount' | 'originalAmount'> & {
     amount: number;
     createdAt: string;
     status: string;
+    feeAmount?: number | null;
+    netAmount?: number | null;
+    originalAmount?: number | null;
   }>;
 };
 
@@ -84,58 +89,200 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
 // Fonction pour obtenir les statistiques des commandes
 async function getOrdersStats() {
   try {
+    const now = new Date();
+    const today = new Date(now.setHours(0, 0, 0, 0));
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Requêtes de base pour les comptages
     const [
       totalOrders,
       pendingOrders,
+      partiallyPaidOrders,
       paidOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
       cancelledOrders,
-      totalRevenue,
+      refundedOrders,
       todayOrders,
-      thisMonthOrders
+      thisWeekOrders,
+      thisMonthOrders,
+      lastMonthOrders
     ] = await Promise.all([
       prisma.order.count(),
       prisma.order.count({ where: { status: 'PENDING' } }),
-      prisma.order.count({ where: { paymentStatus: 'PAID' } }),
+      prisma.order.count({ where: { status: 'PARTIALLY_PAID' } }),
+      prisma.order.count({ where: { status: 'PAID' } }),
+      prisma.order.count({ where: { status: 'PROCESSING' } }),
+      prisma.order.count({ where: { status: 'SHIPPED' } }),
+      prisma.order.count({ where: { status: 'DELIVERED' } }),
       prisma.order.count({ where: { status: 'CANCELLED' } }),
-      prisma.order.aggregate({
-        _sum: { total: true },
-        where: { paymentStatus: 'PAID' }
-      }),
-      prisma.order.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0))
-          }
-        }
-      }),
-      prisma.order.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-          }
-        }
+      prisma.order.count({ where: { status: 'REFUNDED' } }),
+      prisma.order.count({ where: { createdAt: { gte: today } } }),
+      prisma.order.count({ where: { createdAt: { gte: thisWeek } } }),
+      prisma.order.count({ where: { createdAt: { gte: thisMonth } } }),
+      prisma.order.count({ 
+        where: { 
+          createdAt: { 
+            gte: lastMonth,
+            lt: thisMonth
+          } 
+        } 
       })
     ]);
 
+    // Calcul précis du chiffre d'affaires basé sur les paiements reçus
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        status: {
+          in: ['COMPLETED', 'PAID', 'completed']
+        }
+      },
+      select: {
+        amount: true,
+        currency: true,
+        paymentExchangeRate: true,
+        originalAmount: true,
+        status: true,
+        createdAt: true
+      }
+    });
+
+    // Calcul du CA total en Ariary basé uniquement sur les paiements
+    let totalRevenue = 0;
+    let totalRevenueUSD = 0;
+    let totalRevenueEUR = 0;
+    let totalPaidAmount = 0;
+
+    allPayments.forEach(payment => {
+      const paymentAmount = Number(payment.amount);
+      const paymentCurrency = payment.currency || 'Ar';
+      const paymentRate = payment.paymentExchangeRate ? Number(payment.paymentExchangeRate) : 1;
+      const originalAmount = payment.originalAmount ? Number(payment.originalAmount) : paymentAmount;
+
+      // Ajouter au total des paiements (en Ariary)
+      if (paymentCurrency === 'Ar' || paymentCurrency === 'MGA') {
+        // MGA et Ar sont équivalents (Ariary = Malagasy Ariary)
+        totalRevenue += paymentAmount;
+        totalPaidAmount += paymentAmount;
+      } else {
+        // Utiliser le taux de change spécifique à ce paiement
+        const revenueInAr = originalAmount * paymentRate;
+        totalRevenue += revenueInAr;
+        totalPaidAmount += revenueInAr;
+        
+        // Comptabiliser aussi par devise d'origine
+        if (paymentCurrency === 'USD') {
+          totalRevenueUSD += originalAmount;
+        } else if (paymentCurrency === 'EUR') {
+          totalRevenueEUR += originalAmount;
+        }
+      }
+    });
+
+    // Calcul du CA du mois en cours basé sur les paiements
+    const thisMonthPayments = await prisma.payment.findMany({
+      where: {
+        createdAt: { gte: thisMonth },
+        status: {
+          in: ['COMPLETED', 'PAID', 'completed']
+        }
+      },
+      select: {
+        amount: true,
+        currency: true,
+        paymentExchangeRate: true,
+        originalAmount: true
+      }
+    });
+
+    const thisMonthRevenueTotal = thisMonthPayments.reduce((sum, payment) => {
+      const paymentAmount = Number(payment.amount);
+      const paymentCurrency = payment.currency || 'Ar';
+      const paymentRate = payment.paymentExchangeRate ? Number(payment.paymentExchangeRate) : 1;
+      const originalAmount = payment.originalAmount ? Number(payment.originalAmount) : paymentAmount;
+
+      if (paymentCurrency === 'Ar' || paymentCurrency === 'MGA') {
+        return sum + paymentAmount;
+      } else {
+        // Utiliser le taux de change spécifique à ce paiement
+        return sum + (originalAmount * paymentRate);
+      }
+    }, 0);
+
+    // Calcul du panier moyen basé sur les paiements
+    const totalPaymentsCount = allPayments.length;
+    const averagePaymentValue = totalPaymentsCount > 0 ? totalRevenue / totalPaymentsCount : 0;
+    
+    // Calcul du panier moyen par commande payée
+    const averageOrderValue = paidOrders > 0 ? totalRevenue / paidOrders : 0;
+
+    // Taux de conversion
+    const conversionRate = totalOrders > 0 ? (paidOrders / totalOrders) * 100 : 0;
+
     return {
+      // Comptages de base
       totalOrders,
       pendingOrders,
+      partiallyPaidOrders,
       paidOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
       cancelledOrders,
-      totalRevenue: Number(totalRevenue._sum.total || 0),
+      refundedOrders,
+      
+      // Comptages temporels
       todayOrders,
-      thisMonthOrders
+      thisWeekOrders,
+      thisMonthOrders,
+      lastMonthOrders,
+      
+      // Chiffres d'affaires précis
+      totalRevenue: Math.round(totalRevenue),
+      totalRevenueUSD: Math.round(totalRevenueUSD * 100) / 100,
+      totalRevenueEUR: Math.round(totalRevenueEUR * 100) / 100,
+      thisMonthRevenue: Math.round(thisMonthRevenueTotal),
+      totalPaidAmount: Math.round(totalPaidAmount),
+      
+      // Métriques calculées
+      averageOrderValue: Math.round(averageOrderValue),
+      averagePaymentValue: Math.round(averagePaymentValue),
+      totalPaymentsCount,
+      conversionRate: Math.round(conversionRate * 100) / 100,
+      
+      // Croissance mensuelle
+      monthlyGrowth: lastMonthOrders > 0 ? 
+        Math.round(((thisMonthOrders - lastMonthOrders) / lastMonthOrders) * 100 * 100) / 100 : 0
     };
   } catch (error) {
     console.error('Erreur lors de la récupération des statistiques:', error);
     return {
       totalOrders: 0,
       pendingOrders: 0,
+      partiallyPaidOrders: 0,
       paidOrders: 0,
+      processingOrders: 0,
+      shippedOrders: 0,
+      deliveredOrders: 0,
       cancelledOrders: 0,
-      totalRevenue: 0,
+      refundedOrders: 0,
       todayOrders: 0,
-      thisMonthOrders: 0
+      thisWeekOrders: 0,
+      thisMonthOrders: 0,
+      lastMonthOrders: 0,
+      totalRevenue: 0,
+      totalRevenueUSD: 0,
+      totalRevenueEUR: 0,
+      thisMonthRevenue: 0,
+      totalPaidAmount: 0,
+      averageOrderValue: 0,
+      averagePaymentValue: 0,
+      totalPaymentsCount: 0,
+      conversionRate: 0,
+      monthlyGrowth: 0
     };
   }
 }
@@ -217,30 +364,72 @@ async function getOrders(page: number = 1, limit: number = 20): Promise<{
       }))
     });
 
-    // Convertir les Decimal en nombres et les dates en strings
-    const convertedOrders = orders.map(order => ({
-      ...order,
-      total: Number(order.total),
-      createdAt: order.createdAt.toISOString(),
-      updatedAt: order.updatedAt.toISOString(),
-      user: {
-        ...order.user,
-        email: order.user.email || ""
-      },
-      items: order.items.map(item => ({
-        ...item,
-        unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice),
-        discountValue: item.discountValue ? Number(item.discountValue) : null,
-        discountAmount: item.discountAmount ? Number(item.discountAmount) : null,
-        metadata: item.metadata ? JSON.stringify(item.metadata) : null
-      })),
-      payments: order.payments.map(payment => ({
-        ...payment,
-        amount: Number(payment.amount),
-        createdAt: payment.createdAt.toISOString()
-      }))
-    }));
+    // Convertir les Decimal en nombres et les dates en strings pour éviter les erreurs d'hydratation
+    const convertedOrders = orders.map(order => {
+      // Fonction helper pour convertir les Decimal
+      const convertDecimal = (value: any) => {
+        if (value === null || value === undefined) return null;
+        return typeof value === 'object' && value.constructor.name === 'Decimal' ? Number(value) : Number(value);
+      };
+
+      return {
+        ...order,
+        // Convertir tous les champs Decimal potentiels
+        total: convertDecimal(order.total),
+        exchangeRate: convertDecimal((order as any).exchangeRate),
+        originalTotal: convertDecimal((order as any).originalTotal),
+        shippingCost: convertDecimal((order as any).shippingCost),
+        deliveryCost: convertDecimal((order as any).deliveryCost),
+        globalDiscountValue: convertDecimal((order as any).globalDiscountValue),
+        globalDiscountAmount: convertDecimal((order as any).globalDiscountAmount),
+        
+        // Convertir les dates
+        createdAt: order.createdAt.toISOString(),
+        updatedAt: order.updatedAt.toISOString(),
+        
+        // User data
+        user: {
+          ...order.user,
+          email: order.user.email || ""
+        },
+        
+        // Items avec conversion Decimal
+        items: order.items.map(item => ({
+          ...item,
+          unitPrice: convertDecimal(item.unitPrice),
+          totalPrice: convertDecimal(item.totalPrice),
+          discountValue: convertDecimal(item.discountValue),
+          discountAmount: convertDecimal(item.discountAmount),
+          metadata: item.metadata ? (typeof item.metadata === 'string' ? item.metadata : JSON.stringify(item.metadata)) : null
+        })),
+        
+        // Payments avec conversion Decimal
+        payments: order.payments.map(payment => ({
+          ...payment,
+          amount: convertDecimal(payment.amount),
+          feeAmount: convertDecimal((payment as any).feeAmount),
+          netAmount: convertDecimal((payment as any).netAmount),
+          originalAmount: convertDecimal((payment as any).originalAmount),
+          paymentExchangeRate: convertDecimal((payment as any).paymentExchangeRate),
+          createdAt: payment.createdAt.toISOString()
+        })),
+
+        // Addresses (si elles existent)
+        billingAddress: order.billingAddress ? {
+          ...order.billingAddress,
+          // Convertir les dates si présentes
+          ...(order.billingAddress.createdAt && { createdAt: order.billingAddress.createdAt.toISOString() }),
+          ...(order.billingAddress.updatedAt && { updatedAt: order.billingAddress.updatedAt.toISOString() })
+        } : null,
+        
+        shippingAddress: order.shippingAddress ? {
+          ...order.shippingAddress,
+          // Convertir les dates si présentes
+          ...(order.shippingAddress.createdAt && { createdAt: order.shippingAddress.createdAt.toISOString() }),
+          ...(order.shippingAddress.updatedAt && { updatedAt: order.shippingAddress.updatedAt.toISOString() })
+        } : null
+      };
+    });
 
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -274,7 +463,7 @@ export default async function OrdersPage({
   searchParams: { page?: string; limit?: string };
 }) {
   const page = Number(searchParams.page) || 1;
-  const limit = Number(searchParams.limit) || 20;
+  const limit = Number(searchParams.limit) || 12;
   
   const [ordersData, stats] = await Promise.all([
     getOrders(page, limit),
@@ -282,93 +471,9 @@ export default async function OrdersPage({
   ]);
 
   return (
-    <div className="p-6">
-      <div className="max-w-[1800px] mx-auto space-y-6">
-        {/* En-tête */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Gestion des Commandes</h1>
-            <p className="text-muted-foreground">
-              Gérez et suivez toutes vos commandes en temps réel
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <RefreshButton />
-            <Link 
-              href="/admin/orders/new" 
-              className="bg-primary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-primary/90 transition-colors">
-              <PlusCircle size={18} />
-              <span>Nouvelle Commande</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-6 rounded-lg border shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Commandes</p>
-                <p className="text-2xl font-bold">{stats.totalOrders}</p>
-              </div>
-              <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <PlusCircle className="h-4 w-4 text-blue-600" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {stats.todayOrders} aujourd'hui
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">En Attente</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pendingOrders}</p>
-              </div>
-              <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <PlusCircle className="h-4 w-4 text-yellow-600" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              À traiter
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Payées</p>
-                <p className="text-2xl font-bold text-green-600">{stats.paidOrders}</p>
-              </div>
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <PlusCircle className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Ce mois: {stats.thisMonthOrders}
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Chiffre d'Affaires</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {stats.totalRevenue.toLocaleString('fr-FR')} Ar
-                </p>
-              </div>
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <PlusCircle className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Commandes payées
-            </p>
-          </div>
-        </div>
-        
-        {/* Liste des commandes */}
+    <div className="p-4">
+      <div className="max-w-[1800px] mx-auto space-y-4">
+        {/* Liste des commandes avec en-tête intégré */}
         <Suspense fallback={<OrdersLoading />}>
           <EnhancedOrdersList 
             orders={ordersData.orders} 

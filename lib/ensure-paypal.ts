@@ -20,7 +20,7 @@ export async function ensurePayPalExists() {
         data: {
           code: 'online_payment',
           name: 'Paiement en ligne',
-          description: 'Paiement sécurisé en ligne via PayPal, Google Pay, Stripe, etc.',
+          description: 'Paiement via votre compte PayPal',
           icon: 'CreditCard',
           type: 'DIRECT',
           isActive: true,

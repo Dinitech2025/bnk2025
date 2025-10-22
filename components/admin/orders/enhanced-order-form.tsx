@@ -35,6 +35,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
+import { ImportSimulationModal } from './import-simulation-modal';
+import { useCurrency } from '@/components/providers/currency-provider';
 
 // Types
 interface Address {
@@ -153,7 +155,7 @@ interface DeliveryData {
 
 interface FormData {
   userId: string;
-  status: 'QUOTE' | 'CONFIRMED' | 'PROCESSING';
+  status: 'PENDING'; // Toujours PENDING par défaut
   items: OrderItem[];
   globalDiscount?: {
     type: 'PERCENTAGE' | 'FIXED';
@@ -181,21 +183,43 @@ interface FormData {
   notes?: string;
 }
 
+interface PaymentMethod {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  feeType?: string;
+  feeValue: number;
+  isActive: boolean;
+}
+
+interface DeliveryMethod {
+  id: string;
+  name: string;
+  description?: string;
+  basePrice: number;
+  estimatedDays: number;
+  isActive: boolean;
+}
+
 interface EnhancedOrderFormProps {
   users: User[];
   products: Product[];
   services: Service[];
   offers: Offer[];
+  paymentMethods: PaymentMethod[];
+  deliveryMethods: DeliveryMethod[];
 }
 
-export function EnhancedOrderForm({ users, products, services, offers }: EnhancedOrderFormProps) {
+export function EnhancedOrderForm({ users, products, services, offers, paymentMethods, deliveryMethods }: EnhancedOrderFormProps) {
   const router = useRouter();
+  const { targetCurrency, formatCurrency, exchangeRates, convertCurrency } = useCurrency();
   const [isLoading, setIsLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('client');
   
   const [formData, setFormData] = useState<FormData>({
     userId: '',
-    status: 'QUOTE',
+    status: 'PENDING',
     items: [],
     delivery: {
       method: 'PICKUP'
@@ -208,6 +232,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
   
   // États pour la configuration des abonnements
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [availableAccounts, setAvailableAccounts] = useState<StreamingAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>('');
@@ -241,22 +266,45 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
     }
   }, [formData.userId, users]);
 
-  // Méthodes de paiement disponibles
-  const paymentMethods = [
-    { value: 'cash', label: 'Espèce', providers: ['cash'] },
-    { value: 'mobile_money', label: 'Mobile Money', providers: ['orange_money', 'mvola'] },
-    { value: 'bank_transfer', label: 'Virement bancaire', providers: ['bank_transfer'] },
-    { value: 'paypal', label: 'PayPal', providers: ['paypal'] }
-  ];
-
   // Calculer le sous-total des articles (avant réduction globale)
   const itemsSubtotal = formData.items.reduce((sum, item) => sum + item.totalPrice, 0);
   
   // Calculer la réduction globale
   const globalDiscountAmount = formData.globalDiscount ? formData.globalDiscount.amount : 0;
   
-  // Calculer le total de la commande (après réduction globale)
-  const orderTotal = Math.max(0, itemsSubtotal - globalDiscountAmount);
+  // Calculer le coût de livraison
+  const deliveryCost = formData.delivery.method 
+    ? (deliveryMethods.find(m => m.id === formData.delivery.method)?.basePrice || 0)
+    : 0;
+  
+  // Calculer le total de la commande (après réduction globale + livraison)
+  const orderTotal = Math.max(0, itemsSubtotal - globalDiscountAmount + deliveryCost);
+
+  // Fonction de conversion de prix avec le contexte de devise
+  const convertPrice = (amount: number) => {
+    if (!targetCurrency || targetCurrency === 'Ar' || targetCurrency === 'MGA') {
+      return amount;
+    }
+    
+    try {
+      return convertCurrency(amount, 'MGA', targetCurrency, exchangeRates);
+    } catch (error) {
+      console.error('Erreur de conversion:', error);
+      return amount;
+    }
+  };
+
+  // Formater le prix avec la devise sélectionnée
+  const formatPrice = (amount: number) => {
+    if (formatCurrency) {
+      return formatCurrency(amount);
+    }
+    const convertedAmount = convertPrice(amount);
+    const symbol = targetCurrency === 'USD' ? '$' : 
+                   targetCurrency === 'EUR' ? '€' : 
+                   targetCurrency === 'GBP' ? '£' : 'Ar';
+    return `${convertedAmount.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} ${symbol}`;
+  };
 
   // Filtrer les articles selon la recherche
   const filteredProducts = products.filter(product =>
@@ -329,6 +377,34 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
       ...prev,
       items: [...prev.items, newItem]
     }));
+    
+    toast.success(`${item.name} ajouté au panier`);
+  };
+
+  // Ajouter un article importé depuis la simulation
+  const addImportedItem = (importedItem: any) => {
+    const newItem: OrderItem = {
+      id: importedItem.id,
+      itemType: importedItem.itemType,
+      itemId: null, // Pas d'ID de produit existant
+      name: importedItem.name,
+      unitPrice: importedItem.price,
+      quantity: 1,
+      totalPrice: importedItem.price,
+      metadata: {
+        isImported: true,
+        weight: importedItem.weight,
+        description: importedItem.description,
+        importData: importedItem.importData
+      }
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, newItem]
+    }));
+
+    toast.success(`${importedItem.itemType === 'SERVICE' ? 'Service' : 'Produit'} importé ajouté au panier`);
   };
 
   // Supprimer un article
@@ -788,7 +864,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-base px-3 py-1 bg-white border-blue-300 text-blue-700 font-semibold">
-            Total: {orderTotal.toLocaleString('fr-FR')} Ar
+            Total: {formatPrice(orderTotal)}
           </Badge>
           <Button 
             onClick={handleSubmit} 
@@ -885,24 +961,6 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="status">Statut de la commande</Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value: 'QUOTE' | 'CONFIRMED' | 'PROCESSING') => 
-                    setFormData(prev => ({ ...prev, status: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="QUOTE">Devis</SelectItem>
-                    <SelectItem value="CONFIRMED">Confirmée</SelectItem>
-                    <SelectItem value="PROCESSING">En traitement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -914,10 +972,23 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
             <div className="xl:col-span-3">
               <Card className="h-full">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Catalogue</CardTitle>
-                  <CardDescription className="text-xs">
-                    Sélectionnez les articles à ajouter à la commande
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Catalogue</CardTitle>
+                      <CardDescription className="text-xs">
+                        Sélectionnez les articles à ajouter à la commande
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowImportModal(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Calculator className="h-4 w-4" />
+                      Simuler importation
+                    </Button>
+                  </div>
                 </CardHeader>
               <CardContent className="space-y-3">
                 {/* Barre de recherche */}
@@ -964,25 +1035,41 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                         )}
                       </div>
                     ) : (
-                      filteredProducts.map(product => (
-                        <div key={product.id} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50 transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm truncate">{product.name}</h4>
-                            {product.description && (
-                              <p className="text-xs text-muted-foreground truncate">{product.description}</p>
-                            )}
-                            <p className="text-sm font-medium text-primary">{product.price.toLocaleString('fr-FR')} Ar</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => addItem('PRODUCT', product)}
-                            className="flex items-center gap-1 ml-2 h-8"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span className="hidden sm:inline">Ajouter</span>
-                          </Button>
-                        </div>
-                      ))
+                      filteredProducts.map(product => {
+                        try {
+                          return (
+                            <div key={product.id} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50 transition-colors">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm truncate">{product.name || 'Nom non disponible'}</h4>
+                                {product.description && (
+                                  <p className="text-xs text-muted-foreground truncate">{product.description}</p>
+                                )}
+                                <p className="text-sm font-medium text-primary">
+                                  {formatPrice(product.price || 0)}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => addItem('PRODUCT', product)}
+                                className="flex items-center gap-1 ml-2 h-8"
+                              >
+                                <Plus className="h-3 w-3" />
+                                <span className="hidden sm:inline">Ajouter</span>
+                              </Button>
+                            </div>
+                          );
+                        } catch (error) {
+                          console.error('Erreur lors du rendu du produit:', product.id, error);
+                          return (
+                            <div key={product.id} className="flex items-center justify-between p-2 border rounded-md bg-red-50">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm text-red-600">Erreur de chargement</h4>
+                                <p className="text-xs text-red-500">ID: {product.id}</p>
+                              </div>
+                            </div>
+                          );
+                        }
+                      })
                     )}
                   </TabsContent>
 
@@ -1003,7 +1090,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                             {service.description && (
                               <p className="text-xs text-muted-foreground truncate">{service.description}</p>
                             )}
-                            <p className="text-sm font-medium text-primary">{service.price.toLocaleString('fr-FR')} Ar</p>
+                            <p className="text-sm font-medium text-primary">{formatPrice(service.price)}</p>
                           </div>
                           <Button
                             size="sm"
@@ -1040,7 +1127,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                             {offer.description && (
                               <p className="text-xs text-muted-foreground truncate">{offer.description}</p>
                             )}
-                            <p className="text-sm font-medium text-primary">{offer.price.toLocaleString('fr-FR')} Ar</p>
+                            <p className="text-sm font-medium text-primary">{formatPrice(offer.price)}</p>
                           </div>
                           <Button
                             size="sm"
@@ -1089,7 +1176,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                           <div className="flex-1">
                             <h4 className="font-medium">{item.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {item.unitPrice.toLocaleString('fr-FR')} Ar × {item.quantity}
+                              {formatPrice(item.unitPrice)} × {item.quantity}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1168,7 +1255,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                             
                             <div className="text-xs text-center self-center text-orange-600 font-medium">
                               {item.discountAmount ? 
-                                `-${item.discountAmount.toLocaleString('fr-FR')} Ar` : 
+                                `-${formatPrice(item.discountAmount)}` : 
                                 '0 Ar'
                               }
                             </div>
@@ -1180,16 +1267,16 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                           <div className="text-xs text-muted-foreground">
                             {item.discountAmount ? (
                               <span>
-                                <span className="line-through">{(item.unitPrice * item.quantity).toLocaleString('fr-FR')} Ar</span>
+                                <span className="line-through">{formatPrice(item.unitPrice * item.quantity)}</span>
                                 {' → '}
-                                <span className="text-green-600 font-medium">{item.totalPrice.toLocaleString('fr-FR')} Ar</span>
+                                <span className="text-green-600 font-medium">{formatPrice(item.totalPrice)}</span>
                               </span>
                             ) : (
-                              <span>Sous-total: {item.totalPrice.toLocaleString('fr-FR')} Ar</span>
+                              <span>Sous-total: {formatPrice(item.totalPrice)}</span>
                             )}
                           </div>
                           <div className="text-sm font-bold">
-                            Total: {item.totalPrice.toLocaleString('fr-FR')} Ar
+                            Total: {formatPrice(item.totalPrice)}
                           </div>
                         </div>
                       </div>
@@ -1258,7 +1345,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                           
                           <div className="text-xs text-center self-center text-green-600 font-medium">
                             {formData.globalDiscount ? 
-                              `-${formData.globalDiscount.amount.toLocaleString('fr-FR')} Ar` : 
+                              `-${formatPrice(formData.globalDiscount.amount)}` : 
                               '0 Ar'
                             }
                           </div>
@@ -1268,7 +1355,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                           <div className="text-xs text-muted-foreground">
                             Réduction de {formData.globalDiscount.value}
                             {formData.globalDiscount.type === 'PERCENTAGE' ? '%' : ' Ar'} 
-                            {' '}sur {itemsSubtotal.toLocaleString('fr-FR')} Ar
+                            {' '}sur {formatPrice(itemsSubtotal)}
                           </div>
                         )}
                       </CardContent>
@@ -1280,13 +1367,13 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-sm">
                         <span>Sous-total articles:</span>
-                        <span>{itemsSubtotal.toLocaleString('fr-FR')} Ar</span>
+                        <span>{formatPrice(itemsSubtotal)}</span>
                       </div>
                       
                       {formData.globalDiscount && (
                         <div className="flex justify-between items-center text-sm text-green-600">
                           <span>Réduction globale:</span>
-                          <span>-{formData.globalDiscount.amount.toLocaleString('fr-FR')} Ar</span>
+                          <span>-{formatPrice(formData.globalDiscount.amount)}</span>
                         </div>
                       )}
                       
@@ -1294,7 +1381,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                       
                       <div className="flex justify-between items-center font-bold text-lg">
                         <span>Total:</span>
-                        <span>{orderTotal.toLocaleString('fr-FR')} Ar</span>
+                        <span>{formatPrice(orderTotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -1810,7 +1897,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                         className={errors.paymentAmount ? 'border-red-500' : ''}
                       />
                       <p className="text-sm text-muted-foreground mt-1">
-                        Maximum: {orderTotal.toLocaleString('fr-FR')} Ar
+                        Maximum: {formatPrice(orderTotal)}
                       </p>
                       {errors.paymentAmount && (
                         <p className="text-sm text-red-500 mt-1">{errors.paymentAmount}</p>
@@ -1901,11 +1988,11 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {item.unitPrice.toLocaleString('fr-FR')} Ar × {item.quantity}
+                              {formatPrice(item.unitPrice)} × {item.quantity}
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-medium">{item.totalPrice.toLocaleString('fr-FR')} Ar</p>
+                            <p className="font-medium">{formatPrice(item.totalPrice)}</p>
                           </div>
                         </div>
                         
@@ -1918,11 +2005,11 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                                 {item.discountType === 'PERCENTAGE' ? '%' : ' Ar'}
                               </span>
                               <span className="font-medium">
-                                -{item.discountAmount?.toLocaleString('fr-FR')} Ar
+                                -{formatPrice(item.discountAmount || 0)}
                               </span>
                             </div>
                             <div className="text-muted-foreground mt-1">
-                              Prix original: {(item.unitPrice * item.quantity).toLocaleString('fr-FR')} Ar
+                              Prix original: {formatPrice(item.unitPrice * item.quantity)}
                             </div>
                           </div>
                         )}
@@ -1933,7 +2020,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                     <div className="space-y-2 p-3 bg-primary/5 rounded-lg">
                       <div className="flex justify-between items-center text-sm">
                         <span>Sous-total articles:</span>
-                        <span>{itemsSubtotal.toLocaleString('fr-FR')} Ar</span>
+                        <span>{formatPrice(itemsSubtotal)}</span>
                       </div>
                       
                       {formData.globalDiscount && (
@@ -1942,7 +2029,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                             Réduction globale ({formData.globalDiscount.value}
                             {formData.globalDiscount.type === 'PERCENTAGE' ? '%' : ' Ar'}):
                           </span>
-                          <span>-{formData.globalDiscount.amount.toLocaleString('fr-FR')} Ar</span>
+                          <span>-{formatPrice(formData.globalDiscount.amount)}</span>
                         </div>
                       )}
                       
@@ -1950,7 +2037,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                       
                       <div className="flex justify-between items-center font-bold text-lg">
                         <span>Total final:</span>
-                        <span>{orderTotal.toLocaleString('fr-FR')} Ar</span>
+                        <span>{formatPrice(orderTotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -1982,14 +2069,14 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                 {formData.payment ? (
                   <div className="p-3 bg-muted rounded-lg">
                     <p className="font-medium">
-                      {paymentMethods.find(m => m.value === formData.payment?.method)?.label} - {formData.payment.amount.toLocaleString('fr-FR')} Ar
+                      {paymentMethods.find(m => m.value === formData.payment?.method)?.label} - {formatPrice(formData.payment.amount)}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Fournisseur: {formData.payment.provider}
                     </p>
                     {formData.payment.amount < orderTotal && (
                       <p className="text-sm text-orange-600 mt-1">
-                        Restant à payer: {(orderTotal - formData.payment.amount).toLocaleString('fr-FR')} Ar
+                        Restant à payer: {formatPrice(orderTotal - formData.payment.amount)}
                       </p>
                     )}
                   </div>
@@ -2002,9 +2089,9 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
               <div>
                 <h3 className="font-semibold mb-2">Statut</h3>
                 <Badge variant="outline" className="text-sm">
-                  {formData.status === 'QUOTE' ? 'Devis' :
-                   formData.status === 'CONFIRMED' ? 'Confirmée' :
-                   formData.status === 'PROCESSING' ? 'En traitement' : formData.status}
+                  {formData.status === 'PENDING' ? 'En attente' :
+                   formData.status === 'PAID' ? 'Payée' :
+                   formData.status === 'PROCESSING' ? 'En cours' : formData.status}
                 </Badge>
               </div>
             </CardContent>
@@ -2088,7 +2175,7 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
                   </CardHeader>
                   <CardContent>
                     <p className="text-2xl font-bold text-primary">
-                      {selectedOffer.price.toLocaleString('fr-FR')} Ar
+                      {formatPrice(selectedOffer.price)}
                     </p>
                   </CardContent>
                 </Card>
@@ -2289,6 +2376,13 @@ export function EnhancedOrderForm({ users, products, services, offers }: Enhance
           </div>
         </div>
       )}
+
+      {/* Modal de simulation d'importation */}
+      <ImportSimulationModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        onAddToCart={addImportedItem}
+      />
     </div>
   );
 }

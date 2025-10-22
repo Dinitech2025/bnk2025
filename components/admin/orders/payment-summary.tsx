@@ -1,6 +1,6 @@
 'use client'
 
-import { useCurrency } from '@/lib/contexts/currency-context'
+import { useCurrency } from '@/components/providers/currency-provider'
 import { getCurrencySymbol } from '@/lib/utils/currency-symbols'
 
 interface Payment {
@@ -31,75 +31,60 @@ export function PaymentSummary({
   orderDisplayCurrency, 
   orderExchangeRate 
 }: PaymentSummaryProps) {
-  const { currency, targetCurrency, exchangeRates } = useCurrency()
+  const { targetCurrency } = useCurrency()
 
-  // Déterminer le meilleur taux à utiliser (priorité aux paiements)
-  const getBestExchangeRate = (targetCurrency: string) => {
-    // PRIORITÉ 1: Taux de paiement si disponible
-    const completedPayment = payments.find(p => 
-      p.status === 'COMPLETED' && 
-      p.paymentExchangeRate && 
-      p.paymentDisplayCurrency === targetCurrency
-    )
-    
-    if (completedPayment && completedPayment.paymentExchangeRate) {
-      return {
-        rate: completedPayment.paymentExchangeRate,
-        source: 'payment',
-        isStored: true
-      }
-    }
-    
-    // PRIORITÉ 2: Taux de commande
-    if (orderExchangeRate && orderDisplayCurrency === targetCurrency) {
-      return {
-        rate: orderExchangeRate,
-        source: 'order',
-        isStored: true
-      }
-    }
-    
-    // PRIORITÉ 3: Taux actuels
-    const currentRate = exchangeRates[targetCurrency]
-    if (currentRate) {
-      return {
-        rate: currentRate,
-        source: 'current',
-        isStored: false
-      }
-    }
-    
-    return null
+  // Taux de change actuels (même logique que PaymentAmountDisplay)
+  const currentRates = {
+    'MGA': 1.0,
+    'Ar': 1.0,
+    'EUR': 0.000196,  // 1 MGA = 0.000196 EUR
+    'USD': 0.000214,  // 1 MGA = 0.000214 USD
+    'GBP': 0.000168   // 1 MGA = 0.000168 GBP
   }
-  
-  // Helper pour convertir les prix
-  const convertPrice = (price: number, fromCurrency: string, targetCurrency?: string) => {
-    if (!targetCurrency || targetCurrency === fromCurrency) return price
-    
-    const rateInfo = getBestExchangeRate(targetCurrency)
-    if (rateInfo) {
-      return price * rateInfo.rate
+
+  // Fonction de conversion (même logique que PaymentAmountDisplay)
+  const convertWithCurrentRate = (paymentAmount: number, paymentCurrency: string, targetCurrency: string) => {
+    // Si les devises sont identiques, retourner tel quel
+    if (paymentCurrency === targetCurrency || 
+        (paymentCurrency === 'Ar' && targetCurrency === 'MGA') ||
+        (paymentCurrency === 'MGA' && targetCurrency === 'Ar')) {
+      return paymentAmount
     }
-    
-    return price
+
+    // Normaliser les devises
+    const sourceCurrency = (paymentCurrency === 'Ar') ? 'MGA' : paymentCurrency
+    const destCurrency = (targetCurrency === 'Ar') ? 'MGA' : targetCurrency
+
+    // Convertir via MGA comme devise de base
+    if (sourceCurrency === 'MGA') {
+      // De MGA vers autre devise
+      const targetRate = currentRates[destCurrency] || 1
+      return paymentAmount * targetRate
+    } else if (destCurrency === 'MGA') {
+      // D'autre devise vers MGA
+      const sourceRate = currentRates[sourceCurrency] || 1
+      return paymentAmount / sourceRate
+    } else {
+      // Entre deux devises non-MGA : passer par MGA
+      const sourceRate = currentRates[sourceCurrency] || 1
+      const targetRate = currentRates[destCurrency] || 1
+      const amountInMGA = paymentAmount / sourceRate
+      return amountInMGA * targetRate
+    }
   }
 
   // Helper pour formater les prix avec conversion
   const formatPrice = (price: number, fromCurrency: string = orderCurrency) => {
-    const displayCurrency = targetCurrency || currency
+    const displayCurrency = targetCurrency || 'Ar'
     
-    if (displayCurrency === fromCurrency) {
+    if (displayCurrency === fromCurrency || 
+        (displayCurrency === 'Ar' && fromCurrency === 'MGA') ||
+        (displayCurrency === 'MGA' && fromCurrency === 'Ar')) {
       return `${price.toLocaleString()} ${getCurrencySymbol(displayCurrency)}`
     }
     
-    const rateInfo = getBestExchangeRate(displayCurrency)
-    if (rateInfo) {
-      const convertedPrice = price * rateInfo.rate
-      const lockIcon = rateInfo.isStored ? ' 🔒' : ''
-      return `${convertedPrice.toLocaleString()} ${getCurrencySymbol(displayCurrency)}${lockIcon}`
-    }
-    
-    return `${price.toLocaleString()} ${getCurrencySymbol(fromCurrency)}`
+    const convertedPrice = convertWithCurrentRate(price, fromCurrency, displayCurrency)
+    return `${convertedPrice.toLocaleString()} ${getCurrencySymbol(displayCurrency)}`
   }
 
   // Calculer les totaux
@@ -126,20 +111,6 @@ export function PaymentSummary({
           <span className="text-muted-foreground">Total commande:</span>
           <span className="font-semibold">{formatPrice(orderTotal, orderCurrency)}</span>
         </div>
-        
-        {(() => {
-          const displayCurrency = targetCurrency || currency
-          const rateInfo = getBestExchangeRate(displayCurrency)
-          
-          if (rateInfo && rateInfo.isStored) {
-            return (
-              <div className="mt-2 text-xs text-muted-foreground">
-                🔒 Taux figé ({rateInfo.source === 'payment' ? 'paiement' : 'commande'})
-              </div>
-            )
-          }
-          return null
-        })()}
       </div>
     </div>
   )

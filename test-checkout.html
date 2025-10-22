@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Checkout - PayPal & Carte Bancaire</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-step { background: #f0f9ff; padding: 15px; margin: 10px 0; border-left: 4px solid #0ea5e9; }
+        .success { color: #16a34a; font-weight: bold; }
+        .error { color: #dc2626; font-weight: bold; }
+        .code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test PayPal & Carte Bancaire - Checkout</h1>
+    
+    <div class="test-step">
+        <h3>📋 Étapes de Test</h3>
+        <ol>
+            <li>Ouvrez <a href="http://localhost:3000/checkout" target="_blank"><strong>http://localhost:3000/checkout</strong></a></li>
+            <li>Sélectionnez <span class="code">🔘 Paiement en ligne</span></li>
+            <li><strong>✅ VÉRIFIEZ :</strong> PayPal et Carte bancaire apparaissent en dessous</li>
+            <li>Sélectionnez <span class="code">🔘 PayPal</span> ou <span class="code">🔘 Carte bancaire</span></li>
+            <li><strong>✅ VÉRIFIEZ :</strong> L'interface de paiement correspondante s'affiche</li>
+        </ol>
+    </div>
+
+    <div class="test-step">
+        <h3>🎯 Résultat Attendu</h3>
+        <p><strong>Avant (❌ Problème) :</strong></p>
+        <ul>
+            <li>Paiement en ligne sélectionné</li>
+            <li>Message : "⚠️ Veuillez choisir votre mode de paiement ci-dessus"</li>
+            <li><span class="error">Aucune option PayPal/carte visible</span></li>
+        </ul>
+        
+        <p><strong>Après (✅ Corrigé) :</strong></p>
+        <ul>
+            <li>Paiement en ligne sélectionné</li>
+            <li><strong>Section "Choisissez votre mode de paiement :" visible</strong></li>
+            <li><span class="success">🔘 PayPal</span> - Paiement sécurisé via PayPal</li>
+            <li><span class="success">🔘 Carte bancaire</span> - Paiement par carte bancaire via PayPal</li>
+        </ul>
+    </div>
+
+    <div class="test-step">
+        <h3>🔍 Débogage</h3>
+        <p>Si les options ne s'affichent toujours pas :</p>
+        <ol>
+            <li>Ouvrez les <strong>Outils Développeur</strong> (F12)</li>
+            <li>Allez dans <strong>Console</strong></li>
+            <li>Recherchez les messages : <span class="code">💰 PaymentMethodSelector reçu</span></li>
+            <li>Vérifiez : <span class="code">🔄 Méthodes transformées</span></li>
+        </ol>
+    </div>
+
+    <script>
+        // Auto-test en JavaScript
+        setTimeout(() => {
+            console.log('🧪 Test automatique du checkout...');
+            
+            fetch('http://localhost:3000/api/payment-methods')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📊 API Response:', data);
+                    
+                    const onlinePayment = data.paymentMethods?.find(m => m.code === 'online_payment');
+                    if (onlinePayment) {
+                        console.log('✅ Paiement en ligne trouvé:', onlinePayment.name);
+                        console.log('📦 Fournisseurs:', onlinePayment.providers?.length || 0);
+                        
+                        if (onlinePayment.providers?.length >= 2) {
+                            console.log('✅ PayPal et Carte bancaire disponibles');
+                            document.querySelector('body').innerHTML += '<div class="test-step success">✅ API TEST RÉUSSI : PayPal et Carte bancaire détectés !</div>';
+                        } else {
+                            console.log('❌ Fournisseurs manquants');
+                            document.querySelector('body').innerHTML += '<div class="test-step error">❌ API TEST ÉCHOUÉ : Fournisseurs manquants</div>';
+                        }
+                    } else {
+                        console.log('❌ Paiement en ligne non trouvé');
+                        document.querySelector('body').innerHTML += '<div class="test-step error">❌ API TEST ÉCHOUÉ : Paiement en ligne non trouvé</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Erreur API:', error);
+                    document.querySelector('body').innerHTML += '<div class="test-step error">❌ ERREUR API : ' + error.message + '</div>';
+                });
+        }, 1000);
+    </script>
+</body>
+</html>
+
+
