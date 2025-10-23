@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // PATCH - Marquer un message comme lu
 export async function PATCH(
@@ -15,7 +15,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
-    const message = await db.message.update({
+    const message = await prisma.message.update({
       where: { id: params.id },
       data: {
         status: 'READ',

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // GET - Récupérer un message spécifique avec ses réponses
 export async function GET(
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
-    const message = await db.message.findUnique({
+    const message = await prisma.message.findUnique({
       where: { id: params.id },
       include: {
         fromUser: {
@@ -152,7 +152,7 @@ export async function PATCH(
       updateData[key] === undefined && delete updateData[key]
     )
 
-    const message = await db.message.update({
+    const message = await prisma.message.update({
       where: { id: params.id },
       data: updateData,
       include: {
@@ -195,7 +195,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
-    await db.message.delete({
+    await prisma.message.delete({
       where: { id: params.id },
     })
 

@@ -94,7 +94,7 @@ export async function GET() {
 
     try {
       // Messages non lus (reçus des clients)
-      unreadMessages = await prisma.message.findMany({
+      unreadMessages = await db.message.findMany({
         where: {
           toUserId: session.user.id,
           status: 'UNREAD'

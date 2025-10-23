@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 // GET - Récupérer tous les messages avec filtres
 export async function GET(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     if (userId) where.toUserId = userId
 
     const [messages, total] = await Promise.all([
-      db.message.findMany({
+      prisma.message.findMany({
         where,
         include: {
           fromUser: {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit,
       }),
-      db.message.count({ where }),
+      prisma.message.count({ where }),
     ])
 
     return NextResponse.json({
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier que le destinataire existe
-    const recipient = await db.user.findUnique({
+    const recipient = await prisma.user.findUnique({
       where: { id: toUserId },
       select: { id: true, email: true, role: true },
     })
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const message = await db.message.create({
+    const message = await prisma.message.create({
       data: {
         subject,
         content,
