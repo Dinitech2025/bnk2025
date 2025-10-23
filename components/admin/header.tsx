@@ -194,11 +194,11 @@ export default function AdminHeader() {
                                 {message.subject}
                               </p>
                               <span className="text-xs text-muted-foreground">
-                                {message.fromUser.role === 'CLIENT' ? 'Client' : message.fromUser.role}
+                                Client
                               </span>
                             </div>
                             <p className="text-sm text-muted-foreground mb-1 truncate">
-                              De: {message.fromUser.name || message.fromUser.email}
+                              De: {message.clientName || message.clientEmail || 'Client'}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(message.sentAt), 'dd/MM à HH:mm', { locale: fr })}
