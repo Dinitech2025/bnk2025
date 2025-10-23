@@ -15,6 +15,8 @@ export async function GET() {
     let lowStockProducts = []
     let pendingOrders = []
     let recentQuotes = []
+    let urgentTasks = []
+    let pendingTasks = []
     
     try {
       // Produits en stock faible (si la colonne stock existe)
@@ -33,6 +35,60 @@ export async function GET() {
       })
     } catch (error) {
       console.log('Stock notifications not available:', error)
+    }
+    
+    try {
+      // Tâches urgentes
+      urgentTasks = await prisma.task.findMany({
+        where: {
+          priority: 'URGENT',
+          status: {
+            in: ['PENDING', 'IN_PROGRESS']
+          }
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          type: true,
+          dueDate: true,
+          createdAt: true
+        },
+        orderBy: {
+          dueDate: 'asc'
+        },
+        take: 5
+      })
+    } catch (error) {
+      console.log('Urgent tasks notifications error:', error)
+    }
+    
+    try {
+      // Tâches en attente
+      pendingTasks = await prisma.task.findMany({
+        where: {
+          status: 'PENDING',
+          priority: {
+            in: ['HIGH', 'MEDIUM']
+          }
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          type: true,
+          priority: true,
+          dueDate: true,
+          createdAt: true
+        },
+        orderBy: [
+          { priority: 'desc' },
+          { dueDate: 'asc' }
+        ],
+        take: 5
+      })
+    } catch (error) {
+      console.log('Pending tasks notifications error:', error)
     }
     
     try {
@@ -140,6 +196,36 @@ export async function GET() {
           url: `/admin/quotes/${quote.id}`
         },
         createdAt: quote.createdAt.toISOString()
+      })
+    })
+
+    // Notifications de tâches urgentes
+    urgentTasks.forEach(task => {
+      notifications.push({
+        id: `task-urgent-${task.id}`,
+        type: 'error',
+        title: '🔥 Tâche urgente',
+        message: task.title,
+        action: {
+          text: 'Voir la tâche',
+          url: `/admin/tasks/${task.id}`
+        },
+        createdAt: task.createdAt.toISOString()
+      })
+    })
+
+    // Notifications de tâches en attente
+    pendingTasks.forEach(task => {
+      notifications.push({
+        id: `task-pending-${task.id}`,
+        type: task.priority === 'HIGH' ? 'warning' : 'info',
+        title: task.priority === 'HIGH' ? '⚠️ Tâche prioritaire' : '📋 Tâche en attente',
+        message: task.title,
+        action: {
+          text: 'Voir la tâche',
+          url: `/admin/tasks/${task.id}`
+        },
+        createdAt: task.createdAt.toISOString()
       })
     })
 
