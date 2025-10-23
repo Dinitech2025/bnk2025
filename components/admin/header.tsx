@@ -1,8 +1,9 @@
 'use client'
 
 import { signOut, useSession } from 'next-auth/react'
-import { Bell, Search } from 'lucide-react'
+import { Bell, Search, CheckSquare } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { CurrencySelector } from '@/components/ui/currency-selector'
 
 export default function AdminHeader() {
+  const router = useRouter()
   const { data: session, update } = useSession()
   const [userData, setUserData] = useState({
     name: '',
@@ -22,6 +24,7 @@ export default function AdminHeader() {
     image: '',
     role: ''
   })
+  const [pendingTasksCount, setPendingTasksCount] = useState(0)
 
   // Mettre à jour userData quand la session change
   useEffect(() => {
@@ -59,6 +62,28 @@ export default function AdminHeader() {
       fetchUserData()
     }
   }, [session?.user?.email]) // Dépendances minimales
+
+  // Récupérer le nombre de tâches en attente
+  useEffect(() => {
+    const fetchPendingTasks = async () => {
+      try {
+        const response = await fetch('/api/admin/tasks?status=PENDING')
+        if (response.ok) {
+          const data = await response.json()
+          setPendingTasksCount(data.pagination?.total || 0)
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des tâches:', error)
+      }
+    }
+
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'STAFF') {
+      fetchPendingTasks()
+      // Rafraîchir toutes les 60 secondes
+      const interval = setInterval(fetchPendingTasks, 60000)
+      return () => clearInterval(interval)
+    }
+  }, [session?.user?.role])
   
   const initials = userData.name
     ? userData.name.split(' ').map((n) => n[0]).join('')
@@ -81,12 +106,30 @@ export default function AdminHeader() {
         
         {/* Actions droite */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 justify-end">
+          {/* Icône Tâches */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="relative h-7 w-7 sm:h-8 sm:w-8"
+            onClick={() => router.push('/admin/tasks')}
+            title="Tâches à faire"
+          >
+            <CheckSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+            {pendingTasksCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-orange-500 text-[8px] sm:text-[10px] font-medium text-white flex items-center justify-center">
+                {pendingTasksCount > 99 ? '99+' : pendingTasksCount}
+              </span>
+            )}
+          </Button>
+          
+          {/* Icône Notifications */}
           <Button variant="ghost" size="icon" className="relative h-7 w-7 sm:h-8 sm:w-8">
             <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-primary text-[8px] sm:text-[10px] font-medium text-primary-foreground flex items-center justify-center">
               2
             </span>
           </Button>
+          
           <CurrencySelector className="w-16 sm:w-20 text-xs sm:text-sm" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
