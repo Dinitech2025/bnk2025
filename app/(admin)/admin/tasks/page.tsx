@@ -74,9 +74,9 @@ export default function TasksPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [filters, setFilters] = useState({
-    status: '',
-    type: '',
-    priority: '',
+    status: 'all',
+    type: 'all',
+    priority: 'all',
     search: '',
   })
 
@@ -84,9 +84,9 @@ export default function TasksPage() {
     try {
       setIsLoading(true)
       const params = new URLSearchParams()
-      if (filters.status) params.append('status', filters.status)
-      if (filters.type) params.append('type', filters.type)
-      if (filters.priority) params.append('priority', filters.priority)
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status)
+      if (filters.type && filters.type !== 'all') params.append('type', filters.type)
+      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority)
 
       const response = await fetch(`/api/admin/tasks?${params.toString()}`)
       if (response.ok) {
@@ -264,7 +264,7 @@ export default function TasksPage() {
                 <SelectValue placeholder="Statut" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tous les statuts</SelectItem>
+                <SelectItem value="all">Tous les statuts</SelectItem>
                 {Object.entries(TASK_STATUSES).map(([key, value]) => (
                   <SelectItem key={key} value={key}>
                     {value.label}
@@ -280,7 +280,7 @@ export default function TasksPage() {
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Tous les types</SelectItem>
+                <SelectItem value="all">Tous les types</SelectItem>
                 {Object.entries(TASK_TYPES).map(([key, value]) => (
                   <SelectItem key={key} value={key}>
                     {value}
@@ -296,7 +296,7 @@ export default function TasksPage() {
                 <SelectValue placeholder="Priorité" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Toutes les priorités</SelectItem>
+                <SelectItem value="all">Toutes les priorités</SelectItem>
                 {Object.entries(TASK_PRIORITIES).map(([key, value]) => (
                   <SelectItem key={key} value={key}>
                     {value.label}
