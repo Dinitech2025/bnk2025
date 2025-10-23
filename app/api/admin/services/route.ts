@@ -15,6 +15,9 @@ export async function GET(request: NextRequest) {
     }
 
     const services = await prisma.service.findMany({
+      where: {
+        published: true // Seulement les services publiés
+      },
       include: {
         category: {
           select: {
@@ -28,7 +31,8 @@ export async function GET(request: NextRequest) {
             id: true,
             path: true,
             alt: true
-          }
+          },
+          take: 1 // Seulement la première image
         }
       },
       orderBy: {

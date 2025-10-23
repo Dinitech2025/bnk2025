@@ -161,4 +161,142 @@ export async function GET(request: NextRequest) {
     console.error('Erreur lors de la récupération des devis admin:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
+}
+
+// POST - Créer un nouveau devis (admin seulement)
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    // Vérifier les permissions admin
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'STAFF') {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const {
+      userId,
+      serviceId,
+      description,
+      budget,
+    } = body
+
+    // Validation
+    if (!userId || !serviceId || !description?.trim()) {
+      return NextResponse.json(
+        { error: 'Le client, service et description sont requis' },
+        { status: 400 }
+      )
+    }
+
+    // Vérifier que le client existe
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Client non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    // Vérifier que c'est bien un client
+    if (user.role !== 'CLIENT') {
+      return NextResponse.json(
+        { error: 'L\'utilisateur sélectionné n\'est pas un client' },
+        { status: 400 }
+      )
+    }
+
+    // Vérifier que le service existe et est publié
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        pricingType: true,
+        requiresQuote: true,
+        published: true
+      }
+    })
+
+    if (!service) {
+      return NextResponse.json(
+        { error: 'Service non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    if (!service.published) {
+      return NextResponse.json(
+        { error: 'Ce service n\'est pas disponible' },
+        { status: 400 }
+      )
+    }
+
+    // Créer le devis
+    const quote = await prisma.quote.create({
+      data: {
+        userId,
+        serviceId,
+        description: description.trim(),
+        budget: budget ? Number(budget) : null,
+        status: 'PENDING',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        },
+        service: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            pricingType: true,
+            requiresQuote: true
+          }
+        }
+      }
+    })
+
+    // Créer un message initial dans le fil de discussion du devis
+    await prisma.quoteMessage.create({
+      data: {
+        quoteId: quote.id,
+        userId: session.user.id,
+        message: `Devis créé pour ${service.name}. Description: ${description.trim()}`,
+        messageType: 'STATUS_UPDATE'
+      }
+    })
+
+    console.log(`✅ Devis créé: ${quote.id} pour ${user.email}`)
+
+    return NextResponse.json(quote, { status: 201 })
+
+  } catch (error) {
+    console.error('Erreur lors de la création du devis:', error)
+    return NextResponse.json(
+      { error: 'Erreur lors de la création du devis' },
+      { status: 500 }
+    )
+  }
 } 

@@ -61,7 +61,28 @@ export default async function NewOrderPage() {
         id: true,
         name: true,
         description: true,
-        price: true
+        price: true,
+        pricingType: true,
+        requiresQuote: true,
+        minPrice: true,
+        maxPrice: true,
+        autoAcceptNegotiation: true,
+        duration: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        images: {
+          select: {
+            id: true,
+            path: true,
+            alt: true
+          },
+          take: 1
+        }
       },
       orderBy: {
         name: 'asc'
@@ -154,9 +175,17 @@ export default async function NewOrderPage() {
       id: service.id,
       name: service.name.trim(), // Nettoyer le nom
       price: Number(service.price),
-      description: service.description 
+      description: service.description
         ? service.description.replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim() // Nettoyer la description
-        : undefined
+        : undefined,
+      pricingType: service.pricingType || 'FIXED',
+      requiresQuote: service.requiresQuote || false,
+      minPrice: service.minPrice ? Number(service.minPrice) : null,
+      maxPrice: service.maxPrice ? Number(service.maxPrice) : null,
+      autoAcceptNegotiation: service.autoAcceptNegotiation || false,
+      duration: service.duration || 0,
+      category: service.category || null,
+      image: service.images?.[0]?.path || null
     })),
     offers: offers.map(offer => ({
       id: offer.id,

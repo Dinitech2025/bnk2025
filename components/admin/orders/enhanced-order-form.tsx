@@ -72,6 +72,18 @@ interface Service {
   name: string;
   price: number;
   description?: string;
+  pricingType?: 'FIXED' | 'NEGOTIABLE' | 'RANGE' | 'QUOTE_REQUIRED';
+  requiresQuote?: boolean;
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  autoAcceptNegotiation?: boolean;
+  duration?: number;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  image?: string | null;
 }
 
 interface Offer {
@@ -363,21 +375,46 @@ export function EnhancedOrderForm({ users, products, services, offers, paymentMe
 
   // Ajouter un article
   const addItem = (type: 'PRODUCT' | 'SERVICE' | 'OFFER', item: Product | Service | Offer) => {
+    // Vérifier si c'est un service qui nécessite un devis
+    if (type === 'SERVICE' && item.pricingType === 'QUOTE_REQUIRED') {
+      toast.info(`"${item.name}" nécessite un devis. Redirection vers la création de devis...`, {
+        duration: 3000,
+      });
+
+      // Rediriger vers la page de devis avec le service pré-sélectionné
+      setTimeout(() => {
+        router.push(`/admin/quotes/new?serviceId=${item.id}`);
+      }, 1000);
+      return;
+    }
+
+    // Vérifier si c'est un service négociable
+    if (type === 'SERVICE' && item.pricingType === 'NEGOTIABLE') {
+      toast.info(`"${item.name}" est négociable. Un devis sera créé pour négociation.`, {
+        duration: 3000,
+      });
+    }
+
+    // Prix à utiliser (pour les services avec fourchette, utiliser le prix minimum)
+    const finalPrice = (type === 'SERVICE' && item.pricingType === 'RANGE' && item.minPrice)
+      ? item.minPrice
+      : item.price;
+
     const newItem: OrderItem = {
       id: `${type}_${item.id}_${Date.now()}`,
       itemType: type,
       itemId: item.id,
       name: item.name,
-      unitPrice: item.price,
+      unitPrice: finalPrice,
       quantity: 1,
-      totalPrice: item.price
+      totalPrice: finalPrice
     };
 
     setFormData(prev => ({
       ...prev,
       items: [...prev.items, newItem]
     }));
-    
+
     toast.success(`${item.name} ajouté au panier`);
   };
 
@@ -1090,15 +1127,52 @@ export function EnhancedOrderForm({ users, products, services, offers, paymentMe
                             {service.description && (
                               <p className="text-xs text-muted-foreground truncate">{service.description}</p>
                             )}
-                            <p className="text-sm font-medium text-primary">{formatPrice(service.price)}</p>
+                            <div className="flex items-center gap-2">
+                              {service.pricingType === 'QUOTE_REQUIRED' ? (
+                                <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                  Sur devis
+                                </Badge>
+                              ) : service.pricingType === 'RANGE' && service.minPrice && service.maxPrice ? (
+                                <span className="text-sm font-medium text-primary">
+                                  {formatPrice(service.minPrice)} - {formatPrice(service.maxPrice)}
+                                </span>
+                              ) : service.pricingType === 'NEGOTIABLE' ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm font-medium text-primary">{formatPrice(service.price)}</span>
+                                  <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                                    Négociable
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="text-sm font-medium text-primary">{formatPrice(service.price)}</span>
+                              )}
+                              {service.requiresQuote && (
+                                <Badge variant="outline" className="text-xs text-purple-600 border-purple-300">
+                                  Devis requis
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <Button
                             size="sm"
                             onClick={() => addItem('SERVICE', service)}
-                            className="flex items-center gap-1 ml-2 h-8"
+                            className={`flex items-center gap-1 ml-2 h-8 ${
+                              service.pricingType === 'QUOTE_REQUIRED'
+                                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                : service.pricingType === 'NEGOTIABLE'
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
+                            }`}
                           >
                             <Plus className="h-3 w-3" />
-                            <span className="hidden sm:inline">Ajouter</span>
+                            <span className="hidden sm:inline">
+                              {service.pricingType === 'QUOTE_REQUIRED'
+                                ? 'Demander devis'
+                                : service.pricingType === 'NEGOTIABLE'
+                                ? 'Négocier'
+                                : 'Ajouter'
+                              }
+                            </span>
                           </Button>
                         </div>
                       ))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import * as bcrypt from 'bcryptjs'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     }
 
     // Récupérer tous les clients avec leurs relations
-    const clients = await db.user.findMany({
+    const clients = await prisma.user.findMany({
       where: {
         role: 'CLIENT'
       },
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     // Vérifier si l'email existe déjà (seulement si fourni)
     if (email) {
-      const existingUser = await db.user.findUnique({
+      const existingUser = await prisma.user.findUnique({
         where: { email },
       })
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null
 
     // Créer le client
-    const newClient = await db.user.create({
+    const newClient = await prisma.user.create({
       data: {
         email: email || null,
         password: hashedPassword,
