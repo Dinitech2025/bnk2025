@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,12 +22,18 @@ interface Message {
 }
 
 export function ChatWidget() {
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+
+  // Ne pas afficher le widget sur les pages admin
+  if (pathname?.startsWith('/admin')) {
+    return null
+  }
 
   // Récupérer les messages de la conversation
   const fetchMessages = async () => {
@@ -89,9 +96,13 @@ export function ChatWidget() {
     }
   }
 
-  // Envoi automatique après 3 secondes d'inactivité
+  // Envoi automatique après 3 secondes d'inactivité (seulement si le message n'est pas vide et qu'il y a eu une interaction)
   useEffect(() => {
+    // Ne pas envoyer automatiquement si le message est vide ou en cours de chargement
     if (!newMessage.trim() || isLoading) return
+
+    // Ne pas envoyer automatiquement au premier rendu
+    if (newMessage.trim().length === 0) return
 
     const timer = setTimeout(() => {
       sendMessage(true)

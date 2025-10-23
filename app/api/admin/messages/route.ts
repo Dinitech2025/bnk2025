@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session || (session.user.role !== 'ADMIN' && session.user.role !== 'STAFF')) {
+    if (!session || (session.user?.role !== 'ADMIN' && session.user?.role !== 'STAFF')) {
+      console.error('Session invalide ou rôle incorrect:', session)
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
@@ -57,6 +58,8 @@ export async function GET(request: NextRequest) {
       prisma.message.count({ where }),
     ])
 
+    console.log(`✅ ${messages.length} messages récupérés sur ${total} total`)
+
     return NextResponse.json({
       messages,
       pagination: {
@@ -67,9 +70,10 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Erreur lors de la récupération des messages:', error)
+    console.error('❌ Erreur lors de la récupération des messages:', error)
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack')
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: 'Erreur serveur', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
