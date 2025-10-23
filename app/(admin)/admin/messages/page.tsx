@@ -33,45 +33,12 @@ interface Message {
   priority: string
   status: string
   sentAt: string
-  readAt: string | null
-  fromUser: {
-    id: string
-    name: string | null
-    email: string | null
-    role: string
-  }
-  toUser: {
-    id: string
-    name: string | null
-    firstName: string | null
-    lastName: string | null
-    email: string | null
-    phone: string | null
-  }
-  relatedOrder?: {
-    id: string
-    orderNumber: string
-    status: string
-  }
-  relatedSubscription?: {
-    id: string
-    status: string
-    offer: {
-      name: string
-    }
-  }
-  replies: {
-    id: string
-    subject: string
-    content: string
-    status: string
-    createdAt: string
-    fromUser: {
-      id: string
-      name: string | null
-      role: string
-    }
-  }[]
+  createdAt: string
+  fromUserId: string
+  toUserId: string
+  clientEmail?: string | null
+  clientName?: string | null
+  conversationId?: string | null
 }
 
 const MESSAGE_TYPES = {
@@ -103,6 +70,8 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
+  const [conversations, setConversations] = useState<any[]>([])
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [filters, setFilters] = useState({
     status: 'all',
     type: 'all',
@@ -110,28 +79,55 @@ export default function MessagesPage() {
     search: '',
   })
 
-  const fetchMessages = async () => {
+  const fetchConversations = async () => {
     try {
       setIsLoading(true)
-      const params = new URLSearchParams()
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status)
-      if (filters.type && filters.type !== 'all') params.append('type', filters.type)
-      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority)
-
-      const response = await fetch(`/api/admin/messages?${params.toString()}`)
+      const response = await fetch('/api/admin/messages?limit=50')
       if (response.ok) {
         const data = await response.json()
-        setMessages(data.messages)
+        const messages = data.messages || []
+
+        // Grouper par client
+        const conversationsMap = new Map()
+        messages.forEach((message: Message) => {
+          const clientKey = message.clientEmail || message.fromUserId || message.id
+          if (!conversationsMap.has(clientKey)) {
+            conversationsMap.set(clientKey, {
+              id: clientKey,
+              title: message.subject,
+              clientName: message.clientName || 'Client',
+              clientEmail: message.clientEmail || '',
+              lastMessage: message,
+              lastMessageAt: message.sentAt,
+              unreadCount: message.status === 'UNREAD' ? 1 : 0,
+              messages: [message],
+              isActive: true,
+            })
+          } else {
+            const conv = conversationsMap.get(clientKey)
+            conv.messages.push(message)
+            if (new Date(message.sentAt) > new Date(conv.lastMessageAt)) {
+              conv.lastMessage = message
+              conv.lastMessageAt = message.sentAt
+            }
+            if (message.status === 'UNREAD') conv.unreadCount++
+          }
+        })
+
+        setConversations(Array.from(conversationsMap.values()))
+        setMessages(messages)
       } else {
-        toast.error('Erreur lors du chargement des messages')
+        toast.error('Erreur lors du chargement des conversations')
       }
     } catch (error) {
       console.error('Erreur:', error)
-      toast.error('Erreur lors du chargement des messages')
+      toast.error('Erreur lors du chargement des conversations')
     } finally {
       setIsLoading(false)
     }
   }
+
+  const fetchMessages = fetchConversations
 
   const markAsRead = async (messageId: string) => {
     try {
@@ -156,21 +152,34 @@ export default function MessagesPage() {
   }, [filters.status, filters.type, filters.priority])
 
   const filteredMessages = messages.filter(message => {
-    if (!filters.search) return true
-    const searchLower = filters.search.toLowerCase()
-    return (
-      message.subject.toLowerCase().includes(searchLower) ||
-      message.content.toLowerCase().includes(searchLower) ||
-      message.toUser.name?.toLowerCase().includes(searchLower) ||
-      message.toUser.email?.toLowerCase().includes(searchLower)
-    )
+    // Filtrer par statut
+    if (filters.status !== 'all' && message.status !== filters.status) return false
+    
+    // Filtrer par type
+    if (filters.type !== 'all' && message.type !== filters.type) return false
+    
+    // Filtrer par priorité
+    if (filters.priority !== 'all' && message.priority !== filters.priority) return false
+    
+    // Filtrer par recherche
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase()
+      return (
+        message.subject.toLowerCase().includes(searchLower) ||
+        message.content.toLowerCase().includes(searchLower) ||
+        message.clientName?.toLowerCase().includes(searchLower) ||
+        message.clientEmail?.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    return true
   })
 
   const stats = {
-    total: messages.length,
-    unread: messages.filter(m => m.status === 'UNREAD').length,
+    total: conversations.length,
+    unread: conversations.filter(c => c.unreadCount > 0).length,
     replied: messages.filter(m => m.status === 'REPLIED').length,
-    urgent: messages.filter(m => m.priority === 'URGENT').length,
+    urgent: conversations.filter(c => c.lastMessage?.priority === 'URGENT').length,
   }
 
   return (
@@ -339,10 +348,10 @@ export default function MessagesPage() {
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground mb-2">
-                            De: {message.fromUser.name || message.fromUser.email}
+                            De: {message.clientName || message.clientEmail || 'Client'}
                           </p>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            À: {message.toUser.name || `${message.toUser.firstName} ${message.toUser.lastName}` || message.toUser.email}
+                          <p className="text-xs text-muted-foreground truncate">
+                            {message.content.substring(0, 100)}...
                           </p>
                           <div className="flex items-center gap-2">
                             <Badge className={MESSAGE_PRIORITIES[message.priority as keyof typeof MESSAGE_PRIORITIES].color}>
@@ -406,13 +415,13 @@ export default function MessagesPage() {
                   <div>
                     <p className="font-medium">De:</p>
                     <p className="text-muted-foreground">
-                      {selectedMessage.fromUser.name || selectedMessage.fromUser.email}
+                      {selectedMessage.clientName || selectedMessage.clientEmail || 'Client'}
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium">À:</p>
+                    <p className="font-medium">Email:</p>
                     <p className="text-muted-foreground">
-                      {selectedMessage.toUser.name || `${selectedMessage.toUser.firstName} ${selectedMessage.toUser.lastName}` || selectedMessage.toUser.email}
+                      {selectedMessage.clientEmail || 'Non renseigné'}
                     </p>
                   </div>
                   <div>
@@ -437,30 +446,30 @@ export default function MessagesPage() {
                   </div>
                 </div>
 
-                {/* Réponses */}
-                {selectedMessage.replies.length > 0 && (
-                  <div>
-                    <p className="font-medium mb-2">Réponses ({selectedMessage.replies.length}):</p>
-                    <div className="space-y-3">
-                      {selectedMessage.replies.map((reply) => (
-                        <div key={reply.id} className="border-l-4 border-l-blue-500 pl-4 bg-blue-50 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="font-medium">
-                              {reply.fromUser.name || reply.fromUser.role}
-                            </p>
-                            <Badge className={MESSAGE_STATUSES[reply.status as keyof typeof MESSAGE_STATUSES].color}>
-                              {MESSAGE_STATUSES[reply.status as keyof typeof MESSAGE_STATUSES].label}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {format(new Date(reply.createdAt), 'dd/MM/yyyy à HH:mm', { locale: fr })}
-                          </p>
-                          <p className="whitespace-pre-wrap">{reply.content}</p>
-                        </div>
-                      ))}
-                    </div>
+                {/* Formulaire de réponse rapide */}
+                <div className="border-t pt-4">
+                  <p className="font-medium mb-2">Réponse rapide:</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/admin/messages/${selectedMessage.id}`)}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Répondre
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Marquer comme archivé
+                        toast.info('Fonctionnalité à venir')
+                      }}
+                    >
+                      Archiver
+                    </Button>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           ) : (

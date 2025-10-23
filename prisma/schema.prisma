@@ -57,6 +57,23 @@ model User {
   @@index([phone])
 }
 
+model Conversation {
+  id          String    @id @default(cuid())
+  title       String?   // Titre de la conversation
+  participants String[] // IDs des utilisateurs participants
+  isActive    Boolean   @default(true)
+  lastMessageAt DateTime @default(now())
+
+  // Relations
+  messages    Message[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([lastMessageAt])
+}
+
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -137,6 +154,7 @@ model Product {
   attributes       ProductAttribute[]
   variations       ProductVariation[]
   images           Media[]            @relation("MediaToProduct")
+  messages         Message[]
 
   @@index([categoryId])
 }
@@ -189,6 +207,7 @@ model Service {
   orderItems              OrderItem[]
   images                  Media[]            @relation("MediaToService")
   newQuotes               Quote[]            @relation("QuoteToService")
+  messages                Message[]
 
   @@index([categoryId])
   @@index([pricingType])
@@ -1170,24 +1189,37 @@ model Message {
   priority        String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
   status          String    @default("UNREAD") // UNREAD, READ, REPLIED, ARCHIVED, DELETED
 
-  // Relations
-  fromUserId      String    // Admin/Staff qui envoie le message
-  toUserId        String    // Client qui reçoit le message
+  // Relations - Support bidirectionnel
+  fromUserId      String    // Expéditeur (Admin/Staff/Client)
+  toUserId        String    // Destinataire (Admin/Staff/Client)
 
   // Réponse (si c'est une réponse à un message)
   parentMessageId String?   // ID du message parent (pour les réponses)
   replyTo         Message?  @relation("MessageReplies", fields: [parentMessageId], references: [id])
 
+  // Conversation (groupe de messages liés)
+  conversationId  String?   // ID de la conversation (généré automatiquement)
+
+  // Relations avec Conversation
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+
   // Métadonnées
   relatedOrderId   String?   // Commande liée
   relatedSubscriptionId String? // Abonnement lié
   relatedQuoteId   String?   // Devis lié
+  relatedProductId String?   // Produit lié
+  relatedServiceId String?   // Service lié
   metadata        Json?     // Données supplémentaires
 
   // Timestamps
   sentAt          DateTime  @default(now())
-  readAt          DateTime? // Quand le client a lu le message
-  repliedAt       DateTime? // Quand l'admin a répondu
+  readAt          DateTime? // Quand le destinataire a lu le message
+  repliedAt       DateTime? // Quand quelqu'un a répondu
+
+  // Interface publique
+  isPublic        Boolean   @default(false) // Visible côté client sans authentification
+  clientEmail     String?   // Email du client pour messages anonymes
+  clientName      String?   // Nom du client pour messages anonymes
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1198,6 +1230,8 @@ model Message {
   relatedOrder    Order?    @relation(fields: [relatedOrderId], references: [id])
   relatedSubscription Subscription? @relation(fields: [relatedSubscriptionId], references: [id])
   relatedQuote    Quote?    @relation(fields: [relatedQuoteId], references: [id])
+  relatedProduct  Product?  @relation(fields: [relatedProductId], references: [id])
+  relatedService  Service?  @relation(fields: [relatedServiceId], references: [id])
   replies         Message[] @relation("MessageReplies")
 
   @@index([status])
@@ -1205,6 +1239,10 @@ model Message {
   @@index([priority])
   @@index([fromUserId])
   @@index([toUserId])
+  @@index([conversationId])
+  @@index([isPublic])
   @@index([relatedOrderId])
   @@index([relatedSubscriptionId])
+  @@index([relatedProductId])
+  @@index([relatedServiceId])
 }

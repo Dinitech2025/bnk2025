@@ -106,15 +106,9 @@ export async function GET() {
           priority: true,
           sentAt: true,
           createdAt: true,
-          fromUser: {
-            select: {
-              id: true,
-              name: true,
-              firstName: true,
-              lastName: true,
-              email: true
-            }
-          }
+          fromUserId: true,
+          clientEmail: true,
+          clientName: true,
         },
         orderBy: {
           sentAt: 'desc'
@@ -260,9 +254,7 @@ export async function GET() {
 
     // Notifications de messages non lus
     unreadMessages.forEach(message => {
-      const senderName = message.fromUser.name ||
-                        `${message.fromUser.firstName} ${message.fromUser.lastName}` ||
-                        message.fromUser.email
+      const senderName = message.clientName || message.clientEmail || 'Client inconnu'
 
       notifications.push({
         id: `message-unread-${message.id}`,

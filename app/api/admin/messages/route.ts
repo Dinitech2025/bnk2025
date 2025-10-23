@@ -31,75 +31,20 @@ export async function GET(request: NextRequest) {
     const [messages, total] = await Promise.all([
       prisma.message.findMany({
         where,
-        include: {
-          fromUser: {
-            select: {
-              id: true,
-              name: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              role: true,
-            },
-          },
-          toUser: {
-            select: {
-              id: true,
-              name: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-            },
-          },
-          relatedOrder: {
-            select: {
-              id: true,
-              orderNumber: true,
-              status: true,
-            },
-          },
-          relatedSubscription: {
-            select: {
-              id: true,
-              status: true,
-              offer: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          relatedQuote: {
-            select: {
-              id: true,
-              status: true,
-              service: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          replies: {
-            select: {
-              id: true,
-              subject: true,
-              content: true,
-              status: true,
-              createdAt: true,
-              fromUser: {
-                select: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
-              },
-            },
-            orderBy: {
-              createdAt: 'asc',
-            },
-          },
+        select: {
+          id: true,
+          subject: true,
+          content: true,
+          type: true,
+          priority: true,
+          status: true,
+          fromUserId: true,
+          toUserId: true,
+          sentAt: true,
+          createdAt: true,
+          updatedAt: true,
+          clientEmail: true,
+          clientName: true,
         },
         orderBy: [
           { status: 'asc' },
@@ -194,22 +139,19 @@ export async function POST(request: NextRequest) {
         relatedQuoteId,
         metadata,
       },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+      select: {
+        id: true,
+        subject: true,
+        content: true,
+        type: true,
+        priority: true,
+        status: true,
+        sentAt: true,
+        createdAt: true,
+        fromUserId: true,
+        toUserId: true,
+        clientEmail: true,
+        clientName: true,
       },
     })
 

@@ -17,82 +17,19 @@ export async function GET(
 
     const message = await prisma.message.findUnique({
       where: { id: params.id },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            role: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          },
-        },
-        relatedOrder: {
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            total: true,
-          },
-        },
-        relatedSubscription: {
-          select: {
-            id: true,
-            status: true,
-            startDate: true,
-            endDate: true,
-            offer: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        relatedQuote: {
-          select: {
-            id: true,
-            status: true,
-            budget: true,
-            service: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        replies: {
-          select: {
-            id: true,
-            subject: true,
-            content: true,
-            status: true,
-            priority: true,
-            createdAt: true,
-            fromUser: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                role: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
+      select: {
+        id: true,
+        subject: true,
+        content: true,
+        type: true,
+        priority: true,
+        status: true,
+        fromUserId: true,
+        toUserId: true,
+        sentAt: true,
+        createdAt: true,
+        clientEmail: true,
+        clientName: true,
       },
     })
 
@@ -100,7 +37,24 @@ export async function GET(
       return NextResponse.json({ error: 'Message non trouvé' }, { status: 404 })
     }
 
-    return NextResponse.json(message)
+    // Ajouter des informations fictives pour la compatibilité
+    const enrichedMessage = {
+      ...message,
+      fromUser: {
+        id: message.fromUserId,
+        name: null,
+        email: message.clientEmail || 'Admin',
+        role: message.fromUserId ? 'ADMIN' : 'CLIENT',
+      },
+      toUser: {
+        id: message.toUserId,
+        name: null,
+        email: message.clientEmail || 'Client',
+      },
+      replies: [],
+    }
+
+    return NextResponse.json(enrichedMessage)
   } catch (error) {
     console.error('Erreur lors de la récupération du message:', error)
     return NextResponse.json(
@@ -155,21 +109,19 @@ export async function PATCH(
     const message = await prisma.message.update({
       where: { id: params.id },
       data: updateData,
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+      select: {
+        id: true,
+        subject: true,
+        content: true,
+        type: true,
+        priority: true,
+        status: true,
+        fromUserId: true,
+        toUserId: true,
+        sentAt: true,
+        createdAt: true,
+        clientEmail: true,
+        clientName: true,
       },
     })
 
