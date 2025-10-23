@@ -94,7 +94,7 @@ export async function GET() {
 
     try {
       // Messages non lus (reçus des clients)
-      unreadMessages = await db.message.findMany({
+      unreadMessages = await prisma.message.findMany({
         where: {
           toUserId: session.user.id,
           status: 'UNREAD'
@@ -178,13 +178,15 @@ export async function GET() {
       notifications.push({
         id: `stock-${product.id}`,
         type: 'warning',
-        title: 'Stock faible',
+        title: '📦 Stock faible',
         message: `${product.name} - ${product.inventory} unités restantes`,
         action: {
           text: 'Voir le produit',
           url: `/admin/products/${product.id}`
         },
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        isRead: false,
+        category: 'stock'
       })
     })
 
@@ -193,13 +195,15 @@ export async function GET() {
       notifications.push({
         id: `order-${order.id}`,
         type: 'error',
-        title: 'Commande en attente',
+        title: '📋 Commande en attente',
         message: `Commande #${order.orderNumber} de ${order.user.firstName} ${order.user.lastName} en attente depuis plus de 24h`,
         action: {
           text: 'Voir la commande',
           url: `/admin/orders/${order.id}`
         },
-        createdAt: order.createdAt.toISOString()
+        createdAt: order.createdAt.toISOString(),
+        isRead: false,
+        category: 'order'
       })
     })
 
@@ -208,28 +212,15 @@ export async function GET() {
       notifications.push({
         id: `quote-${quote.id}`,
         type: 'info',
-        title: 'Nouveau devis',
-        message: `${quote.description.substring(0, 50)}... de ${quote.user.firstName} ${quote.user.lastName}`,
-        action: {
-          text: 'Voir le devis',
-          url: `/admin/quotes/${quote.id}`
-        },
-        createdAt: quote.createdAt.toISOString()
-      })
-    })
-
-    // Notifications de devis récents
-    recentQuotes.forEach(quote => {
-      notifications.push({
-        id: `quote-${quote.id}`,
-        type: 'info',
-        title: 'Nouveau devis',
+        title: '💬 Nouveau devis',
         message: `${quote.description.substring(0, 50) || 'Demande de devis'}... de ${quote.user.firstName} ${quote.user.lastName}`,
         action: {
           text: 'Voir le devis',
           url: `/admin/quotes/${quote.id}`
         },
-        createdAt: quote.createdAt.toISOString()
+        createdAt: quote.createdAt.toISOString(),
+        isRead: false,
+        category: 'quote'
       })
     })
 
@@ -244,7 +235,9 @@ export async function GET() {
           text: 'Voir la tâche',
           url: `/admin/tasks/${task.id}`
         },
-        createdAt: task.createdAt.toISOString()
+        createdAt: task.createdAt.toISOString(),
+        isRead: false,
+        category: 'task'
       })
     })
 
@@ -259,7 +252,9 @@ export async function GET() {
           text: 'Voir la tâche',
           url: `/admin/tasks/${task.id}`
         },
-        createdAt: task.createdAt.toISOString()
+        createdAt: task.createdAt.toISOString(),
+        isRead: false,
+        category: 'task'
       })
     })
 
@@ -278,7 +273,9 @@ export async function GET() {
           text: 'Lire le message',
           url: `/admin/messages/${message.id}`
         },
-        createdAt: message.sentAt.toISOString()
+        createdAt: message.sentAt.toISOString(),
+        isRead: false,
+        category: 'message'
       })
     })
 
