@@ -1185,7 +1185,7 @@ model Message {
   id              String    @id @default(cuid())
   subject         String    // Sujet du message
   content         String    // Contenu du message
-  type            String    @default("GENERAL") // GENERAL, SUPPORT, ORDER, SUBSCRIPTION, PAYMENT, CUSTOM
+  type            String    @default("GENERAL") // GENERAL, SUPPORT, ORDER, SUBSCRIPTION, PAYMENT, CUSTOM, QUOTE_DISCUSSION, QUOTE_PRICE_PROPOSAL, QUOTE_STATUS_UPDATE
   priority        String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
   status          String    @default("UNREAD") // UNREAD, READ, REPLIED, ARCHIVED, DELETED
 
@@ -1209,7 +1209,7 @@ model Message {
   relatedQuoteId   String?   // Devis lié
   relatedProductId String?   // Produit lié
   relatedServiceId String?   // Service lié
-  metadata        Json?     // Données supplémentaires
+  metadata        Json?     // Données supplémentaires (proposedPrice, attachments, migratedFrom, originalQuoteMessageId, etc.)
 
   // Timestamps
   sentAt          DateTime  @default(now())
@@ -1245,4 +1245,5 @@ model Message {
   @@index([relatedSubscriptionId])
   @@index([relatedProductId])
   @@index([relatedServiceId])
+  @@index([relatedQuoteId])
 }

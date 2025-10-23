@@ -42,21 +42,6 @@ export async function GET(
             pricingType: true,
             description: true
           }
-        },
-        messages: {
-          include: {
-            sender: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
         }
       }
     })
@@ -64,6 +49,26 @@ export async function GET(
     if (!quote) {
       return NextResponse.json({ error: 'Devis non trouvé' }, { status: 404 })
     }
+
+    // Récupérer les messages depuis le système unifié
+    const messages = await prisma.message.findMany({
+      where: {
+        relatedQuoteId: params.id
+      },
+      include: {
+        fromUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        }
+      },
+      orderBy: {
+        sentAt: 'asc'
+      }
+    })
 
     // Convertir les champs Decimal en nombres
     const formattedQuote = {
@@ -75,14 +80,18 @@ export async function GET(
         ...quote.service,
         price: quote.service.price ? parseFloat(quote.service.price.toString()) : null
       },
-      messages: quote.messages.map(message => ({
-        id: message.id,
-        message: message.message,
-        attachments: message.attachments,
-        createdAt: message.createdAt,
-        isAdminReply: message.sender.role === 'ADMIN' || message.sender.role === 'STAFF',
-        sender: message.sender
-      }))
+      messages: messages.map(message => {
+        const metadata = message.metadata as any
+        return {
+          id: message.id,
+          message: message.content,
+          attachments: metadata?.attachments || [],
+          proposedPrice: metadata?.proposedPrice || null,
+          createdAt: message.sentAt,
+          isAdminReply: message.fromUser.role === 'ADMIN' || message.fromUser.role === 'STAFF',
+          sender: message.fromUser
+        }
+      })
     }
 
     return NextResponse.json(formattedQuote)
