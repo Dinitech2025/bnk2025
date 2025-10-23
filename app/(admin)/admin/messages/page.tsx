@@ -146,13 +146,15 @@ export default function MessagesPage() {
 
         setConversations(sortedConversations)
 
-        // Si une conversation est sélectionnée, la mettre à jour
+        // Si une conversation est sélectionnée, la mettre à jour SANS changer la sélection
         if (selectedConversation) {
           const updated = sortedConversations.find(c => c.id === selectedConversation.id)
           if (updated) {
+            // Mettre à jour uniquement les données, pas la sélection
             setSelectedConversation(updated)
           }
         }
+        // NE PAS sélectionner automatiquement la première conversation
       } else {
         toast.error('Erreur lors du chargement des conversations')
       }
@@ -200,6 +202,15 @@ export default function MessagesPage() {
     setIsSending(true)
     setIsTyping(false)
 
+    // Trouver le premier message du client pour avoir son vrai userId
+    const clientMessage = selectedConversation.messages.find(m => m.fromUserId !== 'admin')
+    
+    if (!clientMessage) {
+      toast.error('Impossible de trouver le destinataire')
+      setIsSending(false)
+      return
+    }
+
     try {
       const response = await fetch('/api/admin/messages', {
         method: 'POST',
@@ -207,26 +218,28 @@ export default function MessagesPage() {
         body: JSON.stringify({
           subject: `RE: ${selectedConversation.lastMessage.subject}`,
           content: replyMessage,
-          toUserId: selectedConversation.messages[0].fromUserId,
-          type: selectedConversation.lastMessage.type,
+          toUserId: clientMessage.fromUserId,
+          type: selectedConversation.lastMessage.type || 'SUPPORT',
           priority: 'NORMAL',
           parentMessageId: selectedConversation.lastMessage.id,
         }),
       })
 
       if (response.ok) {
-        // Réponse instantanée - ajouter le message localement
+        const data = await response.json()
+        
+        // Réponse instantanée - ajouter le message localement avec les vraies données
         const newMessage: Message = {
-          id: `temp-${Date.now()}`,
+          id: data.id || `temp-${Date.now()}`,
           subject: `RE: ${selectedConversation.lastMessage.subject}`,
           content: replyMessage,
-          type: selectedConversation.lastMessage.type,
+          type: selectedConversation.lastMessage.type || 'SUPPORT',
           priority: 'NORMAL',
           status: 'READ',
           sentAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           fromUserId: 'admin',
-          toUserId: selectedConversation.messages[0].fromUserId,
+          toUserId: clientMessage.fromUserId,
           clientEmail: selectedConversation.clientEmail,
           clientName: selectedConversation.clientName,
         }
@@ -244,12 +257,14 @@ export default function MessagesPage() {
         
         toast.success('Message envoyé !')
 
-        // Rafraîchir en arrière-plan
+        // Rafraîchir en arrière-plan après un court délai
         setTimeout(() => {
           fetchConversations()
-        }, 500)
+        }, 1000)
       } else {
-        toast.error('Erreur lors de l\'envoi')
+        const errorData = await response.json()
+        console.error('Erreur API:', errorData)
+        toast.error(errorData.error || 'Erreur lors de l\'envoi')
       }
     } catch (error) {
       console.error('Erreur:', error)
@@ -288,10 +303,14 @@ export default function MessagesPage() {
   useEffect(() => {
     fetchConversations()
     
-    // Auto-refresh toutes les 10 secondes
-    const interval = setInterval(fetchConversations, 10000)
+    // Auto-refresh toutes les 10 secondes SEULEMENT si l'utilisateur n'est pas en train d'écrire
+    const interval = setInterval(() => {
+      if (!isTyping && !isSending) {
+        fetchConversations()
+      }
+    }, 10000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isTyping, isSending])
 
   const filteredConversations = conversations.filter(conv => {
     if (filters.search) {
