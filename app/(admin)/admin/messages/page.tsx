@@ -6,20 +6,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Plus,
   Search,
   Filter,
-  Send,
   Eye,
-  EyeOff,
-  User,
-  Calendar,
   MessageSquare,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Mail,
+  AlertCircle,
+  CheckCircle,
+  Clock
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -51,18 +50,18 @@ const MESSAGE_TYPES = {
 }
 
 const MESSAGE_PRIORITIES = {
-  LOW: { label: 'Basse', color: 'bg-gray-500' },
-  NORMAL: { label: 'Normal', color: 'bg-blue-500' },
-  HIGH: { label: 'Haute', color: 'bg-orange-500' },
-  URGENT: { label: 'Urgente', color: 'bg-red-500' },
+  LOW: { label: 'Basse', color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  NORMAL: { label: 'Normal', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  HIGH: { label: 'Haute', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  URGENT: { label: 'Urgente', color: 'bg-red-100 text-red-700 border-red-200' },
 }
 
 const MESSAGE_STATUSES = {
-  UNREAD: { label: 'Non lu', color: 'bg-red-500' },
-  READ: { label: 'Lu', color: 'bg-green-500' },
-  REPLIED: { label: 'Répondu', color: 'bg-blue-500' },
-  ARCHIVED: { label: 'Archivé', color: 'bg-gray-500' },
-  DELETED: { label: 'Supprimé', color: 'bg-gray-500' },
+  UNREAD: { label: 'Non lu', color: 'bg-red-100 text-red-700', icon: Mail },
+  READ: { label: 'Lu', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  REPLIED: { label: 'Répondu', color: 'bg-blue-100 text-blue-700', icon: MessageSquare },
+  ARCHIVED: { label: 'Archivé', color: 'bg-gray-100 text-gray-700', icon: Clock },
+  DELETED: { label: 'Supprimé', color: 'bg-gray-100 text-gray-700', icon: AlertCircle },
 }
 
 export default function MessagesPage() {
@@ -71,7 +70,6 @@ export default function MessagesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
   const [conversations, setConversations] = useState<any[]>([])
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [filters, setFilters] = useState({
     status: 'all',
     type: 'all',
@@ -183,308 +181,345 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Messages Clients</h1>
-          <p className="text-muted-foreground">
-            Communiquez avec vos clients
-          </p>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header compact */}
+      <div className="bg-white border-b px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Messages Clients</h1>
+            <p className="text-sm text-gray-500">Communiquez avec vos clients</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={fetchMessages}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Actualiser
+            </Button>
+            <Button size="sm" onClick={() => router.push('/admin/messages/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouveau message
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchMessages}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Actualiser
-          </Button>
-          <Button onClick={() => router.push('/admin/messages/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nouveau message
-          </Button>
-        </div>
-      </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Non lus</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.unread}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Répondus</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.replied}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Urgents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.urgent}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Liste des messages */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Filtres
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher..."
-                  value={filters.search}
-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  className="pl-9"
-                />
+        {/* Statistiques compactes */}
+        <div className="grid grid-cols-4 gap-3 mt-3">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-blue-600">Total</p>
+                <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
               </div>
-
-              <Select
-                value={filters.status}
-                onValueChange={(value) => setFilters({ ...filters, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  {Object.entries(MESSAGE_STATUSES).map(([key, value]) => (
-                    <SelectItem key={key} value={key}>
-                      {value.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={filters.type}
-                onValueChange={(value) => setFilters({ ...filters, type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les types</SelectItem>
-                  {Object.entries(MESSAGE_TYPES).map(([key, value]) => (
-                    <SelectItem key={key} value={key}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={filters.priority}
-                onValueChange={(value) => setFilters({ ...filters, priority: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Priorité" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes les priorités</SelectItem>
-                  {Object.entries(MESSAGE_PRIORITIES).map(([key, value]) => (
-                    <SelectItem key={key} value={key}>
-                      {value.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          {/* Liste des messages */}
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>Messages ({filteredMessages.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : filteredMessages.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Aucun message trouvé
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`border rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                        selectedMessage?.id === message.id ? 'border-blue-500 bg-blue-50' : ''
-                      } ${message.status === 'UNREAD' ? 'border-l-4 border-l-red-500' : ''}`}
-                      onClick={() => setSelectedMessage(message)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`font-medium ${message.status === 'UNREAD' ? 'font-bold' : ''}`}>
-                              {message.subject}
-                            </h3>
-                            {message.status === 'UNREAD' && (
-                              <Badge className="bg-red-500 text-white text-xs">NON LU</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            De: {message.clientName || message.clientEmail || 'Client'}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {message.content.substring(0, 100)}...
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <Badge className={MESSAGE_PRIORITIES[message.priority as keyof typeof MESSAGE_PRIORITIES].color}>
-                              {MESSAGE_PRIORITIES[message.priority as keyof typeof MESSAGE_PRIORITIES].label}
-                            </Badge>
-                            <Badge variant="outline">
-                              {MESSAGE_TYPES[message.type as keyof typeof MESSAGE_TYPES]}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(message.sentAt), 'dd/MM HH:mm', { locale: fr })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <MessageSquare className="h-8 w-8 text-blue-400 opacity-50" />
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-3 border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-red-600">Non lus</p>
+                <p className="text-2xl font-bold text-red-700">{stats.unread}</p>
+              </div>
+              <Mail className="h-8 w-8 text-red-400 opacity-50" />
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-green-600">Répondus</p>
+                <p className="text-2xl font-bold text-green-700">{stats.replied}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-400 opacity-50" />
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 border border-orange-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-orange-600">Urgents</p>
+                <p className="text-2xl font-bold text-orange-700">{stats.urgent}</p>
+              </div>
+              <AlertCircle className="h-8 w-8 text-orange-400 opacity-50" />
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Détail du message */}
-        <div className="lg:col-span-2">
-          {selectedMessage ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>{selectedMessage.subject}</CardTitle>
-                    <CardDescription>
-                      {MESSAGE_TYPES[selectedMessage.type as keyof typeof MESSAGE_TYPES]} •
-                      {MESSAGE_PRIORITIES[selectedMessage.priority as keyof typeof MESSAGE_PRIORITIES].label}
-                    </CardDescription>
+      {/* Contenu principal */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full grid grid-cols-12 gap-4 p-4">
+          {/* Sidebar filtres et liste - 4 colonnes */}
+          <div className="col-span-4 flex flex-col gap-3 h-full overflow-hidden">
+            {/* Filtres compacts */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-3 pt-4 px-4">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filtres
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 px-4 pb-4">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Rechercher..."
+                    value={filters.search}
+                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                    className="pl-8 h-9 text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <Select
+                    value={filters.status}
+                    onValueChange={(value) => setFilters({ ...filters, status: value })}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      {Object.entries(MESSAGE_STATUSES).map(([key, value]) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {value.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={filters.type}
+                    onValueChange={(value) => setFilters({ ...filters, type: value })}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      {Object.entries(MESSAGE_TYPES).map(([key, value]) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={filters.priority}
+                    onValueChange={(value) => setFilters({ ...filters, priority: value })}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Priorité" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes</SelectItem>
+                      {Object.entries(MESSAGE_PRIORITIES).map(([key, value]) => (
+                        <SelectItem key={key} value={key} className="text-xs">
+                          {value.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Liste des messages */}
+            <Card className="flex-1 overflow-hidden flex flex-col">
+              <CardHeader className="pb-2 pt-3 px-4 flex-shrink-0">
+                <CardTitle className="text-sm">
+                  Messages ({filteredMessages.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto px-2 pb-2">
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                   </div>
-                  <div className="flex gap-2">
-                    {selectedMessage.status === 'UNREAD' && (
+                ) : filteredMessages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <MessageSquare className="h-12 w-12 mb-2 opacity-50" />
+                    <p className="text-sm">Aucun message trouvé</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredMessages.map((message) => {
+                      const StatusIcon = MESSAGE_STATUSES[message.status as keyof typeof MESSAGE_STATUSES]?.icon || Mail
+                      return (
+                        <div
+                          key={message.id}
+                          className={`rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${
+                            selectedMessage?.id === message.id
+                              ? 'bg-blue-50 border-2 border-blue-500 shadow-sm'
+                              : message.status === 'UNREAD'
+                              ? 'bg-red-50 border border-red-200 hover:bg-red-100'
+                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                          }`}
+                          onClick={() => setSelectedMessage(message)}
+                        >
+                          <div className="flex items-start gap-2">
+                            <StatusIcon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                              message.status === 'UNREAD' ? 'text-red-500' : 'text-gray-400'
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className={`text-sm font-medium truncate ${
+                                  message.status === 'UNREAD' ? 'font-bold text-gray-900' : 'text-gray-700'
+                                }`}>
+                                  {message.subject}
+                                </h3>
+                                {message.status === 'UNREAD' && (
+                                  <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 h-4">
+                                    NON LU
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 mb-1.5">
+                                De: {message.clientName || message.clientEmail || 'Client'}
+                              </p>
+                              <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+                                {message.content}
+                              </p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 border ${
+                                  MESSAGE_PRIORITIES[message.priority as keyof typeof MESSAGE_PRIORITIES].color
+                                }`}>
+                                  {MESSAGE_PRIORITIES[message.priority as keyof typeof MESSAGE_PRIORITIES].label}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                  {MESSAGE_TYPES[message.type as keyof typeof MESSAGE_TYPES]}
+                                </Badge>
+                                <span className="text-[10px] text-gray-400 ml-auto">
+                                  {format(new Date(message.sentAt), 'dd/MM HH:mm', { locale: fr })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Détail du message - 8 colonnes */}
+          <div className="col-span-8 h-full">
+            {selectedMessage ? (
+              <Card className="h-full flex flex-col">
+                <CardHeader className="pb-3 pt-4 px-6 flex-shrink-0 border-b">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-1">{selectedMessage.subject}</CardTitle>
+                      <CardDescription className="flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className={MESSAGE_PRIORITIES[selectedMessage.priority as keyof typeof MESSAGE_PRIORITIES].color}>
+                          {MESSAGE_PRIORITIES[selectedMessage.priority as keyof typeof MESSAGE_PRIORITIES].label}
+                        </Badge>
+                        <span>•</span>
+                        <span>{MESSAGE_TYPES[selectedMessage.type as keyof typeof MESSAGE_TYPES]}</span>
+                        <span>•</span>
+                        <Badge className={MESSAGE_STATUSES[selectedMessage.status as keyof typeof MESSAGE_STATUSES].color}>
+                          {MESSAGE_STATUSES[selectedMessage.status as keyof typeof MESSAGE_STATUSES].label}
+                        </Badge>
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      {selectedMessage.status === 'UNREAD' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => markAsRead(selectedMessage.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Marquer lu
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => markAsRead(selectedMessage.id)}
+                        onClick={() => router.push(`/admin/messages/${selectedMessage.id}`)}
                       >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Marquer lu
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        Répondre
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => router.push(`/admin/messages/${selectedMessage.id}`)}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Répondre
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Informations du message */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="font-medium">De:</p>
-                    <p className="text-muted-foreground">
-                      {selectedMessage.clientName || selectedMessage.clientEmail || 'Client'}
-                    </p>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {/* Informations du message */}
+                  <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium text-gray-700 mb-1">De:</p>
+                      <p className="text-gray-600">
+                        {selectedMessage.clientName || selectedMessage.clientEmail || 'Client'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-700 mb-1">Email:</p>
+                      <p className="text-gray-600">
+                        {selectedMessage.clientEmail || 'Non renseigné'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-700 mb-1">Envoyé le:</p>
+                      <p className="text-gray-600">
+                        {format(new Date(selectedMessage.sentAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-700 mb-1">Type:</p>
+                      <p className="text-gray-600">
+                        {MESSAGE_TYPES[selectedMessage.type as keyof typeof MESSAGE_TYPES]}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">Email:</p>
-                    <p className="text-muted-foreground">
-                      {selectedMessage.clientEmail || 'Non renseigné'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Envoyé le:</p>
-                    <p className="text-muted-foreground">
-                      {format(new Date(selectedMessage.sentAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Statut:</p>
-                    <Badge className={MESSAGE_STATUSES[selectedMessage.status as keyof typeof MESSAGE_STATUSES].color}>
-                      {MESSAGE_STATUSES[selectedMessage.status as keyof typeof MESSAGE_STATUSES].label}
-                    </Badge>
-                  </div>
-                </div>
 
-                {/* Contenu du message */}
-                <div>
-                  <p className="font-medium mb-2">Message:</p>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="whitespace-pre-wrap">{selectedMessage.content}</p>
+                  {/* Contenu du message */}
+                  <div>
+                    <p className="font-medium text-gray-700 mb-2">Message:</p>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <p className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                        {selectedMessage.content}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Formulaire de réponse rapide */}
-                <div className="border-t pt-4">
-                  <p className="font-medium mb-2">Réponse rapide:</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/admin/messages/${selectedMessage.id}`)}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Répondre
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Marquer comme archivé
-                        toast.info('Fonctionnalité à venir')
-                      }}
-                    >
-                      Archiver
-                    </Button>
+                  {/* Actions rapides */}
+                  <div className="border-t pt-4">
+                    <p className="font-medium text-gray-700 mb-3">Actions rapides:</p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        onClick={() => router.push(`/admin/messages/${selectedMessage.id}`)}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Répondre au message
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          toast.info('Fonctionnalité à venir')
+                        }}
+                      >
+                        Archiver
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center text-muted-foreground">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Sélectionnez un message pour voir les détails</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="h-full flex items-center justify-center">
+                <CardContent className="text-center">
+                  <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500 text-lg font-medium">
+                    Sélectionnez un message pour voir les détails
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Cliquez sur un message dans la liste pour afficher son contenu
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
 }
-
