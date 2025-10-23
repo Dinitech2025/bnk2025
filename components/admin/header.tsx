@@ -25,6 +25,7 @@ export default function AdminHeader() {
     role: ''
   })
   const [pendingTasksCount, setPendingTasksCount] = useState(0)
+  const [notificationsCount, setNotificationsCount] = useState(0)
 
   // Mettre à jour userData quand la session change
   useEffect(() => {
@@ -63,24 +64,32 @@ export default function AdminHeader() {
     }
   }, [session?.user?.email]) // Dépendances minimales
 
-  // Récupérer le nombre de tâches en attente
+  // Récupérer le nombre de tâches en attente et notifications
   useEffect(() => {
-    const fetchPendingTasks = async () => {
+    const fetchCounts = async () => {
       try {
-        const response = await fetch('/api/admin/tasks?status=PENDING')
-        if (response.ok) {
-          const data = await response.json()
-          setPendingTasksCount(data.pagination?.total || 0)
+        // Récupérer les tâches en attente
+        const tasksResponse = await fetch('/api/admin/tasks?status=PENDING')
+        if (tasksResponse.ok) {
+          const tasksData = await tasksResponse.json()
+          setPendingTasksCount(tasksData.pagination?.total || 0)
+        }
+
+        // Récupérer les notifications
+        const notificationsResponse = await fetch('/api/admin/notifications')
+        if (notificationsResponse.ok) {
+          const notificationsData = await notificationsResponse.json()
+          setNotificationsCount(notificationsData.unreadCount || 0)
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération des tâches:', error)
+        console.error('Erreur lors de la récupération des compteurs:', error)
       }
     }
 
     if (session?.user?.role === 'ADMIN' || session?.user?.role === 'STAFF') {
-      fetchPendingTasks()
+      fetchCounts()
       // Rafraîchir toutes les 60 secondes
-      const interval = setInterval(fetchPendingTasks, 60000)
+      const interval = setInterval(fetchCounts, 60000)
       return () => clearInterval(interval)
     }
   }, [session?.user?.role])
@@ -123,11 +132,13 @@ export default function AdminHeader() {
           </Button>
           
           {/* Icône Notifications */}
-          <Button variant="ghost" size="icon" className="relative h-7 w-7 sm:h-8 sm:w-8">
+          <Button variant="ghost" size="icon" className="relative h-7 w-7 sm:h-8 sm:w-8" title="Notifications">
             <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-primary text-[8px] sm:text-[10px] font-medium text-primary-foreground flex items-center justify-center">
-              2
-            </span>
+            {notificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-primary text-[8px] sm:text-[10px] font-medium text-primary-foreground flex items-center justify-center">
+                {notificationsCount > 99 ? '99+' : notificationsCount}
+              </span>
+            )}
           </Button>
           
           <CurrencySelector className="w-16 sm:w-20 text-xs sm:text-sm" />
