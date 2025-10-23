@@ -8,7 +8,7 @@ import { SonnerToast } from '@/components/ui/toast'
 
 // Import direct des composants admin
 import AdminSidebar from '@/components/admin/sidebar'
-import AdminHeaderSimple from '@/components/admin/header-simple'
+import AdminHeader from '@/components/admin/header'
 
 interface AdminLayoutStableProps {
   children: ReactNode
@@ -30,7 +30,7 @@ export function AdminLayoutStable({ children }: AdminLayoutStableProps) {
           {/* Contenu principal */}
           <div className="flex-1 flex flex-col lg:ml-0">
             {/* Header */}
-            <AdminHeaderSimple />
+            <AdminHeader />
             
             {/* Contenu de la page */}
             <main className="flex-1 p-3 sm:p-6 lg:p-6 pt-12 sm:pt-16 lg:pt-6">
