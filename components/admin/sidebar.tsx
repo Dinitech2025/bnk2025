@@ -32,7 +32,8 @@ import {
   MessageSquare,
   Truck,
   BarChart3,
-  RotateCcw
+  RotateCcw,
+  CheckSquare
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -115,6 +116,11 @@ const adminNavItems: NavItem[] = [
     title: 'Devis',
     href: '/admin/quotes',
     icon: MessageSquare,
+  },
+  {
+    title: 'Tâches',
+    href: '/admin/tasks',
+    icon: CheckSquare,
   },
   {
     title: 'Livraison',
