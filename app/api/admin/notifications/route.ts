@@ -17,6 +17,7 @@ export async function GET() {
     let recentQuotes = []
     let urgentTasks = []
     let pendingTasks = []
+    let unreadMessages = []
     
     try {
       // Produits en stock faible (si la colonne stock existe)
@@ -89,6 +90,39 @@ export async function GET() {
       })
     } catch (error) {
       console.log('Pending tasks notifications error:', error)
+    }
+
+    try {
+      // Messages non lus (reçus des clients)
+      unreadMessages = await prisma.message.findMany({
+        where: {
+          toUserId: session.user.id,
+          status: 'UNREAD'
+        },
+        select: {
+          id: true,
+          subject: true,
+          content: true,
+          priority: true,
+          sentAt: true,
+          createdAt: true,
+          fromUser: {
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          sentAt: 'desc'
+        },
+        take: 5
+      })
+    } catch (error) {
+      console.log('Unread messages notifications error:', error)
     }
     
     try {
@@ -226,6 +260,25 @@ export async function GET() {
           url: `/admin/tasks/${task.id}`
         },
         createdAt: task.createdAt.toISOString()
+      })
+    })
+
+    // Notifications de messages non lus
+    unreadMessages.forEach(message => {
+      const senderName = message.fromUser.name ||
+                        `${message.fromUser.firstName} ${message.fromUser.lastName}` ||
+                        message.fromUser.email
+
+      notifications.push({
+        id: `message-unread-${message.id}`,
+        type: message.priority === 'URGENT' ? 'error' : 'info',
+        title: message.priority === 'URGENT' ? '💬 Message urgent' : '💬 Nouveau message',
+        message: `${senderName}: ${message.subject}`,
+        action: {
+          text: 'Lire le message',
+          url: `/admin/messages/${message.id}`
+        },
+        createdAt: message.sentAt.toISOString()
       })
     })
 

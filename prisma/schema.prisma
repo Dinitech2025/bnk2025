@@ -49,6 +49,8 @@ model User {
   assignedTasks       Task[]           @relation("AssignedTasks")
   createdTasks        Task[]           @relation("CreatedTasks")
   relatedTasks        Task[]           @relation("RelatedUserTasks")
+  sentMessages        Message[]        @relation("SentMessages")
+  receivedMessages    Message[]        @relation("ReceivedMessages")
 
   @@index([role])
   @@index([email])
@@ -284,6 +286,7 @@ model Subscription {
   subscriptionAccounts SubscriptionAccount[]
   UserSubscription     UserSubscription[]
   tasks                Task[]
+  messages             Message[]
 
   @@index([userId])
   @@index([offerId])
@@ -395,6 +398,7 @@ model Order {
   promotionUsages   PromotionUsage[]
   returns           Return[]
   history           OrderHistory[]
+  messages          Message[]
 
   @@index([userId])
   @@index([status])
@@ -819,6 +823,7 @@ model Quote {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   service       Service        @relation("QuoteToService", fields: [serviceId], references: [id], onDelete: Cascade)
   messages      QuoteMessage[]
+  adminMessages Message[]
 
   @@index([userId])
   @@index([serviceId])
@@ -1121,33 +1126,33 @@ model Task {
   status          String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
   dueDate         DateTime? // Date d'échéance
   completedAt     DateTime? // Date de complétion
-  
+
   // Relations
   assignedToId    String?   // ID de l'utilisateur assigné (admin/staff)
   createdById     String?   // ID de l'utilisateur qui a créé la tâche
   relatedUserId   String?   // ID du client concerné (pour les tâches liées à un client)
   relatedSubscriptionId String? // ID de l'abonnement concerné
   relatedAccountId String?  // ID du compte streaming concerné
-  
+
   // Récurrence
   isRecurring     Boolean   @default(false)
   recurrenceType  String?   // DAILY, WEEKLY, MONTHLY
   recurrenceValue Int?      // Nombre de fois (ex: 2 pour "2 fois par jour")
   lastGenerated   DateTime? // Dernière fois que la tâche récurrente a été générée
-  
+
   // Métadonnées
   metadata        Json?     // Données supplémentaires flexibles
   notes           String?   // Notes internes
-  
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   assignedTo      User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
   createdBy       User?     @relation("CreatedTasks", fields: [createdById], references: [id])
   relatedUser     User?     @relation("RelatedUserTasks", fields: [relatedUserId], references: [id])
   relatedSubscription Subscription? @relation(fields: [relatedSubscriptionId], references: [id])
   relatedAccount  Account?  @relation(fields: [relatedAccountId], references: [id])
-  
+
   @@index([status])
   @@index([type])
   @@index([priority])
@@ -1155,4 +1160,51 @@ model Task {
   @@index([assignedToId])
   @@index([relatedUserId])
   @@index([isRecurring])
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  subject         String    // Sujet du message
+  content         String    // Contenu du message
+  type            String    @default("GENERAL") // GENERAL, SUPPORT, ORDER, SUBSCRIPTION, PAYMENT, CUSTOM
+  priority        String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  status          String    @default("UNREAD") // UNREAD, READ, REPLIED, ARCHIVED, DELETED
+
+  // Relations
+  fromUserId      String    // Admin/Staff qui envoie le message
+  toUserId        String    // Client qui reçoit le message
+
+  // Réponse (si c'est une réponse à un message)
+  parentMessageId String?   // ID du message parent (pour les réponses)
+  replyTo         Message?  @relation("MessageReplies", fields: [parentMessageId], references: [id])
+
+  // Métadonnées
+  relatedOrderId   String?   // Commande liée
+  relatedSubscriptionId String? // Abonnement lié
+  relatedQuoteId   String?   // Devis lié
+  metadata        Json?     // Données supplémentaires
+
+  // Timestamps
+  sentAt          DateTime  @default(now())
+  readAt          DateTime? // Quand le client a lu le message
+  repliedAt       DateTime? // Quand l'admin a répondu
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations Prisma
+  fromUser        User      @relation("SentMessages", fields: [fromUserId], references: [id])
+  toUser          User      @relation("ReceivedMessages", fields: [toUserId], references: [id])
+  relatedOrder    Order?    @relation(fields: [relatedOrderId], references: [id])
+  relatedSubscription Subscription? @relation(fields: [relatedSubscriptionId], references: [id])
+  relatedQuote    Quote?    @relation(fields: [relatedQuoteId], references: [id])
+  replies         Message[] @relation("MessageReplies")
+
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([relatedOrderId])
+  @@index([relatedSubscriptionId])
 }
