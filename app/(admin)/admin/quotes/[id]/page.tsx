@@ -71,7 +71,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   REJECTED: { label: 'Refusé', color: 'bg-red-100 text-red-800 border-red-300', icon: XCircle },
 }
 
-export default function AdminQuoteDetailPageUnified() {
+export default function AdminQuoteDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [quote, setQuote] = useState<Quote | null>(null)
