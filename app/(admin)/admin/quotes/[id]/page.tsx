@@ -20,7 +20,7 @@ import {
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import Link from 'next/link'
-import { UnifiedQuoteMessages } from '@/components/admin/quotes/unified-quote-messages'
+import { QuoteMessages } from '@/components/admin/quotes/quote-messages'
 import { toast } from 'sonner'
 
 interface Quote {
@@ -50,10 +50,9 @@ interface Quote {
   messages: Array<{
     id: string
     message: string
-    attachments?: string[]
-    proposedPrice?: number | null
+    attachments: string[]
+    proposedPrice: number | null
     createdAt: string
-    isAdminReply: boolean
     sender: {
       id: string
       name: string | null
@@ -233,7 +232,7 @@ export default function AdminQuoteDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <UnifiedQuoteMessages
+              <QuoteMessages
                 messages={quote.messages}
                 quoteId={quote.id}
                 currentUserId={currentUserId}

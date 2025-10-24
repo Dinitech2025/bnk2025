@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// POST - Ajouter un message à un devis (système unifié Message)
+// POST - Ajouter un message à un devis (ancien système QuoteMessage)
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -29,82 +29,24 @@ export async function POST(
 
     // Vérifier que le devis existe
     const quote = await prisma.quote.findUnique({
-      where: { id: params.id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        service: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+      where: { id: params.id }
     })
 
     if (!quote) {
       return NextResponse.json({ error: 'Devis non trouvé' }, { status: 404 })
     }
 
-    // Trouver ou créer la conversation pour ce devis
-    let conversation = await prisma.conversation.findFirst({
-      where: {
-        messages: {
-          some: {
-            relatedQuoteId: params.id
-          }
-        }
-      }
-    })
-
-    if (!conversation) {
-      // Créer une nouvelle conversation
-      conversation = await prisma.conversation.create({
-        data: {
-          title: `Devis: ${quote.service.name}`,
-          participants: [quote.userId, session.user.id],
-          isActive: true,
-          lastMessageAt: new Date()
-        }
-      })
-    }
-
-    // Déterminer le type de message
-    const messageType = proposedPrice && Number(proposedPrice) > 0
-      ? 'QUOTE_PRICE_PROPOSAL'
-      : 'QUOTE_DISCUSSION'
-
-    const priority = proposedPrice && Number(proposedPrice) > 0 ? 'HIGH' : 'NORMAL'
-
-    const subject = proposedPrice && Number(proposedPrice) > 0
-      ? `Proposition de prix: ${Number(proposedPrice).toLocaleString('fr-FR')} Ar`
-      : `Message sur devis ${quote.service.name}`
-
-    // Créer le message unifié
-    const newMessage = await prisma.message.create({
+    // Créer le message avec QuoteMessage
+    const newMessage = await prisma.quoteMessage.create({
       data: {
-        subject,
-        content: message?.trim() || '',
-        type: messageType,
-        priority,
-        status: 'UNREAD',
-        fromUserId: session.user.id,
-        toUserId: quote.userId,
-        conversationId: conversation.id,
-        relatedQuoteId: params.id,
-        relatedServiceId: quote.serviceId,
-        metadata: {
-          proposedPrice: proposedPrice ? Number(proposedPrice) : null,
-          attachments: attachments || []
-        }
+        quoteId: params.id,
+        senderId: session.user.id,
+        message: message?.trim() || '',
+        proposedPrice: proposedPrice ? Number(proposedPrice) : null,
+        attachments: attachments || []
       },
       include: {
-        fromUser: {
+        sender: {
           select: {
             id: true,
             name: true,
@@ -113,12 +55,6 @@ export async function POST(
           }
         }
       }
-    })
-
-    // Mettre à jour la conversation
-    await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: { lastMessageAt: newMessage.sentAt }
     })
 
     // Mettre à jour le statut du devis si nécessaire
@@ -140,15 +76,15 @@ export async function POST(
       })
     }
 
-    // Formater la réponse (compatible avec l'ancien format)
+    // Formater la réponse
     const formattedMessage = {
       id: newMessage.id,
-      message: newMessage.content,
-      attachments: (newMessage.metadata as any)?.attachments || [],
-      proposedPrice: (newMessage.metadata as any)?.proposedPrice || null,
-      createdAt: newMessage.sentAt,
-      isAdminReply: newMessage.fromUser.role === 'ADMIN' || newMessage.fromUser.role === 'STAFF',
-      sender: newMessage.fromUser
+      message: newMessage.message,
+      attachments: newMessage.attachments,
+      proposedPrice: newMessage.proposedPrice ? parseFloat(newMessage.proposedPrice.toString()) : null,
+      createdAt: newMessage.createdAt,
+      isAdminReply: newMessage.sender.role === 'ADMIN' || newMessage.sender.role === 'STAFF',
+      sender: newMessage.sender
     }
 
     return NextResponse.json(formattedMessage)
@@ -157,4 +93,4 @@ export async function POST(
     console.error('Erreur lors de l\'ajout du message:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
-} 
+}
