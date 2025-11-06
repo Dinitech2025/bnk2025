@@ -2,32 +2,45 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { 
-  MessageSquare, 
-  User, 
-  Calendar, 
-  DollarSign, 
   ArrowLeft, 
+  CheckCircle, 
+  XCircle, 
+  TrendingUp,
+  MessageSquare,
+  User,
+  Calendar,
+  Package,
+  DollarSign,
   Send,
-  CheckCircle,
-  XCircle,
   Clock,
-  Paperclip,
-  FileText,
+  Phone,
+  Mail,
+  MapPin,
   Image as ImageIcon,
-  X
+  ShoppingBag,
+  Star,
+  Zap,
+  CheckCircle2,
+  AlertCircle,
+  Circle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import Link from 'next/link'
-import { useTypingIndicator } from '@/lib/hooks/use-typing-indicator'
+import EnhancedMessageInput from '@/components/admin/enhanced-message-input'
+import ProposalActions from '@/components/admin/proposal-actions'
+import EnhancedQuoteMessageCard from '@/components/admin/enhanced-quote-message-card'
 
 interface Quote {
   id: string
@@ -36,7 +49,7 @@ interface Quote {
   budget: number | null
   finalPrice: number | null
   proposedPrice: number | null
-  attachments?: string[]
+  negotiationType: string
   createdAt: string
   updatedAt: string
   user: {
@@ -48,955 +61,711 @@ interface Quote {
   service: {
     id: string
     name: string
-    slug: string
     price: number | null
     pricingType: string
     description: string | null
-  }
+  } | null
+  product: {
+    id: string
+    name: string
+    price: number | null
+    pricingType: string
+    description: string | null
+  } | null
   messages: Array<{
     id: string
     message: string
-    attachments?: string[]
-    isAdminReply: boolean
     createdAt: string
+    isAdminReply: boolean
     sender: {
-      id: string
       name: string | null
       email: string
-      role: string
     }
   }>
 }
 
-const statusLabels = {
-  PENDING: 'En attente',
-  NEGOTIATING: 'En négociation',
-  PRICE_PROPOSED: 'Prix proposé',
-  ACCEPTED: 'Accepté',
-  REJECTED: 'Rejeté',
-  EXPIRED: 'Expiré'
+// Configuration des statuts avec progression améliorée
+const statusConfig = {
+  PENDING: { 
+    label: 'En attente', 
+    color: 'bg-amber-500', 
+    textColor: 'text-amber-700',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-200',
+    progress: 20,
+    icon: Clock
+  },
+  NEGOTIATING: { 
+    label: 'En négociation', 
+    color: 'bg-blue-500', 
+    textColor: 'text-blue-700',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    progress: 40,
+    icon: MessageSquare
+  },
+  PRICE_PROPOSED: { 
+    label: 'Prix proposé', 
+    color: 'bg-purple-500', 
+    textColor: 'text-purple-700',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    progress: 70,
+    icon: TrendingUp
+  },
+  ACCEPTED: { 
+    label: 'Accepté', 
+    color: 'bg-green-500', 
+    textColor: 'text-green-700',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    progress: 100,
+    icon: CheckCircle2
+  },
+  REJECTED: { 
+    label: 'Rejeté', 
+    color: 'bg-red-500', 
+    textColor: 'text-red-700',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    progress: 0,
+    icon: XCircle
+  }
 }
 
-const statusColors = {
-  PENDING: 'bg-yellow-100 text-yellow-800',
-  NEGOTIATING: 'bg-blue-100 text-blue-800',
-  PRICE_PROPOSED: 'bg-purple-100 text-purple-800',
-  ACCEPTED: 'bg-green-100 text-green-800',
-  REJECTED: 'bg-red-100 text-red-800',
-  EXPIRED: 'bg-gray-100 text-gray-800'
-}
+const progressSteps = [
+  { key: 'PENDING', label: 'Demande', progress: 20 },
+  { key: 'NEGOTIATING', label: 'Négociation', progress: 40 },
+  { key: 'PRICE_PROPOSED', label: 'Prix proposé', progress: 70 },
+  { key: 'ACCEPTED', label: 'Accepté', progress: 100 }
+]
 
 export default function AdminQuoteDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [quote, setQuote] = useState<Quote | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [replyMessage, setReplyMessage] = useState('')
-  const [files, setFiles] = useState<File[]>([])
   const [proposedPrice, setProposedPrice] = useState('')
-  const [sending, setSending] = useState(false)
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  // Hook pour les indicateurs de frappe
-  const { typingUsers, startTyping, stopTyping } = useTypingIndicator({
-    quoteId: params.id as string,
-    isAdmin: true
-  })
+  const [replyMessage, setReplyMessage] = useState('')
+  const [updating, setUpdating] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const fetchQuote = async () => {
-      try {
-        const response = await fetch(`/api/admin/quotes/${params.id}`)
-        if (!response.ok) {
-          throw new Error('Erreur lors de la récupération du devis')
-        }
-        const result = await response.json()
-        setQuote(result)
-        if (result.proposedPrice) {
-          setProposedPrice(result.proposedPrice.toString())
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (params.id) {
-      fetchQuote()
-    }
+    fetchQuote()
   }, [params.id])
 
-  // Polling pour récupérer les nouveaux messages en temps réel
   useEffect(() => {
-    if (!quote) return
+    scrollToBottom()
+  }, [quote?.messages])
 
-    const pollMessages = async () => {
-      try {
-        const response = await fetch(`/api/admin/quotes/${params.id}`)
-        if (response.ok) {
-          const data = await response.json()
-          // Mettre à jour seulement si il y a de nouveaux messages
-          if (data.messages.length !== quote.messages.length) {
-            setQuote(data)
-          }
-        }
-      } catch (error) {
-        // Ignorer les erreurs de polling pour éviter les toasts répétés
-        console.error('Erreur lors du polling des messages:', error)
-      }
-    }
-
-    // Polling toutes les 3 secondes si la conversation est active
-    const isActiveConversation = quote.status === 'PENDING' || quote.status === 'NEGOTIATING' || quote.status === 'PRICE_PROPOSED'
-    
-    if (isActiveConversation) {
-      const interval = setInterval(pollMessages, 3000)
-      return () => clearInterval(interval)
-    }
-  }, [params.id, quote?.messages.length, quote?.status])
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files)
-      setFiles(prev => [...prev, ...newFiles])
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const getFileIcon = (file: File) => {
-    if (file.type.startsWith('image/')) {
-      return <ImageIcon className="h-4 w-4" />
-    }
-    return <FileText className="h-4 w-4" />
-  }
-
-  // Fonction pour déterminer le type de fichier par URL
-  const getFileTypeFromUrl = (url: string) => {
-    const fileName = url.split('/').pop()?.toLowerCase() || ''
-    
-    if (fileName.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) {
-      return 'image'
-    }
-    if (fileName.match(/\.(mp4|webm|ogg|mov|avi)$/)) {
-      return 'video'
-    }
-    if (fileName.match(/\.(pdf)$/)) {
-      return 'pdf'
-    }
-    if (fileName.match(/\.(doc|docx)$/)) {
-      return 'document'
-    }
-    return 'other'
-  }
-
-  // Composant pour afficher les fichiers joints
-  const AttachmentDisplay = ({ attachment, isAdmin }: { attachment: string, isAdmin: boolean }) => {
-    const fileType = getFileTypeFromUrl(attachment)
-    const fileName = attachment.split('/').pop() || 'Fichier joint'
-    
-    switch (fileType) {
-      case 'image':
-        return (
-          <div className="mt-3">
-            <div className={`relative rounded-lg overflow-hidden max-w-xs ${
-              isAdmin ? 'border-2 border-blue-300' : 'border-2 border-gray-200'
-            }`}>
-              <img
-                src={attachment}
-                alt={fileName}
-                className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => window.open(attachment, '_blank')}
-              />
-              <div className={`absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2`}>
-                <p className="text-xs truncate">{fileName}</p>
-              </div>
-            </div>
-          </div>
-        )
-      case 'video':
-        return (
-          <div className="mt-3">
-            <video
-              controls
-              className="max-w-xs rounded-lg"
-              style={{ maxHeight: '200px' }}
-            >
-              <source src={attachment} />
-              Votre navigateur ne supporte pas la lecture vidéo.
-            </video>
-            <p className="text-xs text-gray-500 mt-1">{fileName}</p>
-          </div>
-        )
-      case 'pdf':
-        return (
-          <div className="mt-3">
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg max-w-xs">
-              <FileText className="h-5 w-5 text-red-600" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-800 truncate">{fileName}</p>
-                <p className="text-xs text-red-600">Document PDF</p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(attachment, '_blank')}
-                className="border-red-300 text-red-700 hover:bg-red-100"
-              >
-                📄 Consulter
-              </Button>
-            </div>
-          </div>
-        )
-      case 'document':
-        return (
-          <div className="mt-3">
-            <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg max-w-xs">
-              <FileText className="h-5 w-5 text-blue-600" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-blue-800 truncate">{fileName}</p>
-                <p className="text-xs text-blue-600">Document</p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(attachment, '_blank')}
-                className="border-blue-300 text-blue-700 hover:bg-blue-100"
-              >
-                📋 Voir document
-              </Button>
-            </div>
-          </div>
-        )
-      default:
-        return (
-          <div className="mt-3">
-            <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg max-w-xs">
-              <FileText className="h-5 w-5 text-gray-600" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{fileName}</p>
-                <p className="text-xs text-gray-600">Fichier joint</p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(attachment, '_blank')}
-                className="border-gray-300 text-gray-700 hover:bg-gray-100"
-              >
-                📋 Voir document
-              </Button>
-            </div>
-          </div>
-        )
-    }
-  }
-
-  const handleSendReply = async () => {
-    if (!replyMessage.trim() && files.length === 0) return
-
-    // Afficher immédiatement le message en cours d'envoi
-    const tempMessage = {
-      id: 'temp-' + Date.now(),
-      message: replyMessage,
-      attachments: [],
-      isAdminReply: true,
-      createdAt: new Date().toISOString(),
-      sender: {
-        id: 'temp',
-        name: 'Administrateur',
-        email: '',
-        role: 'ADMIN'
-      }
-    }
-
-    // Ajouter le message temporaire immédiatement
-    setQuote(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        messages: [...prev.messages, tempMessage]
-      }
-    })
-
-    // Réinitialiser le formulaire immédiatement
-    const messageToSend = replyMessage
-    const filesToSend = [...files]
-    setReplyMessage('')
-    setFiles([])
-
-    // Scroll immédiatement
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      }
-    }, 50)
-
-    setSending(true)
+  const fetchQuote = async () => {
     try {
-      let attachments: string[] = []
-      
-      // Upload des fichiers si nécessaire
-      if (filesToSend.length > 0) {
-        const formData = new FormData()
-        filesToSend.forEach(file => {
-          formData.append('files', file)
-        })
-        formData.append('type', 'quotes')
-
-        const uploadResponse = await fetch('/api/upload-imagekit', {
-          method: 'POST',
-          body: formData
-        })
-
-        if (!uploadResponse.ok) {
-          throw new Error('Erreur lors de l\'upload des fichiers')
+      const response = await fetch(`/api/admin/quotes/${params.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setQuote(data)
+        if (data.proposedPrice) {
+          setProposedPrice(data.proposedPrice.toString())
         }
-
-        const uploadResult = await uploadResponse.json()
-        attachments = uploadResult.urls || []
       }
-
-      const response = await fetch(`/api/admin/quotes/${params.id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: messageToSend,
-          attachments: attachments
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de l\'envoi du message')
-      }
-
-      const newMessage = await response.json()
-
-      // Remplacer le message temporaire par le vrai message
-      setQuote(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          messages: prev.messages.map(msg => 
-            msg.id === tempMessage.id ? newMessage : msg
-          )
-        }
-      })
-
-      // Scroll final
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-        }
-      }, 100)
-    } catch (err) {
-      console.error('Erreur:', err)
-      alert('Erreur lors de l\'envoi du message')
-      
-      // Supprimer le message temporaire en cas d'erreur
-      setQuote(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          messages: prev.messages.filter(msg => msg.id !== tempMessage.id)
-        }
-      })
-      
-      // Restaurer le formulaire
-      setReplyMessage(messageToSend)
-      setFiles(filesToSend)
+    } catch (error) {
+      console.error('Erreur:', error)
     } finally {
-      setSending(false)
+      setLoading(false)
+    }
+  }
+
+  const handleAcceptProposal = async () => {
+    if (!quote) return
+    setUpdating(true)
+    try {
+      const response = await fetch(`/api/admin/quotes/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'ACCEPTED',
+          finalPrice: quote.proposedPrice
+        })
+      })
+      if (response.ok) {
+        await fetchQuote()
+        alert('Proposition acceptée avec succès !')
+      }
+    } catch (error) {
+      console.error('Erreur:', error)
+      alert('Erreur lors de l\'acceptation')
+    } finally {
+      setUpdating(false)
     }
   }
 
   const handleProposePrice = async () => {
-    if (!proposedPrice.trim()) return
-
-    setSending(true)
+    if (!proposedPrice || !quote) return
+    setUpdating(true)
     try {
       const response = await fetch(`/api/admin/quotes/${params.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          proposedPrice: parseFloat(proposedPrice),
-          status: 'PRICE_PROPOSED'
+          status: 'PRICE_PROPOSED',
+          finalPrice: parseFloat(proposedPrice)
         })
       })
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la proposition de prix')
+      if (response.ok) {
+        await fetchQuote()
+        alert('Prix proposé avec succès !')
       }
-
-      // Recharger les données
-      const updatedQuote = await fetch(`/api/admin/quotes/${params.id}`)
-      const result = await updatedQuote.json()
-      setQuote(result)
-    } catch (err) {
-      console.error('Erreur:', err)
-      alert('Erreur lors de la proposition de prix')
+    } catch (error) {
+      console.error('Erreur:', error)
+      alert('Erreur lors de la proposition')
     } finally {
-      setSending(false)
+      setUpdating(false)
     }
   }
 
-  const handleUpdateStatus = async (newStatus: string) => {
-    setSending(true)
+  const handleReject = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir rejeter cette proposition ?')) return
+    setUpdating(true)
     try {
       const response = await fetch(`/api/admin/quotes/${params.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'REJECTED' })
+      })
+      if (response.ok) {
+        await fetchQuote()
+        alert('Proposition rejetée')
+      }
+    } catch (error) {
+      console.error('Erreur:', error)
+      alert('Erreur lors du rejet')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleSendMessage = async (message: string, files?: any[]) => {
+    if (!message.trim() && (!files || files.length === 0)) return
+    
+    setUpdating(true)
+    try {
+      // Pour l'instant, on gère seulement les messages texte
+      // TODO: Ajouter le support des fichiers plus tard
+      const response = await fetch(`/api/admin/quotes/${params.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: message.trim(),
+          attachments: files ? files.map(f => f.file.name) : []
         })
       })
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la mise à jour du statut')
+      
+      if (response.ok) {
+        await fetchQuote()
+        // Le message sera vidé automatiquement par le composant
       }
-
-      // Recharger les données
-      const updatedQuote = await fetch(`/api/admin/quotes/${params.id}`)
-      const result = await updatedQuote.json()
-      setQuote(result)
-    } catch (err) {
-      console.error('Erreur:', err)
-      alert('Erreur lors de la mise à jour du statut')
+    } catch (error) {
+      console.error('Erreur:', error)
     } finally {
-      setSending(false)
+      setUpdating(false)
+    }
+  }
+
+  const handleProposalAction = async (action: string, data?: any) => {
+    setUpdating(true)
+    try {
+      const response = await fetch(`/api/admin/quotes/${params.id}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data }),
+      })
+
+      if (response.ok) {
+        await fetchQuote()
+        // Le toast est géré dans ProposalActions
+      } else {
+        console.error('Erreur lors de l\'action')
+      }
+    } catch (error) {
+      console.error('Erreur:', error)
+    } finally {
+      setUpdating(false)
     }
   }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Détail du devis</h1>
-          <p className="text-gray-600 mt-2">Chargement...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Détail du devis</h1>
-          <p className="text-red-600 mt-2">Erreur: {error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <Clock className="h-12 w-12 animate-spin mx-auto text-blue-500" />
+            <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
+          </div>
+          <p className="text-lg font-medium text-slate-600">Chargement du devis...</p>
         </div>
       </div>
     )
   }
 
   if (!quote) {
-    return null
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Navigation */}
-      <div className="flex items-center gap-4">
-        <Link href="/admin/quotes">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Retour aux devis
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold">Détail du devis</h1>
-          <p className="text-gray-600 mt-1">
-            Créé le {format(new Date(quote.createdAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
-          </p>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <AlertCircle className="h-12 w-12 mx-auto text-red-500" />
+          <p className="text-lg font-medium text-slate-600">Devis non trouvé</p>
         </div>
       </div>
+    )
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Colonne de gauche - SEULEMENT la conversation */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Messages/Conversation - SEULE À GAUCHE */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Conversation
-              </CardTitle>
-              <CardDescription>
-                Échangez avec le client pour finaliser le devis
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Créer un message virtuel pour la demande initiale + messages réels */}
-                {(() => {
-                  // Message virtuel de la demande initiale
-                  const initialMessage = {
-                    id: 'initial-request',
-                    message: quote.description,
-                    attachments: quote.attachments || [],
-                    isAdminReply: false,
-                    createdAt: quote.createdAt,
-                    sender: {
-                      id: quote.user.id,
-                      name: quote.user.name,
-                      email: quote.user.email,
-                      role: 'USER'
-                    }
-                  }
-                  
-                  // Combiner le message initial avec les messages réels
-                  const allMessages = [initialMessage, ...quote.messages]
-                  
-                  return allMessages.length > 0 ? (
-                    <div ref={scrollRef} className="space-y-4 max-h-96 overflow-y-auto p-2 bg-gray-50 rounded-lg">
-                      {allMessages.map((message, index) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.isAdminReply ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}
-                        >
-                          <div className={`flex items-start gap-3 max-w-xs lg:max-w-md ${
-                            message.isAdminReply ? 'flex-row-reverse' : 'flex-row'
-                          }`}>
-                            {/* Avatar */}
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-                              message.isAdminReply ? 'bg-blue-500' : 'bg-gray-500'
-                            }`}>
-                              {message.isAdminReply ? '👨‍💼' : '👤'}
-                            </div>
-                            
-                            {/* Message bubble */}
-                            <div
-                              className={`px-4 py-3 rounded-2xl shadow-sm ${
-                                message.isAdminReply
-                                  ? 'bg-blue-500 text-white rounded-br-sm'
-                                  : index === 0 
-                                    ? 'bg-green-50 text-gray-800 rounded-bl-sm border border-green-200'
-                                    : 'bg-white text-gray-800 rounded-bl-sm border'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`text-xs font-medium ${
-                                  message.isAdminReply ? 'text-blue-100' : 'text-gray-500'
-                                }`}>
-                                  {message.isAdminReply ? 'Administrateur' : index === 0 ? 'Demande initiale' : (quote.user.name || quote.user.email)}
-                                </span>
-                                {index === 0 && (
-                                  <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
-                                    Demande de devis
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                {message.message}
-                              </p>
-                              
-                              {/* Budget initial (seulement pour la demande initiale) */}
-                              {index === 0 && quote.budget && (
-                                <div className="mt-3 p-3 rounded-lg bg-green-100 border border-green-200">
-                                  <div className="flex items-center gap-2">
-                                    <DollarSign className="h-4 w-4 text-green-600" />
-                                    <span className="text-sm font-medium text-green-800">
-                                      Budget indicatif: <PriceWithConversion price={quote.budget} />
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Fichiers joints de la demande initiale */}
-                              {index === 0 && quote.attachments && quote.attachments.length > 0 && (
-                                <div className="space-y-2">
-                                  {quote.attachments.map((attachment, attachmentIndex) => (
-                                    <AttachmentDisplay 
-                                      key={attachmentIndex} 
-                                      attachment={attachment} 
-                                      isAdmin={false} 
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                              
-                              {/* Fichiers joints des messages */}
-                              {index > 0 && message.attachments && message.attachments.length > 0 && (
-                                <div className="space-y-2">
-                                  {message.attachments.map((attachment, attachmentIndex) => (
-                                    <AttachmentDisplay 
-                                      key={attachmentIndex} 
-                                      attachment={attachment} 
-                                      isAdmin={message.isAdminReply} 
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                              
-                              <div className={`text-xs mt-2 ${
-                                message.isAdminReply ? 'text-blue-100' : 'text-gray-500'
-                              }`}>
-                                {format(new Date(message.createdAt), 'dd MMM à HH:mm', { locale: fr })}
-                              </div>
-                            </div>
+  const status = statusConfig[quote.status as keyof typeof statusConfig] || statusConfig.PENDING
+  const StatusIcon = status.icon
+  const itemName = quote.service?.name || quote.product?.name || 'N/A'
+  const itemType = quote.service ? 'Service' : 'Produit'
+  const basePrice = quote.service?.price || quote.product?.price || 0
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-[1600px] mx-auto p-6">
+        {/* Header moderne */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <Link href="/admin/quotes">
+                <Button variant="ghost" size="sm" className="hover:bg-slate-100 rounded-xl">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Retour aux devis
+                </Button>
+              </Link>
+              
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl ${status.bgColor} ${status.borderColor} border`}>
+                  <StatusIcon className={`h-6 w-6 ${status.textColor}`} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">Devis #{quote.id.slice(-8)}</h1>
+                  <p className="text-sm text-slate-500">
+                    Créé le {format(new Date(quote.createdAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <Badge className={`${status.color} text-white px-4 py-2 text-sm font-medium rounded-xl`}>
+              {status.label}
+            </Badge>
+          </div>
+
+          {/* Barre de progression moderne */}
+          <div className="mt-6 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-slate-700">Progression du devis</span>
+              <span className="text-sm font-bold text-slate-900">{status.progress}%</span>
+            </div>
+            
+            <div className="relative">
+              <Progress value={status.progress} className="h-2 bg-slate-200" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full opacity-20"></div>
+            </div>
+            
+            <div className="flex justify-between text-xs">
+              {progressSteps.map((step, index) => (
+                <div key={step.key} className="flex flex-col items-center space-y-1">
+                  <div className={`w-3 h-3 rounded-full border-2 ${
+                    status.progress >= step.progress 
+                      ? 'bg-blue-500 border-blue-500' 
+                      : 'bg-white border-slate-300'
+                  }`} />
+                  <span className={`text-xs ${
+                    status.progress >= step.progress 
+                      ? 'text-blue-600 font-medium' 
+                      : 'text-slate-400'
+                  }`}>
+                    {step.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* Colonne principale - 3/4 */}
+          <div className="xl:col-span-3 space-y-6">
+            {/* Actions rapides */}
+            {quote.status !== 'ACCEPTED' && quote.status !== 'REJECTED' && (
+              <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-slate-100">
+                  <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-blue-500" />
+                    Actions rapides
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {/* Accepter la proposition */}
+                  {quote.proposedPrice && quote.status !== 'ACCEPTED' && (
+                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-green-100 rounded-lg">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-green-900">Accepter la proposition</p>
+                            <p className="text-sm text-green-700">
+                              Prix proposé: <PriceWithConversion price={quote.proposedPrice} />
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-gray-50 rounded-lg">
-                      <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MessageSquare className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun message</h3>
-                      <p className="text-gray-500 mb-4">La conversation n'a pas encore commencé</p>
-                      <p className="text-sm text-gray-400">Envoyez le premier message pour démarrer l'échange</p>
-                    </div>
-                  )
-                })()}
-                
-                {/* Formulaire de réponse */}
-                <div className="border-t pt-4 mt-4">
-                  <div className="space-y-3">
-                    <Label htmlFor="replyMessage" className="text-sm font-medium flex items-center gap-2">
-                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs">👨‍💼</span>
-                      </div>
-                      Répondre au client
-                    </Label>
-                    
-                    {/* Zone de fichiers joints */}
-                    {files.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-sm text-gray-600">Fichiers joints :</Label>
-                        <div className="space-y-1">
-                          {files.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded border">
-                              <div className="flex items-center gap-2">
-                                {getFileIcon(file)}
-                                <span className="text-sm">{file.name}</span>
-                                <span className="text-xs text-gray-500">
-                                  ({(file.size / 1024 / 1024).toFixed(1)} MB)
-                                </span>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeFile(index)}
-                                className="h-6 w-6 p-0"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Indicateur de frappe */}
-                    {typingUsers.length > 0 && (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                        </div>
-                        <span>
-                          {typingUsers.length === 1 
-                            ? `${typingUsers[0].userName} est en train de taper...`
-                            : `${typingUsers.length} personnes sont en train de taper...`
-                          }
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="relative">
-                      <Textarea
-                        id="replyMessage"
-                        value={replyMessage}
-                        onChange={(e) => {
-                          setReplyMessage(e.target.value)
-                          startTyping()
-                        }}
-                        onBlur={stopTyping}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            handleSendReply()
-                          } else {
-                            startTyping()
-                          }
-                        }}
-                        placeholder="Tapez votre message..."
-                        rows={3}
-                        className="resize-none pr-24 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                        disabled={sending}
-                      />
-                      <div className="absolute bottom-2 right-2 flex gap-1">
-                        {/* Bouton upload */}
-                        <div>
-                          <Input
-                            type="file"
-                            multiple
-                            onChange={handleFileChange}
-                            className="hidden"
-                            id="admin-file-upload"
-                            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.mp4,.webm,.ogg,.mov,.avi"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => document.getElementById('admin-file-upload')?.click()}
-                            className="h-8 w-8 p-0 hover:bg-gray-100"
-                            disabled={sending}
-                          >
-                            <Paperclip className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        
-                        {/* Bouton envoi */}
                         <Button
-                          onClick={handleSendReply}
-                          disabled={sending || (!replyMessage.trim() && files.length === 0)}
-                          size="sm"
-                          className="h-8 w-8 p-0 bg-blue-500 hover:bg-blue-600"
+                          onClick={handleAcceptProposal}
+                          disabled={updating}
+                          className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-6"
                         >
-                          {sending ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Send className="h-4 w-4" />
-                          )}
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Accepter
                         </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                        <span>Vos messages apparaîtront en bleu</span>
+                  )}
+
+                  {/* Proposer un autre prix */}
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <TrendingUp className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <Label className="text-blue-900 font-semibold">
+                          Proposer un autre prix
+                        </Label>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                        <span>Messages du client en blanc</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Paperclip className="h-2 w-2" />
-                        <span>Joignez des fichiers avec le trombone</span>
+                      <div className="flex gap-3">
+                        <Input
+                          type="number"
+                          value={proposedPrice}
+                          onChange={(e) => setProposedPrice(e.target.value)}
+                          placeholder="Montant en Ar"
+                          className="flex-1 rounded-xl border-blue-200 focus:border-blue-400"
+                        />
+                        <Button
+                          onClick={handleProposePrice}
+                          disabled={updating || !proposedPrice}
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6"
+                        >
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Proposer
+                        </Button>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Sidebar droite - TOUTES les autres sections */}
-        <div className="space-y-6">
-          {/* Statut et actions */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-3">
-                  <Badge className={statusColors[quote.status as keyof typeof statusColors]}>
-                    {statusLabels[quote.status as keyof typeof statusLabels]}
-                  </Badge>
-                  <span>Actions</span>
+                  {/* Rejeter */}
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={handleReject}
+                      disabled={updating}
+                      variant="destructive"
+                      className="rounded-xl"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Rejeter la proposition
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Article concerné */}
+            <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-slate-600" />
+                  Article concerné
                 </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2 flex-wrap">
-                {quote.status === 'PENDING' && (
-                  <Button
-                    onClick={() => handleUpdateStatus('NEGOTIATING')}
-                    disabled={sending}
-                    size="sm"
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    Prendre en charge
-                  </Button>
-                )}
-                {(quote.status === 'PENDING' || quote.status === 'NEGOTIATING') && (
-                  <Button
-                    onClick={() => handleUpdateStatus('REJECTED')}
-                    disabled={sending}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Rejeter
-                  </Button>
-                )}
-                {quote.status === 'PRICE_PROPOSED' && (
-                  <Button
-                    onClick={() => handleUpdateStatus('ACCEPTED')}
-                    disabled={sending}
-                    variant="default"
-                    size="sm"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Marquer comme accepté
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Informations client */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Informations client</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <User className="h-4 w-4 text-gray-500" />
-                  <div>
-                    <p className="font-medium">{quote.user.name || 'Nom non renseigné'}</p>
-                    <p className="text-sm text-gray-600">{quote.user.email}</p>
-                  </div>
-                </div>
-                
-                {quote.user.phone && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">Téléphone:</span>
-                    <span className="text-sm">{quote.user.phone}</span>
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <div>
-                    <p className="text-sm text-gray-600">
-                      Membre depuis {format(new Date(quote.createdAt), 'MMM yyyy', { locale: fr })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Service demandé */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Service demandé</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold text-lg">{quote.service.name}</h3>
-                  {quote.service.description && (
-                    <p className="text-gray-600 mt-1">{quote.service.description}</p>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Type de tarification:</span>
-                    <p className="text-gray-600">{quote.service.pricingType}</p>
-                  </div>
-                  {quote.service.price && (
-                    <div>
-                      <span className="font-medium">Prix de base:</span>
-                      <p className="text-gray-600"><PriceWithConversion price={quote.service.price} /></p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Demande initiale */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Demande initiale</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <span className="font-medium">Message:</span>
-                  <p className="text-gray-700 mt-1 whitespace-pre-wrap">{quote.description}</p>
-                </div>
-                
-                {quote.budget && (
-                  <div>
-                    <span className="font-medium">Budget indicatif:</span>
-                    <p className="text-gray-700 mt-1 font-semibold"><PriceWithConversion price={quote.budget} /></p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Résumé financier */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Résumé financier</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {quote.budget && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Budget client:</span>
-                    <span className="text-sm font-medium"><PriceWithConversion price={quote.budget} /></span>
-                  </div>
-                )}
-                
-                {quote.proposedPrice && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Prix proposé:</span>
-                    <span className="text-sm font-medium text-blue-600"><PriceWithConversion price={quote.proposedPrice} /></span>
-                  </div>
-                )}
-                
-                {quote.finalPrice && (
-                  <div className="flex justify-between border-t pt-3">
-                    <span className="text-sm font-medium">Prix final:</span>
-                    <span className="text-sm font-bold text-green-600"><PriceWithConversion price={quote.finalPrice} /></span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Proposition de prix */}
-          {(quote.status === 'PENDING' || quote.status === 'NEGOTIATING' || quote.status === 'PRICE_PROPOSED') && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Proposer un prix</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="proposedPrice">Prix proposé (Ar)</Label>
-                    <Input
-                      id="proposedPrice"
-                      type="number"
-                      value={proposedPrice}
-                      onChange={(e) => setProposedPrice(e.target.value)}
-                      placeholder="Entrez le prix proposé"
-                    />
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  {/* Image de l'article */}
+                  <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center">
+                    {quote.service ? (
+                      <Star className="h-8 w-8 text-slate-400" />
+                    ) : (
+                      <ShoppingBag className="h-8 w-8 text-slate-400" />
+                    )}
                   </div>
-                  <Button
-                    onClick={handleProposePrice}
-                    disabled={sending || !proposedPrice.trim()}
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Proposer ce prix
-                  </Button>
+                  
+                  {/* Détails de l'article */}
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="text-xs">
+                        {itemType}
+                      </Badge>
+                      <h3 className="text-lg font-semibold text-slate-900">{itemName}</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500">Prix de base</p>
+                        <p className="font-semibold text-slate-900">
+                          <PriceWithConversion price={basePrice} />
+                        </p>
+                      </div>
+                      {quote.proposedPrice && (
+                        <div>
+                          <p className="text-slate-500">Proposition client</p>
+                          <p className="font-semibold text-blue-600">
+                            <PriceWithConversion price={quote.proposedPrice} />
+                          </p>
+                        </div>
+                      )}
+                      {quote.finalPrice && (
+                        <div>
+                          <p className="text-slate-500">Prix final</p>
+                          <p className="font-semibold text-green-600">
+                            <PriceWithConversion price={quote.finalPrice} />
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div>
+                      <p className="text-sm text-slate-500 mb-2">Message du client</p>
+                      <p className="text-slate-700 bg-slate-50 p-3 rounded-lg">{quote.description}</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          )}
+
+            {/* Actions de proposition pour les devis de produits */}
+            {quote.negotiationType === 'PRODUCT_PRICE' && 
+             (quote.status === 'PENDING' || quote.status === 'NEGOTIATING') && (
+              <ProposalActions
+                quote={{
+                  id: quote.id,
+                  status: quote.status,
+                  proposedPrice: quote.proposedPrice,
+                  finalPrice: quote.finalPrice,
+                  negotiationType: quote.negotiationType,
+                  product: quote.product,
+                  service: quote.service
+                }}
+                onAction={handleProposalAction}
+              />
+            )}
+
+            {/* Conversation moderne type messagerie */}
+            <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-blue-500" />
+                  Conversation ({quote.messages.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {/* Zone de messages scrollable */}
+                <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-slate-50/50 to-white">
+                  {/* Carte enrichie du produit/service avec actions intégrées */}
+                  {(quote.negotiationType === 'PRODUCT_PRICE' || quote.negotiationType === 'PRODUCT_QUOTE') && 
+                   (quote.status === 'PENDING' || quote.status === 'NEGOTIATING') && (
+                    <EnhancedQuoteMessageCard
+                      quote={{
+                        id: quote.id,
+                        status: quote.status,
+                        proposedPrice: quote.proposedPrice,
+                        finalPrice: quote.finalPrice,
+                        negotiationType: quote.negotiationType,
+                        budget: quote.budget,
+                        description: quote.description,
+                        product: quote.product,
+                        service: quote.service,
+                        user: quote.user
+                      }}
+                      onAction={handleProposalAction}
+                      compact={true}
+                    />
+                  )}
+                  
+                  {quote.messages.map((message, index) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.isAdminReply ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[70%] ${message.isAdminReply ? 'order-2' : 'order-1'}`}>
+                        <div className={`flex items-start gap-3 ${message.isAdminReply ? 'flex-row-reverse' : 'flex-row'}`}>
+                          {/* Avatar */}
+                          <Avatar className="w-8 h-8 border-2 border-white shadow-sm">
+                            <AvatarFallback className={`text-xs font-medium ${
+                              message.isAdminReply 
+                                ? 'bg-blue-500 text-white' 
+                                : 'bg-slate-200 text-slate-600'
+                            }`}>
+                              {message.isAdminReply ? 'AD' : (message.sender.name?.[0] || 'U')}
+                            </AvatarFallback>
+                          </Avatar>
+                          
+                          {/* Message bubble */}
+                          <div className={`space-y-1 ${message.isAdminReply ? 'text-right' : 'text-left'}`}>
+                            <div className={`inline-block p-3 rounded-2xl shadow-sm ${
+                              message.isAdminReply
+                                ? 'bg-blue-500 text-white rounded-br-md'
+                                : 'bg-white border border-slate-200 text-slate-900 rounded-bl-md'
+                            }`}>
+                              <p className="text-sm leading-relaxed">{message.message}</p>
+                            </div>
+                            <div className={`flex items-center gap-2 text-xs text-slate-400 ${
+                              message.isAdminReply ? 'justify-end' : 'justify-start'
+                            }`}>
+                              <span className="font-medium">
+                                {message.sender.name || message.sender.email}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {format(new Date(message.createdAt), 'dd/MM à HH:mm')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Zone de saisie avancée avec emojis et fichiers */}
+                <div className="p-4 border-t border-slate-100 bg-white">
+                  <EnhancedMessageInput
+                    value={replyMessage}
+                    onChange={setReplyMessage}
+                    onSend={handleSendMessage}
+                    disabled={updating}
+                    placeholder="Tapez votre réponse... (Shift+Entrée pour nouvelle ligne)"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar - 1/4 */}
+          <div className="space-y-6">
+            {/* Informations client */}
+            <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <User className="h-5 w-5 text-indigo-500" />
+                  Client
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
+                    <AvatarFallback className="bg-indigo-100 text-indigo-600 font-semibold">
+                      {quote.user.name?.[0] || quote.user.email[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold text-slate-900">
+                      {quote.user.name || 'Client'}
+                    </p>
+                    <p className="text-sm text-slate-500">Particulier</p>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-slate-400" />
+                    <span className="text-slate-600">{quote.user.email}</span>
+                  </div>
+                  {quote.user.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-slate-400" />
+                      <span className="text-slate-600">{quote.user.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Résumé financier */}
+            <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-green-500" />
+                  Résumé financier
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Prix de base</span>
+                    <span className="font-semibold text-slate-900">
+                      <PriceWithConversion price={basePrice} />
+                    </span>
+                  </div>
+                  {quote.proposedPrice && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Proposition client</span>
+                      <span className="font-semibold text-blue-600">
+                        <PriceWithConversion price={quote.proposedPrice} />
+                      </span>
+                    </div>
+                  )}
+                  {quote.finalPrice && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-xl">
+                        <span className="font-semibold text-green-900">Prix final</span>
+                        <span className="font-bold text-green-600 text-lg">
+                          <PriceWithConversion price={quote.finalPrice} />
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Historique */}
+            <Card className="bg-white shadow-sm border-slate-200 rounded-2xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-amber-500" />
+                  Historique
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-3 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Créé le</span>
+                  <span className="font-medium text-slate-900">
+                    {format(new Date(quote.createdAt), 'dd/MM/yyyy')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Modifié le</span>
+                  <span className="font-medium text-slate-900">
+                    {format(new Date(quote.updatedAt), 'dd/MM/yyyy')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Messages</span>
+                  <span className="font-medium text-slate-900">
+                    {quote.messages.length}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
   )
-} 
+}

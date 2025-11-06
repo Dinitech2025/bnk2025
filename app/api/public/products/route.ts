@@ -49,6 +49,15 @@ export async function GET(request: NextRequest) {
           ...product,
           stock: totalStock,
           images: transformedImages,
+          // Inclure tous les champs de tarification pour les enchères et autres types
+          pricingType: product.pricingType || 'FIXED',
+          minPrice: product.minPrice,
+          maxPrice: product.maxPrice,
+          requiresQuote: product.requiresQuote,
+          autoAcceptNegotiation: product.autoAcceptNegotiation,
+          auctionEndDate: product.auctionEndDate,
+          minimumBid: product.minimumBid,
+          currentHighestBid: product.currentHighestBid,
           variations: undefined, // Supprimer les variations de la réponse publique
         }
         
@@ -145,6 +154,15 @@ export async function GET(request: NextRequest) {
         ...product,
         stock: totalStock, // Ajouter le stock total calculé
         images: transformedImages,
+        // Inclure tous les champs de tarification
+        pricingType: product.pricingType || 'FIXED',
+        minPrice: product.minPrice,
+        maxPrice: product.maxPrice,
+        requiresQuote: product.requiresQuote,
+        autoAcceptNegotiation: product.autoAcceptNegotiation,
+        auctionEndDate: product.auctionEndDate,
+        minimumBid: product.minimumBid,
+        currentHighestBid: product.currentHighestBid,
         // Garder aussi inventory pour compatibilité
         variations: undefined, // Supprimer les variations de la réponse publique
       }

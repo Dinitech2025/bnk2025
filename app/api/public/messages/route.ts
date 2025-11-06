@@ -47,15 +47,35 @@ export async function GET(request: NextRequest) {
         createdAt: true,
         clientEmail: true,
         clientName: true,
+        metadata: true,
+        fromUser: {
+          select: {
+            name: true,
+            role: true
+          }
+        }
       },
       orderBy: {
         sentAt: 'asc',
       },
     })
 
+    // Transformer les messages pour inclure les attachments
+    const transformedMessages = messages.map(msg => {
+      const metadata = msg.metadata as any
+      const attachments = metadata?.attachments || []
+      
+      return {
+        ...msg,
+        attachments,
+        isFromClient: msg.fromUserId !== msg.toUserId && msg.fromUser?.role !== 'ADMIN' && msg.fromUser?.role !== 'STAFF',
+        fromUser: msg.fromUser
+      }
+    })
+
     // Marquer les messages comme lus pour l'utilisateur connecté
     if (userId) {
-      const unreadMessages = messages.filter(m => m.toUserId === userId && m.status === 'UNREAD')
+      const unreadMessages = transformedMessages.filter(m => m.toUserId === userId && m.status === 'UNREAD')
       if (unreadMessages.length > 0) {
         await prisma.message.updateMany({
           where: {
@@ -71,7 +91,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ messages })
+    return NextResponse.json({ messages: transformedMessages })
   } catch (error) {
     console.error('Erreur lors de la récupération des messages:', error)
     return NextResponse.json(
@@ -84,22 +104,52 @@ export async function GET(request: NextRequest) {
 // POST - Envoyer un message depuis le site public
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const {
-      subject,
-      content,
-      clientEmail,
-      clientName,
-      type,
-      relatedOrderId,
-      relatedProductId,
-      relatedServiceId,
-    } = body
+    const contentType = request.headers.get('content-type') || ''
+    
+    let subject: string
+    let content: string
+    let clientEmail: string
+    let clientName: string | undefined
+    let type: string | undefined
+    let relatedOrderId: string | undefined
+    let relatedProductId: string | undefined
+    let relatedServiceId: string | undefined
+    let attachments: string[] = []
+
+    // Gérer FormData (avec fichiers) ou JSON
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      
+      subject = formData.get('subject') as string || ''
+      content = formData.get('content') as string || ''
+      clientEmail = formData.get('clientEmail') as string || ''
+      clientName = formData.get('clientName') as string || undefined
+      type = formData.get('type') as string || undefined
+      
+      // Traiter les fichiers
+      const fileEntries = Array.from(formData.entries()).filter(([key]) => key.startsWith('file_'))
+      attachments = fileEntries.map(([, file]) => {
+        if (file instanceof File) {
+          return file.name
+        }
+        return ''
+      }).filter(Boolean)
+    } else {
+      const body = await request.json()
+      subject = body.subject
+      content = body.content
+      clientEmail = body.clientEmail
+      clientName = body.clientName
+      type = body.type
+      relatedOrderId = body.relatedOrderId
+      relatedProductId = body.relatedProductId
+      relatedServiceId = body.relatedServiceId
+    }
 
     // Validation
-    if (!subject || !content || !clientEmail) {
+    if (!subject || (!content && attachments.length === 0) || !clientEmail) {
       return NextResponse.json(
-        { error: 'Sujet, contenu et email client requis' },
+        { error: 'Sujet, contenu/pièces jointes et email client requis' },
         { status: 400 }
       )
     }
@@ -136,7 +186,7 @@ export async function POST(request: NextRequest) {
     const message = await prisma.message.create({
       data: {
         subject,
-        content,
+        content: content || (attachments.length > 0 ? 'Fichier(s) joint(s)' : ''),
         type: type || 'GENERAL',
         priority: 'NORMAL',
         fromUserId: fromUserId || admin.id, // Si pas de client, admin envoie
@@ -150,6 +200,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           source: 'public_form',
           timestamp: new Date().toISOString(),
+          attachments: attachments.length > 0 ? attachments : undefined,
         },
       },
       select: {

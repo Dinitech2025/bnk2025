@@ -67,6 +67,12 @@ export async function POST(request: NextRequest) {
       exchangeRates[currencyCode] = parseFloat(setting.value || '1')
     })
 
+    // Valeurs par défaut si les taux sont manquants
+    if (!exchangeRates['EUR']) exchangeRates['EUR'] = 0.000196
+    if (!exchangeRates['USD']) exchangeRates['USD'] = 0.000214
+    if (!exchangeRates['GBP']) exchangeRates['GBP'] = 0.000168
+    if (!exchangeRates['MGA']) exchangeRates['MGA'] = 1
+
     console.log('💱 Taux de change:', exchangeRates)
 
     // Récupérer les paramètres de calcul depuis ImportCalculationSettings
@@ -86,12 +92,28 @@ export async function POST(request: NextRequest) {
       const mgaRate = exchangeRates['MGA'] || 1
       const fromRate = exchangeRates[fromCurrency] || 1
       
-      // Si MGA est le taux de base (1), convertir directement
-      if (mgaRate === 1) {
-        return amount / fromRate
+      if (!fromRate || fromRate === 0) {
+        console.error(`❌ Taux de change invalide pour ${fromCurrency} lors de la conversion en MGA`)
+        return 0
       }
       
-      return amount * (mgaRate / fromRate)
+      // Si MGA est le taux de base (1), convertir directement
+      // Les taux sont stockés comme "1 MGA = X devise", donc pour convertir de devise vers MGA: amount / rate
+      if (mgaRate === 1) {
+        const result = amount / fromRate
+        if (isNaN(result) || !isFinite(result)) {
+          console.error(`❌ Résultat de conversion invalide: ${amount} / ${fromRate} = ${result}`)
+          return 0
+        }
+        return result
+      }
+      
+      const result = amount * (mgaRate / fromRate)
+      if (isNaN(result) || !isFinite(result)) {
+        console.error(`❌ Résultat de conversion invalide: ${amount} * (${mgaRate} / ${fromRate}) = ${result}`)
+        return 0
+      }
+      return result
     }
 
     // Obtenir la configuration de l'entrepôt
@@ -104,8 +126,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Convertir le prix fournisseur en devise de l'entrepôt pour les calculs
-    const supplierPriceInWarehouseCurrency = supplierPrice * 
-      (exchangeRates[warehouseConfig.currency] / exchangeRates[supplierCurrency])
+    const supplierCurrencyRate = exchangeRates[supplierCurrency] || 1
+    const warehouseCurrencyRate = exchangeRates[warehouseConfig.currency] || 1
+    
+    if (!supplierCurrencyRate || supplierCurrencyRate === 0) {
+      console.error(`❌ Taux de change invalide pour ${supplierCurrency}`)
+      return new NextResponse(
+        JSON.stringify({ error: `Taux de change manquant pour ${supplierCurrency}` }),
+        { status: 400 }
+      )
+    }
+    
+    const supplierPriceInWarehouseCurrency = supplierPrice * (warehouseCurrencyRate / supplierCurrencyRate)
+    
+    console.log('💵 Conversion prix fournisseur:', {
+      supplierPrice,
+      supplierCurrency,
+      supplierCurrencyRate,
+      warehouseCurrency: warehouseConfig.currency,
+      warehouseCurrencyRate,
+      supplierPriceInWarehouseCurrency
+    })
 
     // Calculer le transport selon l'origine
     let transportRateInEUR = 0
@@ -127,7 +168,18 @@ export async function POST(request: NextRequest) {
     }
     
     // Convertir le taux de transport de EUR vers la devise de l'entrepôt
-    const transportRate = transportRateInEUR * (exchangeRates[warehouseConfig.currency] / exchangeRates['EUR'])
+    const eurRate = exchangeRates['EUR'] || 0.000196
+    const warehouseRate = exchangeRates[warehouseConfig.currency] || 1
+    
+    if (!eurRate || eurRate === 0) {
+      console.error('❌ Taux de change EUR invalide')
+      return new NextResponse(
+        JSON.stringify({ error: 'Taux de change EUR manquant' }),
+        { status: 400 }
+      )
+    }
+    
+    const transportRate = transportRateInEUR * (warehouseRate / eurRate)
     const transportCost = weight * transportRate
 
     console.log('🚚 Transport:', {
@@ -180,9 +232,54 @@ export async function POST(request: NextRequest) {
     const totalInMGA = convertToMGA(totalInWarehouseCurrency, warehouseConfig.currency)
 
     console.log('💵 Total:', {
+      supplierPriceInWarehouseCurrency,
+      transportCost,
+      commission,
+      processingFee,
+      tax,
       totalInWarehouseCurrency,
-      totalInMGA
+      totalInMGA,
+      warehouseCurrency: warehouseConfig.currency,
+      exchangeRate: exchangeRates[warehouseConfig.currency]
     })
+    
+    // Vérifier que le total n'est pas invalide
+    if (isNaN(totalInMGA) || !isFinite(totalInMGA)) {
+      console.error('❌ Erreur: Le total calculé est invalide:', {
+        supplierPriceInWarehouseCurrency,
+        transportCost,
+        commission,
+        processingFee,
+        tax,
+        totalInWarehouseCurrency,
+        totalInMGA,
+        warehouseCurrency: warehouseConfig.currency,
+        exchangeRates: {
+          MGA: exchangeRates['MGA'],
+          [warehouseConfig.currency]: exchangeRates[warehouseConfig.currency],
+          EUR: exchangeRates['EUR'],
+          USD: exchangeRates['USD']
+        }
+      })
+      return new NextResponse(
+        JSON.stringify({ error: 'Erreur lors du calcul du prix total. Vérifiez les taux de change.' }),
+        { status: 500 }
+      )
+    }
+    
+    // Vérifier que le total est raisonnablement positif (au moins le prix fournisseur devrait être converti)
+    if (totalInMGA <= 0 && supplierPrice > 0) {
+      console.error('❌ Erreur: Le total calculé est négatif ou nul alors que le prix fournisseur est positif:', {
+        supplierPrice,
+        supplierCurrency,
+        totalInMGA,
+        totalInWarehouseCurrency
+      })
+      return new NextResponse(
+        JSON.stringify({ error: 'Erreur lors du calcul du prix total. Le résultat est invalide.' }),
+        { status: 500 }
+      )
+    }
 
     // Déterminer le délai de livraison
     let transitTime = '2-4 semaines'

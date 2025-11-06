@@ -160,3 +160,8 @@ Le checkout est maintenant **COMPLET** et **FONCTIONNEL** avec :
 **Résultat :** ✅ **CHECKOUT AMÉLIORÉ AVEC SUCCÈS** 🎉
 
 
+
+
+
+
+

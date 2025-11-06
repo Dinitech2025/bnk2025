@@ -416,10 +416,7 @@ async function getOrders(page: number = 1, limit: number = 20): Promise<{
 
         // Addresses (si elles existent)
         billingAddress: order.billingAddress ? {
-          ...order.billingAddress,
-          // Convertir les dates si présentes
-          ...(order.billingAddress.createdAt && { createdAt: order.billingAddress.createdAt.toISOString() }),
-          ...(order.billingAddress.updatedAt && { updatedAt: order.billingAddress.updatedAt.toISOString() })
+          ...order.billingAddress
         } : null,
         
         shippingAddress: order.shippingAddress ? {

@@ -84,6 +84,7 @@ interface HeroBanner {
 interface Product {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
   price: number;
   compareAtPrice: number | null;
@@ -94,6 +95,15 @@ interface Product {
     id: string;
     name: string;
   };
+  // Champs de tarification
+  pricingType?: 'FIXED' | 'RANGE' | 'NEGOTIABLE' | 'QUOTE_REQUIRED' | 'AUCTION';
+  minPrice?: number;
+  maxPrice?: number;
+  requiresQuote?: boolean;
+  autoAcceptNegotiation?: boolean;
+  auctionEndDate?: Date | string;
+  minimumBid?: number;
+  currentHighestBid?: number;
 }
 
 interface Service {
@@ -330,10 +340,7 @@ export default function HomePage() {
               <QuoteRequestForm
                 service={selectedService}
                 onSuccess={handleQuoteSuccess}
-                onCancel={() => {
-                  setQuoteModalOpen(false)
-                  setSelectedService(null)
-                }}
+                onCancel={handleQuoteCancel}
               />
             </DialogContent>
           </Dialog>

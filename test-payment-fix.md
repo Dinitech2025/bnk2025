@@ -89,3 +89,8 @@ Choisissez votre mode de paiement :
 **Résultat :** PayPal et Carte bancaire maintenant visibles ! 🎉
 
 
+
+
+
+
+

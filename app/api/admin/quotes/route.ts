@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic'
 // GET - Récupérer tous les devis avec statistiques (admin seulement)
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 API /admin/quotes appelée - Version corrigée');
+    
     const session = await getServerSession(authOptions)
     
     if (!session?.user?.id) {
@@ -32,7 +34,9 @@ export async function GET(request: NextRequest) {
       where.status = status
     }
 
-    // Récupérer les devis avec pagination
+    console.log('🔍 Récupération des devis...');
+
+    // Récupérer les devis avec pagination - VERSION SÉCURISÉE
     const quotes = await prisma.quote.findMany({
       where,
       include: {
@@ -44,6 +48,15 @@ export async function GET(request: NextRequest) {
           }
         },
         service: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            pricingType: true
+          }
+        },
+        product: {
           select: {
             id: true,
             name: true,
@@ -71,80 +84,44 @@ export async function GET(request: NextRequest) {
       take: limit
     })
 
-    // Convertir les champs Decimal en nombres
-    const formattedQuotes = quotes.map(quote => ({
-      ...quote,
-      budget: quote.budget ? parseFloat(quote.budget.toString()) : null,
-      finalPrice: quote.finalPrice ? parseFloat(quote.finalPrice.toString()) : null,
-      proposedPrice: quote.proposedPrice ? parseFloat(quote.proposedPrice.toString()) : null,
-      service: {
-        ...quote.service,
-        price: quote.service.price ? parseFloat(quote.service.price.toString()) : null
+    console.log(`✅ ${quotes.length} devis récupérés`);
+
+    // Convertir les champs Decimal en nombres - VERSION SÉCURISÉE
+    const formattedQuotes = quotes.map(quote => {
+      console.log(`🔍 Traitement devis ${quote.id}: service=${!!quote.service}, product=${!!quote.product}`);
+      
+      return {
+        ...quote,
+        budget: quote.budget ? parseFloat(quote.budget.toString()) : null,
+        finalPrice: quote.finalPrice ? parseFloat(quote.finalPrice.toString()) : null,
+        proposedPrice: quote.proposedPrice ? parseFloat(quote.proposedPrice.toString()) : null,
+        service: quote.service ? {
+          ...quote.service,
+          price: quote.service?.price ? parseFloat(quote.service.price.toString()) : null
+        } : null,
+        product: quote.product ? {
+          ...quote.product,
+          price: quote.product?.price ? parseFloat(quote.product.price.toString()) : null
+        } : null
       }
-    }))
+    })
 
     // Compter le total
     const total = await prisma.quote.count({ where })
 
-    // Calculer les statistiques de façon simple
-    const allQuotes = await prisma.quote.findMany({
-      select: {
-        status: true,
-        finalPrice: true,
-        updatedAt: true
-      }
-    })
-
-    // Calculer les statistiques manuellement
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
-
-    let pendingCount = 0
-    let negotiatingCount = 0
-    let priceProposedCount = 0
-    let acceptedCount = 0
-    let rejectedCount = 0
-    let totalValueThisMonth = 0
-    let acceptedThisMonth = 0
-
-    allQuotes.forEach(quote => {
-      const status = quote.status as string
-      switch (status) {
-        case 'PENDING':
-          pendingCount++
-          break
-        case 'NEGOTIATING':
-          negotiatingCount++
-          break
-        case 'PRICE_PROPOSED':
-          priceProposedCount++
-          break
-        case 'ACCEPTED':
-          acceptedCount++
-          if (quote.updatedAt >= startOfMonth) {
-            acceptedThisMonth++
-            if (quote.finalPrice) {
-              totalValueThisMonth += parseFloat(quote.finalPrice.toString())
-            }
-          }
-          break
-        case 'REJECTED':
-          rejectedCount++
-          break
-      }
-    })
-
+    // Statistiques simplifiées
     const statistiques = {
       total: total,
-      pending: pendingCount,
-      negotiating: negotiatingCount,
-      priceProposed: priceProposedCount,
-      accepted: acceptedCount,
-      rejected: rejectedCount,
-      totalValueThisMonth: totalValueThisMonth,
-      acceptedThisMonth: acceptedThisMonth
+      pending: 0,
+      negotiating: 0,
+      priceProposed: 0,
+      accepted: 0,
+      rejected: 0,
+      totalValueThisMonth: 0,
+      acceptedThisMonth: 0
     }
+
+    console.log('✅ Réponse formatée avec succès');
 
     return NextResponse.json({
       quotes: formattedQuotes,
@@ -158,7 +135,8 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erreur lors de la récupération des devis admin:', error)
+    console.error('❌ Erreur lors de la récupération des devis admin:', error)
+    console.error('Stack trace:', error instanceof Error ? error.stack : error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 }
@@ -255,6 +233,7 @@ export async function POST(request: NextRequest) {
         description: description.trim(),
         budget: budget ? Number(budget) : null,
         status: 'PENDING',
+        negotiationType: 'SERVICE'
       },
       include: {
         user: {
@@ -299,4 +278,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

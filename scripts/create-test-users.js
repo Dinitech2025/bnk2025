@@ -1,86 +1,77 @@
-const { PrismaClient } = require('@prisma/client')
-const bcrypt = require('bcryptjs')
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function createTestUsers() {
-  console.log('🔧 Création des utilisateurs de test...\n')
-
   try {
-    // Vérifier si des utilisateurs existent déjà
-    const existingUsers = await prisma.user.count()
-    console.log(`📊 Nombre d'utilisateurs existants: ${existingUsers}`)
+    console.log('🔍 Création des utilisateurs de test...');
+    
+    const testUsers = [
+      {
+        email: 'admin@test.com',
+        password: 'test123',
+        firstName: 'Admin',
+        lastName: 'Test',
+        role: 'ADMIN'
+      },
+      {
+        email: 'staff@test.com',
+        password: 'test123',
+        firstName: 'Staff',
+        lastName: 'Test',
+        role: 'STAFF'
+      },
+      {
+        email: 'client@test.com',
+        password: 'test123',
+        firstName: 'Client',
+        lastName: 'Test',
+        role: 'CLIENT'
+      }
+    ];
 
-    // Créer un admin si aucun n'existe
-    const adminExists = await prisma.user.findFirst({
-      where: { role: 'ADMIN' }
-    })
+    for (const userData of testUsers) {
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await prisma.user.findUnique({
+        where: { email: userData.email }
+      });
 
-    let admin
-    if (!adminExists) {
-      console.log('\n👤 Création d\'un utilisateur ADMIN...')
-      const hashedPassword = await bcrypt.hash('Admin@2024', 10)
-      
-      admin = await prisma.user.create({
+      if (existingUser) {
+        console.log(`✅ Utilisateur ${userData.email} existe déjà`);
+        continue;
+      }
+
+      // Hasher le mot de passe
+      const hashedPassword = await bcrypt.hash(userData.password, 12);
+
+      // Créer l'utilisateur
+      const user = await prisma.user.create({
         data: {
-          email: 'admin@boutiknaka.com',
+          email: userData.email,
           password: hashedPassword,
-          name: 'Administrateur',
-          firstName: 'Admin',
-          lastName: 'BoutikNaka',
-          role: 'ADMIN',
-          emailVerified: new Date(),
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          role: userData.role,
+          emailVerified: new Date() // Marquer comme vérifié pour les tests
         }
-      })
-      console.log(`✅ Admin créé: ${admin.email} (ID: ${admin.id})`)
-      console.log(`   Mot de passe: Admin@2024`)
-    } else {
-      admin = adminExists
-      console.log(`\n✅ Admin existant: ${admin.email} (ID: ${admin.id})`)
+      });
+
+      console.log(`✅ Utilisateur créé: ${user.email} (${user.role})`);
     }
 
-    // Créer un client si aucun n'existe
-    const clientExists = await prisma.user.findFirst({
-      where: { role: 'CLIENT' }
-    })
-
-    let client
-    if (!clientExists) {
-      console.log('\n👤 Création d\'un utilisateur CLIENT...')
-      const hashedPassword = await bcrypt.hash('Client@2024', 10)
-      
-      client = await prisma.user.create({
-        data: {
-          email: 'client@test.com',
-          password: hashedPassword,
-          name: 'Client Test',
-          firstName: 'Client',
-          lastName: 'Test',
-          role: 'CLIENT',
-          emailVerified: new Date(),
-        }
-      })
-      console.log(`✅ Client créé: ${client.email} (ID: ${client.id})`)
-      console.log(`   Mot de passe: Client@2024`)
-    } else {
-      client = clientExists
-      console.log(`\n✅ Client existant: ${client.email} (ID: ${client.id})`)
-    }
-
-    console.log('\n✨ Utilisateurs de test prêts!')
-    console.log('\n📋 Résumé:')
-    console.log(`   Admin: ${admin.email} (ID: ${admin.id})`)
-    console.log(`   Client: ${client.email} (ID: ${client.id})`)
-
-    return { admin, client }
+    console.log('🎉 Tous les utilisateurs de test sont prêts !');
+    
+    console.log('\n📋 Identifiants de test:');
+    console.log('Admin: admin@test.com / test123');
+    console.log('Staff: staff@test.com / test123');
+    console.log('Client: client@test.com / test123');
 
   } catch (error) {
-    console.error('❌ Erreur lors de la création des utilisateurs:', error)
-    throw error
+    console.error('❌ Erreur lors de la création des utilisateurs:', error);
   } finally {
-    await prisma.$disconnect()
+    await prisma.$disconnect();
   }
 }
 
-createTestUsers()
-
+createTestUsers();

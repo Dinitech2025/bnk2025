@@ -234,3 +234,8 @@ Sélection checkout → Sauvegarde BDD → Affichage admin → Génération fact
 **Le système de livraison est maintenant aussi robuste que le système de paiement !** 🚚💪
 
 
+
+
+
+
+

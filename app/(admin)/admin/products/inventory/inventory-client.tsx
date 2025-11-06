@@ -261,6 +261,29 @@ export default function InventoryClient({ products: initialProducts, currencySet
     setSearchTerm('');
   };
 
+  const handleResetFilters = () => {
+    clearSearch();
+    setStatusFilter("all");
+    setCategoryFilter("all");
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  const handlePreviousPage = () => {
+    setCurrentPage(Math.max(1, currentPage - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(Math.min(totalPages, currentPage + 1));
+  };
+
+  const handlePageClick = (page: number) => {
+    setCurrentPage(page);
+  };
+
   const renderSortIcon = (field: SortField) => {
     if (sortField !== field) {
       return <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />;
@@ -301,7 +324,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
         <div className="flex flex-col sm:flex-row gap-2">
           <Select
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value)}
+            onValueChange={setStatusFilter}
           >
             <SelectTrigger className="w-full sm:w-[140px] h-7 sm:h-8 text-xs sm:text-sm">
               <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -317,7 +340,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
 
           <Select
             value={categoryFilter}
-            onValueChange={(value) => setCategoryFilter(value)}
+            onValueChange={setCategoryFilter}
           >
             <SelectTrigger className="w-full sm:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
               <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -343,15 +366,11 @@ export default function InventoryClient({ products: initialProducts, currencySet
                 {searchTerm || statusFilter !== "all" || categoryFilter !== "all" ? (
                   <>
                     Aucun produit ne correspond à vos critères
-                    <Button
-                      variant="link"
-                      onClick={() => {
-                        clearSearch();
-                        setStatusFilter("all");
-                        setCategoryFilter("all");
-                      }}
-                      className="ml-2"
-                    >
+                        <Button
+                          variant="link"
+                          onClick={handleResetFilters}
+                          className="ml-2"
+                        >
                       Réinitialiser les filtres
                     </Button>
                   </>
@@ -408,11 +427,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
                         Aucun produit ne correspond à vos critères
                         <Button
                           variant="link"
-                          onClick={() => {
-                            clearSearch();
-                            setStatusFilter("all");
-                            setCategoryFilter("all");
-                          }}
+                          onClick={handleResetFilters}
                           className="ml-2"
                         >
                           Réinitialiser les filtres
@@ -529,10 +544,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
           <div className="flex items-center space-x-2">
             <Select
               value={itemsPerPage.toString()}
-              onValueChange={(value) => {
-                setItemsPerPage(parseInt(value));
-                setCurrentPage(1);
-              }}
+              onValueChange={handleItemsPerPageChange}
             >
               <SelectTrigger className="w-[70px] h-8">
                 <SelectValue />
@@ -549,7 +561,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious 
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    onClick={handlePreviousPage}
                     className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                   />
                 </PaginationItem>
@@ -560,7 +572,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
                     return (
                       <PaginationItem key={page}>
                         <PaginationLink
-                          onClick={() => setCurrentPage(page)}
+                          onClick={() => handlePageClick(page)}
                           isActive={currentPage === page}
                           className="cursor-pointer"
                         >
@@ -579,7 +591,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
                   return (
                     <PaginationItem key={pageNumber}>
                       <PaginationLink
-                        onClick={() => setCurrentPage(pageNumber)}
+                        onClick={() => handlePageClick(pageNumber)}
                         isActive={currentPage === pageNumber}
                         className="cursor-pointer"
                       >
@@ -591,7 +603,7 @@ export default function InventoryClient({ products: initialProducts, currencySet
                 
                 <PaginationItem>
                   <PaginationNext 
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    onClick={handleNextPage}
                     className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                   />
                 </PaginationItem>
