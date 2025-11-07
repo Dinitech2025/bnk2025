@@ -113,3 +113,4 @@ components/auth-backup/
 # Fichiers debug HTML
 public/debug-*.html
 debug-*.html
+nul

@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { useCart } from '@/lib/hooks/use-cart'
+import { ProductCardEnhanced } from '@/components/products/product-card-enhanced'
 
 interface ProductImage {
   url: string;
@@ -27,12 +28,22 @@ interface ProductCategory {
 interface Product {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
   price: number;
   stock: number;
   inventory: number;
   images: ProductImage[];
   category: ProductCategory;
+  // Champs de tarification
+  pricingType?: 'FIXED' | 'RANGE' | 'NEGOTIABLE' | 'QUOTE_REQUIRED' | 'AUCTION';
+  minPrice?: number;
+  maxPrice?: number;
+  requiresQuote?: boolean;
+  autoAcceptNegotiation?: boolean;
+  auctionEndDate?: Date | string | null;
+  minimumBid?: number | null;
+  currentHighestBid?: number | null;
 }
 
 async function getProducts(): Promise<Product[]> {
@@ -355,90 +366,30 @@ function ProductsContent() {
           }>
             {currentProducts.map((product) => (
               viewMode === 'grid' ? (
-                <Card key={product.id} className="group overflow-hidden flex flex-col hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 bg-white">
-                  <CardHeader className="p-0 relative">
-                    <Link href={`/products/${product.id}`}>
-                      <div className="relative w-full aspect-square overflow-hidden">
-                        <Image
-                          src={product.images?.[0]?.url || '/placeholder-image.svg'}
-                          alt={product.name}
-                          fill
-                          className="object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        
-                        {/* Boutons overlay modernes */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-10 w-10 p-0 bg-white/95 hover:bg-white shadow-xl backdrop-blur-sm border-0 rounded-full"
-                              asChild
-                            >
-                              <Link href={`/products/${product.id}`}>
-                                <Eye className="h-4 w-4 text-gray-700" />
-                              </Link>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                addToCart(product)
-                              }}
-                              disabled={product.stock <= 0}
-                              className="h-10 w-10 p-0 shadow-xl border-0 rounded-full"
-                            >
-                              <ShoppingCart className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                toggleFavorite(product.id)
-                              }}
-                              className={`h-10 w-10 p-0 shadow-xl border-0 rounded-full ${
-                                favorites.includes(product.id) 
-                                  ? 'bg-red-500 hover:bg-red-600 text-white' 
-                                  : 'bg-white/95 hover:bg-white text-gray-700'
-                              }`}
-                            >
-                              <Heart className={`h-4 w-4 ${favorites.includes(product.id) ? 'fill-current' : ''}`} />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  </CardHeader>
-                  <CardContent className="p-4 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-                        {product.category.name}
-                      </Badge>
-                      <div className="flex items-center text-xs">
-                        {product.stock > 0 ? (
-                          <div className="flex items-center text-green-600">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                            Disponible en stock
-                          </div>
-                        ) : (
-                          <div className="flex items-center text-orange-600">
-                            <div className="w-2 h-2 bg-orange-500 rounded-full mr-1"></div>
-                            Disponible en commande
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <h3 className="font-medium text-sm mb-2 text-gray-900 line-clamp-2 leading-tight">
-                      {product.name}
-                    </h3>
-                    <div className="text-base font-semibold text-primary">
-                      <PriceWithConversion price={Number(product.price)} />
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProductCardEnhanced
+                  key={product.id}
+                  product={{
+                    id: product.id,
+                    name: product.name,
+                    slug: product.slug || product.id,
+                    price: Number(product.price),
+                    compareAtPrice: undefined,
+                    inventory: product.stock,
+                    images: product.images.map(img => ({ url: img.url, alt: product.name })),
+                    pricingType: product.pricingType || 'FIXED',
+                    minPrice: product.minPrice ? Number(product.minPrice) : undefined,
+                    maxPrice: product.maxPrice ? Number(product.maxPrice) : undefined,
+                    requiresQuote: product.requiresQuote,
+                    auctionEndDate: product.auctionEndDate,
+                    currentHighestBid: product.currentHighestBid ? Number(product.currentHighestBid) : undefined,
+                    minimumBid: product.minimumBid ? Number(product.minimumBid) : undefined
+                  }}
+                  isFavorite={favorites.includes(product.id)}
+                  onToggleFavorite={() => handleToggleFavoriteProduct(product.id)}
+                  onAddToCart={() => handleAddToCartProduct(product)}
+                  compact={true}
+                  showStock={true}
+                />
               ) : (
                 <Card key={product.id} className="flex flex-row overflow-hidden hover:shadow-lg transition-all duration-300 border-0 shadow-md bg-white">
                   <div className="relative w-32 h-32 flex-shrink-0">

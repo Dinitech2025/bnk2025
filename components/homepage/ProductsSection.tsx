@@ -8,6 +8,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Eye, ShoppingCart, Heart, Star }
 import Image from 'next/image'
 import Link from 'next/link'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
+import { ProductCardEnhanced } from '@/components/products/product-card-enhanced'
 
 interface ProductImage {
   url: string;
@@ -41,6 +42,14 @@ export default function ProductsSection({
   onAddToCart, 
   onToggleFavorite 
 }: ProductsSectionProps) {
+  
+  const handleToggleFavorite = (productId: string) => {
+    onToggleFavorite(productId)
+  }
+
+  const handleAddToCart = (product: any) => {
+    onAddToCart(product)
+  }
   const [productSlide, setProductSlide] = useState(0)
 
   const nextSlide = () => {
@@ -131,101 +140,30 @@ export default function ProductsSection({
       <div className="relative px-4 pb-8">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {products.slice(productSlide, productSlide + 10).map((product) => (
-          <Card key={product.id} className="group overflow-hidden flex flex-col h-full hover:shadow-xl transition-all duration-300 border-0 shadow-md hover:-translate-y-1 bg-white">
-            <CardHeader className="p-0 relative">
-              <Link href={`/products/${product.id}`}>
-                <div className="relative w-full aspect-square overflow-hidden">
-                  <Image
-                    src={product.images?.[0]?.url || '/placeholder-image.svg'}
-                    alt={product.name}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
-                  {/* Boutons overlay - Plus compacts */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <div className="flex space-x-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 w-8 p-0 bg-white/95 hover:bg-white shadow-lg backdrop-blur-sm border-0 rounded-full"
-                        asChild
-                      >
-                        <Link href={`/products/${product.id}`}>
-                          <Eye className="h-3 w-3 text-gray-700" />
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          onAddToCart(product)
-                        }}
-                        disabled={product.inventory <= 0}
-                        className="h-8 w-8 p-0 shadow-lg border-0 rounded-full"
-                      >
-                        <ShoppingCart className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          onToggleFavorite(product.id)
-                        }}
-                        className={`h-8 w-8 p-0 shadow-lg border-0 rounded-full transition-all ${
-                          favorites.includes(product.id) 
-                            ? 'bg-red-500 hover:bg-red-600 text-white' 
-                            : 'bg-white/95 hover:bg-white text-gray-700'
-                        }`}
-                      >
-                        <Heart className={`h-3 w-3 ${favorites.includes(product.id) ? 'fill-current' : ''}`} />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </CardHeader>
-            <CardContent className="p-2 flex flex-col flex-grow">
-              {/* Badge de catégorie */}
-              <div className="mb-1">
-                <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 border-blue-200 font-medium">
-                  {product.category.name}
-                </Badge>
-              </div>
-              
-              {/* Indicateur de stock */}
-              <div className="mb-1">
-                {product.inventory > 0 ? (
-                  <div className="flex items-center text-green-600 text-xs font-medium">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></div>
-                    En stock
-                  </div>
-                ) : (
-                  <div className="flex items-center text-orange-600 text-xs font-medium">
-                    <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1"></div>
-                    Sur commande
-                  </div>
-                )}
-              </div>
-              
-              {/* Nom du produit */}
-              <Link href={`/products/${product.id}`}>
-                <h3 className="font-medium text-sm mb-1 line-clamp-2 hover:text-primary transition-colors leading-tight text-gray-900">
-                  {product.name}
-                </h3>
-              </Link>
-              
-              {/* Prix */}
-              <div className="mt-auto">
-                <span className="text-sm font-semibold text-blue-600">
-                  <PriceWithConversion price={Number(product.price)} />
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+            <ProductCardEnhanced
+              key={product.id}
+              product={{
+                id: product.id,
+                name: product.name,
+                slug: product.slug,
+                price: Number(product.price),
+                compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : undefined,
+                inventory: product.inventory,
+                images: product.images,
+                pricingType: product.pricingType || 'FIXED',
+                minPrice: product.minPrice ? Number(product.minPrice) : undefined,
+                maxPrice: product.maxPrice ? Number(product.maxPrice) : undefined,
+                requiresQuote: product.requiresQuote,
+                auctionEndDate: product.auctionEndDate,
+                currentHighestBid: product.currentHighestBid ? Number(product.currentHighestBid) : undefined,
+                minimumBid: product.minimumBid ? Number(product.minimumBid) : undefined
+              }}
+              isFavorite={favorites?.includes(product.id)}
+              onToggleFavorite={() => handleToggleFavorite(product.id)}
+              onAddToCart={() => handleAddToCart(product)}
+              compact={true}
+              showStock={true}
+            />
           ))}
         </div>
       </div>

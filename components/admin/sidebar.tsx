@@ -34,7 +34,8 @@ import {
   BarChart3,
   RotateCcw,
   CheckSquare,
-  MessageCircle
+  MessageCircle,
+  Gavel
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -79,6 +80,7 @@ const adminNavItems: NavItem[] = [
       { title: 'Catalogue', href: '/admin/products' },
       { title: 'Catégories', href: '/admin/products/categories' },
       { title: 'Inventaire', href: '/admin/products/inventory' },
+      { title: 'Enchères', href: '/admin/auctions' },
     ]
   },
   {
@@ -183,7 +185,7 @@ function AdminSidebar() {
       ? 'Streaming' 
       : pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/payment-methods') || pathname.startsWith('/admin/delivery-settings')
         ? 'Paramètres'
-        : pathname.startsWith('/admin/products')
+        : pathname.startsWith('/admin/products') || pathname.startsWith('/admin/auctions')
           ? 'Produits'
           : pathname.startsWith('/admin/services')
             ? 'Services'
@@ -247,7 +249,7 @@ function AdminSidebar() {
                       className={cn(
                         'flex items-center justify-between w-full gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                         (pathname.startsWith(`/admin/streaming`) && item.title === 'Streaming') ||
-                        (pathname.startsWith(`/admin/products`) && item.title === 'Produits') ||
+                        ((pathname.startsWith(`/admin/products`) || pathname.startsWith(`/admin/auctions`)) && item.title === 'Produits') ||
                         (pathname.startsWith(`/admin/services`) && item.title === 'Services') ||
                         ((pathname.startsWith(`/admin/settings`) || pathname.startsWith(`/admin/payment-methods`) || pathname.startsWith(`/admin/delivery-settings`)) && item.title === 'Paramètres')
                           ? 'bg-slate-800 text-white'

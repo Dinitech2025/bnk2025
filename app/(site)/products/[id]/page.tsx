@@ -13,6 +13,9 @@ import { toast } from '@/components/ui/use-toast'
 import { PriceWithConversion } from '@/components/ui/currency-selector'
 import { SimilarProductsGrid } from '@/components/cards/similar-products-grid'
 import { useCart } from '@/lib/hooks/use-cart'
+import { ProductPricingSelector } from '@/components/products/product-pricing-selector'
+import { ProductAuction } from '@/components/products/product-auction'
+import { ProductImageSlider } from '@/components/products/product-image-slider'
 
 interface ProductMedia {
   url: string;
@@ -34,6 +37,14 @@ interface Product {
   stock: number;
   images: ProductMedia[]; // Maintenant ça peut être des images ou vidéos
   category: ProductCategory;
+  pricingType?: 'FIXED' | 'RANGE' | 'NEGOTIABLE' | 'QUOTE_REQUIRED' | 'AUCTION';
+  minPrice?: number;
+  maxPrice?: number;
+  requiresQuote?: boolean;
+  autoAcceptNegotiation?: boolean;
+  auctionEndDate?: Date | string | null;
+  minimumBid?: number | null;
+  currentHighestBid?: number | null;
 }
 
 export default function ProductDetailPage() {
@@ -64,6 +75,13 @@ export default function ProductDetailPage() {
             alt: img.alt,
             thumbnail: img.thumbnail
           }))
+        } else {
+          // S'assurer qu'il y a au moins un placeholder
+          foundProduct.images = [{
+            url: '/placeholder-image.svg',
+            type: 'image',
+            alt: foundProduct.name
+          }]
         }
         
         setProduct(foundProduct)
@@ -109,6 +127,40 @@ export default function ProductDetailPage() {
       toast({
         title: "Erreur",
         description: "Impossible d'ajouter le produit au panier.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handlePlaceBid = async (amount: number, message?: string) => {
+    try {
+      console.log('Offre placée:', { amount, message })
+      toast({
+        title: "Offre placée !",
+        description: `Votre offre de ${amount.toLocaleString()} Ar a été enregistrée`,
+      })
+    } catch (error) {
+      console.error('Erreur lors du placement de l\'offre:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de placer votre offre.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleRequestQuote = async (proposedPrice?: number, message?: string) => {
+    try {
+      console.log('Demande de devis:', { proposedPrice, message })
+      toast({
+        title: "Demande de devis envoyée",
+        description: "Votre demande a été envoyée avec succès",
+      })
+    } catch (error) {
+      console.error('Erreur lors de la demande de devis:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'envoyer votre demande.",
         variant: "destructive",
       })
     }
@@ -228,107 +280,98 @@ export default function ProductDetailPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Galerie médias (images + vidéos) */}
-        <div className="space-y-4">
-          <div className="relative aspect-square w-full overflow-hidden rounded-lg border bg-gray-100">
-            {renderMainMedia()}
-          </div>
-          
-          {product.images && product.images.length > 1 && (
-            <div className="flex space-x-2 overflow-x-auto pb-2">
-              {product.images.map((media, index) => renderMediaThumbnail(media, index))}
-            </div>
-          )}
-
-          {/* Indicateur du type de média actuel */}
-          {product.images && product.images.length > 0 && (
-            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-              <span>{selectedMediaIndex + 1} / {product.images.length}</span>
-              <span>•</span>
-              <span className="flex items-center space-x-1">
-                {product.images[selectedMediaIndex]?.type === 'video' ? (
-                  <>
-                    <Play className="h-4 w-4" />
-                    <span>Vidéo</span>
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className="h-4 w-4" />
-                    <span>Image</span>
-                  </>
-                )}
-              </span>
-            </div>
-          )}
+        {/* Galerie d'images avec slider */}
+        <div>
+          <ProductImageSlider
+            images={product.images || []}
+            productName={product.name}
+            showThumbnails={true}
+            showZoom={true}
+            showFavorite={false}
+          />
         </div>
 
         {/* Informations produit */}
         <div className="space-y-6">
-          <div>
-            <Badge variant="secondary" className="mb-2">
-              {product.category.name}
-            </Badge>
-            <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
-            <div className="text-3xl font-bold text-primary mb-4">
-              <PriceWithConversion price={Number(product.price)} />
-            </div>
+                <div>
+                  {product.category && (
+                    <Badge variant="secondary" className="mb-2">
+                      {product.category.name}
+                    </Badge>
+                  )}
+                  <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
+            
+            {/* Affichage du prix selon le type */}
+            {product.pricingType === 'QUOTE_REQUIRED' ? (
+              <div className="text-2xl font-bold text-purple-600 mb-4">
+                Prix sur devis uniquement
+              </div>
+            ) : product.pricingType === 'AUCTION' ? (
+              <div className="text-2xl font-bold text-orange-600 mb-4">
+                Enchère en cours
+              </div>
+            ) : product.pricingType === 'RANGE' && product.minPrice && product.maxPrice ? (
+              <div className="text-2xl font-bold text-blue-600 mb-4">
+                {product.minPrice.toLocaleString()} - {product.maxPrice.toLocaleString()} Ar
+              </div>
+            ) : product.pricingType === 'NEGOTIABLE' ? (
+              <div className="text-3xl font-bold text-primary mb-4 flex items-center gap-2">
+                <PriceWithConversion price={Number(product.price)} />
+                <Badge variant="secondary" className="text-sm">Négociable</Badge>
+              </div>
+            ) : (
+              <div className="text-3xl font-bold text-primary mb-4">
+                <PriceWithConversion price={Number(product.price)} />
+              </div>
+            )}
           </div>
 
+          {/* Options d'achat - AVANT la description */}
+          <div className="border-t border-b py-6">
+            {product.pricingType === 'AUCTION' ? (
+              <ProductAuction
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  currentHighestBid: product.currentHighestBid,
+                  minimumBid: product.minimumBid,
+                  auctionEndDate: product.auctionEndDate
+                }}
+                onPlaceBid={handlePlaceBid}
+                loading={cartLoading}
+              />
+            ) : (
+              <ProductPricingSelector
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  pricingType: (product.pricingType || 'FIXED') as any,
+                  inventory: product.stock,
+                  minPrice: product.minPrice,
+                  maxPrice: product.maxPrice,
+                  requiresQuote: product.requiresQuote || false,
+                  autoAcceptNegotiation: product.autoAcceptNegotiation || false,
+                  auctionEndDate: product.auctionEndDate,
+                  minimumBid: product.minimumBid,
+                  currentHighestBid: product.currentHighestBid
+                }}
+                quantity={quantity}
+                onAddToCart={addToCart}
+                onRequestQuote={handleRequestQuote}
+                loading={cartLoading}
+                hidePrice={true}
+              />
+            )}
+          </div>
+
+          {/* Description - APRÈS les options d'achat */}
           {product.description && (
-            <div>
+            <div className="pt-4 pb-6">
               <h3 className="text-lg font-semibold mb-2">Description</h3>
-              <p className="text-gray-700 leading-relaxed">{product.description}</p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{product.description}</p>
             </div>
           )}
-
-          <div className="border-t pt-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <span className="text-sm font-medium">Quantité:</span>
-                <div className="flex items-center border rounded-md">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="px-4 py-2 min-w-[3rem] text-center">{quantity}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setQuantity(quantity + 1)}
-                    disabled={product.stock > 0 && quantity >= product.stock}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {product.stock > 0 ? (
-                <p className="text-sm text-green-600 font-medium flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                  Disponible en stock
-                </p>
-              ) : (
-                <p className="text-sm text-orange-600 font-medium flex items-center">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
-                  Disponible en commande
-                </p>
-              )}
-
-              <Button 
-                onClick={addToCart} 
-                className="w-full h-12 text-lg"
-                disabled={product.stock <= 0 || cartLoading}
-                variant="danger"
-              >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                {cartLoading ? 'Ajout en cours...' : 'Ajouter au panier'}
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
 

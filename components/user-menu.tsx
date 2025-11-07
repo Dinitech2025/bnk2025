@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { AuthModal } from '@/components/auth/auth-modal'
-import { MessageSquare, User, ShoppingBag, MapPin, LogOut, Settings } from 'lucide-react'
+import { MessageSquare, User, ShoppingBag, MapPin, LogOut, Settings, Gavel, TrendingUp, Mail } from 'lucide-react'
 
 export function UserMenu() {
   const { data: session } = useSession()
@@ -102,15 +103,48 @@ export function UserMenu() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/profile">Mon profil</Link>
+          <Link href="/profile">
+            <User className="h-4 w-4 mr-2" />
+            Mon profil
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/profile?tab=orders">Mes commandes</Link>
+          <Link href="/profile/my-bids">
+            <Gavel className="h-4 w-4 mr-2" />
+            Mes enchères
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/profile/quotes">
+          <Link href="/profile/my-proposals">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Mes propositions
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/profile/my-quotes">
             <MessageSquare className="h-4 w-4 mr-2" />
-            Mes demandes de devis
+            Mes devis
+          </Link>
+        </DropdownMenuItem>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuItem asChild>
+                <Link href="/profile/messages">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Messages
+                </Link>
+              </DropdownMenuItem>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              <p>Conversations avec l'équipe</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <DropdownMenuItem asChild>
+          <Link href="/cart">
+            <ShoppingBag className="h-4 w-4 mr-2" />
+            Mon panier
           </Link>
         </DropdownMenuItem>
         {(session.user.role === 'ADMIN' || session.user.role === 'STAFF') && (

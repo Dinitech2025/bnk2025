@@ -57,13 +57,16 @@ export async function POST(
       }
     })
 
-    // Mettre à jour le statut du devis si nécessaire
+    // Mettre à jour le devis pour que updatedAt soit mis à jour (et donc remonter dans la liste)
+    const updateData: any = {}
     if (quote.status === 'PENDING') {
-      await prisma.quote.update({
-        where: { id: params.id },
-        data: { status: 'NEGOTIATING' }
-      })
+      updateData.status = 'NEGOTIATING'
     }
+    // Toujours mettre à jour pour que updatedAt soit rafraîchi
+    await prisma.quote.update({
+      where: { id: params.id },
+      data: updateData
+    })
 
     // Si un prix est proposé, mettre à jour le devis
     if (proposedPrice && Number(proposedPrice) > 0) {

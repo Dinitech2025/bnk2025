@@ -40,7 +40,31 @@ export async function GET(
             slug: true,
             price: true,
             pricingType: true,
-            description: true
+            description: true,
+            images: {
+              select: {
+                path: true,
+                alt: true
+              },
+              take: 1
+            }
+          }
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            pricingType: true,
+            description: true,
+            images: {
+              select: {
+                path: true,
+                alt: true
+              },
+              take: 1
+            }
           }
         },
         messages: {
@@ -65,16 +89,28 @@ export async function GET(
       return NextResponse.json({ error: 'Devis non trouvé' }, { status: 404 })
     }
 
-    // Convertir les champs Decimal en nombres
+    // Convertir les champs Decimal en nombres - VERSION SÉCURISÉE
     const formattedQuote = {
       ...quote,
       budget: quote.budget ? parseFloat(quote.budget.toString()) : null,
       finalPrice: quote.finalPrice ? parseFloat(quote.finalPrice.toString()) : null,
       proposedPrice: quote.proposedPrice ? parseFloat(quote.proposedPrice.toString()) : null,
-      service: {
+      service: quote.service ? {
         ...quote.service,
         price: quote.service.price ? parseFloat(quote.service.price.toString()) : null
-      }
+      } : null,
+      product: quote.product ? {
+        ...quote.product,
+        price: quote.product.price ? parseFloat(quote.product.price.toString()) : null
+      } : null,
+      messages: quote.messages.map(message => ({
+        id: message.id,
+        message: message.message,
+        attachments: message.attachments,
+        createdAt: message.createdAt,
+        isAdminReply: message.sender.role === 'ADMIN' || message.sender.role === 'STAFF',
+        sender: message.sender
+      }))
     }
 
     return NextResponse.json(formattedQuote)
@@ -153,7 +189,31 @@ export async function PATCH(
             slug: true,
             price: true,
             pricingType: true,
-            description: true
+            description: true,
+            images: {
+              select: {
+                path: true,
+                alt: true
+              },
+              take: 1
+            }
+          }
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            pricingType: true,
+            description: true,
+            images: {
+              select: {
+                path: true,
+                alt: true
+              },
+              take: 1
+            }
           }
         },
         messages: {
@@ -174,16 +234,20 @@ export async function PATCH(
       }
     })
 
-    // Convertir les champs Decimal en nombres
+    // Convertir les champs Decimal en nombres - VERSION SÉCURISÉE
     const formattedQuote = {
       ...updatedQuote,
       budget: updatedQuote.budget ? parseFloat(updatedQuote.budget.toString()) : null,
       finalPrice: updatedQuote.finalPrice ? parseFloat(updatedQuote.finalPrice.toString()) : null,
       proposedPrice: updatedQuote.proposedPrice ? parseFloat(updatedQuote.proposedPrice.toString()) : null,
-      service: {
+      service: updatedQuote.service ? {
         ...updatedQuote.service,
         price: updatedQuote.service.price ? parseFloat(updatedQuote.service.price.toString()) : null
-      },
+      } : null,
+      product: updatedQuote.product ? {
+        ...updatedQuote.product,
+        price: updatedQuote.product.price ? parseFloat(updatedQuote.product.price.toString()) : null
+      } : null,
       messages: updatedQuote.messages.map(message => ({
         id: message.id,
         message: message.message,

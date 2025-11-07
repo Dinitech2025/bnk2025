@@ -16,6 +16,8 @@ interface Quote {
   description: string
   budget: number | null
   finalPrice: number | null
+  proposedPrice: number | null
+  negotiationType: string
   createdAt: string
   updatedAt: string
   user: {
@@ -29,7 +31,14 @@ interface Quote {
     slug: string
     price: number | null
     pricingType: string
-  }
+  } | null
+  product: {
+    id: string
+    name: string
+    slug: string
+    price: number | null
+    pricingType: string
+  } | null
   messages: Array<{
     id: string
     message: string
@@ -277,7 +286,12 @@ export default function AdminQuotesPage() {
                         </span>
                       </div>
                       
-                      <h3 className="font-semibold text-lg mb-1">{safeString(quote.service?.name)}</h3>
+                      <h3 className="font-semibold text-lg mb-1">
+                        {safeString(quote.service?.name || quote.product?.name)}
+                        <span className="ml-2 text-sm font-normal text-gray-500">
+                          ({quote.service ? 'Service' : 'Produit'})
+                        </span>
+                      </h3>
                       
                       <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
                         <div className="flex items-center gap-1">
@@ -298,10 +312,20 @@ export default function AdminQuotesPage() {
                             Budget: <span className="font-semibold"><PriceWithConversion price={safeNumber(quote.budget)} /></span>
                           </span>
                         )}
+                        {quote.proposedPrice && (
+                          <span className="text-blue-600">
+                            Prix proposé: <span className="font-semibold"><PriceWithConversion price={safeNumber(quote.proposedPrice)} /></span>
+                          </span>
+                        )}
                         {quote.finalPrice && (
                           <span className="text-green-600">
                             Prix final: <span className="font-semibold"><PriceWithConversion price={safeNumber(quote.finalPrice)} /></span>
                           </span>
+                        )}
+                        {quote.negotiationType && quote.negotiationType === 'PRODUCT_PRICE' && (
+                          <Badge variant="outline" className="text-xs">
+                            Négociation produit
+                          </Badge>
                         )}
                       </div>
                     </div>

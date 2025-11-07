@@ -13,6 +13,17 @@ export const metadata: Metadata = {
 };
 
 export default async function NewOrderPage() {
+  // Trouver d'abord la catégorie "Produits importés"
+  const importedCategory = await prisma.productCategory.findFirst({
+    where: { 
+      OR: [
+        { name: 'Produits importés' },
+        { slug: 'produits-importes' }
+      ]
+    },
+    select: { id: true }
+  });
+
   // Récupérer les données nécessaires (temps réel, sans cache)
   const [users, products, services, offers, paymentMethods, deliveryMethods] = await Promise.all([
     prisma.user.findMany({
@@ -44,7 +55,12 @@ export default async function NewOrderPage() {
       }
     }),
     prisma.product.findMany({
-      where: { published: true },
+      where: {
+        OR: [
+          { published: true },
+          ...(importedCategory ? [{ categoryId: importedCategory.id }] : [])
+        ]
+      },
       select: {
         id: true,
         name: true,
